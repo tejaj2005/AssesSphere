@@ -1,0 +1,123 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light — Industrial Precision (brand-blue + slate surfaces) */
+    --background: 210 40% 98%;            /* surface-secondary #F8FAFC */
+    --foreground: 222 47% 11%;            /* ink #0F172A */
+    --card: 0 0% 100%;                    /* surface */
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;               /* brand-600 #2563EB */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 20% 94%;             /* surface-tertiary */
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;      /* ink-secondary */
+    --accent: 217 91% 60%;                /* brand-500 #3B82F6 */
+    --accent-foreground: 0 0% 100%;
+    --gold: 38 92% 50%;
+    --gold-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;             /* status-red-600 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;                /* surface-muted #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --success: 160 84% 39%;               /* status-green-500 */
+    --success-bg: 152 76% 96%;
+    --warning: 38 92% 50%;
+    --warning-bg: 48 96% 95%;
+    --danger: 0 72% 51%;
+    --danger-bg: 0 86% 97%;
+    --sidebar-bg: 222 47% 8%;             /* nav-bg #0B1120 */
+    --sidebar-hover: 222 35% 13%;         /* nav-surface */
+    --sidebar-active: 218 41% 19%;        /* nav-active */
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+    --card: 222 40% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 35% 17%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 35% 14%;
+    --muted-foreground: 215 16% 62%;
+    --accent: 217 91% 64%;
+    --accent-foreground: 0 0% 100%;
+    --gold: 38 92% 60%;
+    --gold-foreground: 222 47% 11%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 35% 20%;
+    --input: 217 35% 22%;
+    --ring: 217 91% 60%;
+    --success: 160 84% 50%;
+    --success-bg: 160 30% 14%;
+    --warning: 38 92% 58%;
+    --warning-bg: 38 30% 14%;
+    --danger: 0 72% 56%;
+    --danger-bg: 0 30% 14%;
+    --sidebar-bg: 222 47% 5%;
+    --sidebar-hover: 222 40% 10%;
+    --sidebar-active: 218 41% 16%;
+  }
+
+  * { @apply border-border; }
+  html { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: 'cv02','cv03','cv04','cv11','ss01';
+    text-rendering: optimizeLegibility;
+  }
+  /* Tabular numerals for any element with the .tabular-nums class — table data, KPIs */
+  .tabular-nums { font-variant-numeric: tabular-nums; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+
+  html, body, [class*="bg-"], [class*="border-"], [class*="text-"] {
+    transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 200ms cubic-bezier(0.4, 0, 0.2, 1),
+                color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  button, a, input, select, textarea, [data-no-transition] {
+    transition-property: background-color, border-color, color, opacity, transform, box-shadow;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    transition-duration: 150ms;
+  }
+}
+
+@media print {
+  aside, header, .no-print, button { display: none !important; }
+  body { background: white !important; color: black !important; }
+  main, .print-area { padding: 0 !important; margin: 0 !important; width: 100% !important; }
+  table { font-size: 11px !important; }
+  .card, [class*="bg-card"] { box-shadow: none !important; border: 1px solid #ddd !important; }
+  .print-only { display: block !important; }
+}
+.print-only { display: none; }
+
+@layer utilities {
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .text-balance { text-wrap: balance; }
+  .gradient-text { @apply bg-gradient-to-r from-accent to-amber-500 bg-clip-text text-transparent; }
+  .gradient-mesh {
+    background-image:
+      radial-gradient(at 20% 20%, hsl(var(--accent) / 0.08) 0px, transparent 50%),
+      radial-gradient(at 80% 70%, hsl(var(--gold) / 0.06) 0px, transparent 50%);
+  }
+  .dark .gradient-mesh {
+    background-image:
+      radial-gradient(at 20% 20%, hsl(var(--accent) / 0.14) 0px, transparent 50%),
+      radial-gradient(at 80% 70%, hsl(var(--gold) / 0.10) 0px, transparent 50%);
+  }
+}

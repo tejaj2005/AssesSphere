@@ -1,0 +1,213 @@
+import { useState, useMemo } from 'react';
+import { motion } from 'framer-motion';
+import { Plus, Pencil, Trash2, MoreHorizontal, Download, Upload, FileText, FileSpreadsheet, File, Image as ImageIcon } from 'lucide-react';
+import { toast } from 'sonner';
+import { PageWrapper } from '@/components/shared/PageWrapper';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { DataTable, Column } from '@/components/shared/DataTable';
+import { SearchInput } from '@/components/shared/SearchInput';
+import { FormDrawer } from '@/components/shared/FormDrawer';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { DataToolbar } from '@/components/shared/DataToolbar';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip } from '@/components/ui/tooltip';
+import { Card } from '@/components/ui/card';
+import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
+import { useData } from '@/context/DataContext';
+import { nextId, formatDate } from '@/lib/utils';
+import { staggerContainer, staggerItem } from '@/lib/animations';
+import type { MfgDocument, DocumentCategory, DocumentFileType } from '@/types';
+
+const CATEGORY_VARIANT: Record<DocumentCategory, any> = {
+  Procedure: 'accent', Policy: 'purple', Guideline: 'teal', Checklist: 'success',
+  Template: 'warning', Design: 'slate', Report: 'outline', Certificate: 'success',
+};
+
+const FILE_ICON: Record<DocumentFileType, any> = { PDF: FileText, DOCX: FileText, XLSX: FileSpreadsheet, DWG: File, IMAGE: ImageIcon };
+
+const downloadFile = (doc: MfgDocument) => {
+  // Generate a fake placeholder file
+  const content = `${doc.name}\n${doc.code}\n${doc.description}\n\nFile: ${doc.fileName}\nVersion: ${doc.version}\nUploaded by: ${doc.uploadedBy}`;
+  const blob = new Blob([content], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = doc.fileName || `${doc.code}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast.success(`Downloaded ${doc.fileName || doc.code}`);
+};
+
+export const DocumentsPage = () => {
+  const { documents, manufacturingStages, addDocument, updateDocument, deleteDocument } = useData();
+  const [search, setSearch] = useState('');
+  const [stageFilter, setStageFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState<'all' | DocumentCategory>('all');
+  const [view, setView] = useState<'table' | 'cards'>('cards');
+  const [drawer, setDrawer] = useState(false);
+  const [editing, setEditing] = useState<MfgDocument | null>(null);
+  const initialForm = { name: '', code: '', description: '', manufacturingStageId: '', category: 'Procedure' as DocumentCategory, fileType: 'PDF' as DocumentFileType, fileName: '', version: '1.0' };
+  const [form, setForm] = useState(initialForm);
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const [confirmDel, setConfirmDel] = useState<MfgDocument | null>(null);
+
+  const filtered = useMemo(() => documents.filter((d) => {
+    if (search && !(d.name + d.code + (d.fileName || '')).toLowerCase().includes(search.toLowerCase())) return false;
+    if (stageFilter !== 'all' && d.manufacturingStageId !== stageFilter) return false;
+    if (categoryFilter !== 'all' && d.category !== categoryFilter) return false;
+    return true;
+  }), [documents, search, stageFilter, categoryFilter]);
+
+  const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('DOC', documents), manufacturingStageId: manufacturingStages[0]?.id || '' }); setErrs({}); setDrawer(true); };
+  const openEdit = (d: MfgDocument) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description, manufacturingStageId: d.manufacturingStageId, category: d.category || 'Procedure', fileType: d.fileType || 'PDF', fileName: d.fileName || '', version: d.version || '1.0' }); setErrs({}); setDrawer(true); };
+
+  const submit = async () => {
+    const e: Record<string, string> = {};
+    if (!form.name.trim()) e.name = 'Required';
+    if (!form.code.trim()) e.code = 'Required';
+    if (!form.manufacturingStageId) e.manufacturingStageId = 'Required';
+    setErrs(e);
+    if (Object.keys(e).length) return;
+    const payload = { ...form, uploadedBy: 'Current User', uploadedAt: new Date().toISOString() };
+    const res = editing ? updateDocument(editing.id, payload) : addDocument(payload);
+    if (!res.success) { toast.error(res.error); return; }
+    toast.success(editing ? 'Updated' : 'Created');
+    setDrawer(false);
+  };
+
+  // Counts per category
+  const cats: DocumentCategory[] = ['Procedure', 'Policy', 'Guideline', 'Checklist', 'Template', 'Design', 'Report', 'Certificate'];
+
+  const exportRows = filtered.map((d) => ({ Code: d.code, Name: d.name, Category: d.category, Type: d.fileType, FileName: d.fileName, Version: d.version, Stage: manufacturingStages.find((s) => s.id === d.manufacturingStageId)?.name, UploadedBy: d.uploadedBy }));
+
+  const columns: Column<MfgDocument>[] = [
+    { key: 'icon', header: '', width: 'w-10', cell: (d) => { const Icon = FILE_ICON[d.fileType || 'PDF']; return <Icon className="h-4 w-4 text-muted-foreground" />; } },
+    { key: 'name', header: 'Document', sortable: true, sortValue: (d) => d.name, cell: (d) => (
+      <div><p className="font-medium text-sm">{d.name}</p><p className="text-[10px] font-mono text-muted-foreground">{d.code} · v{d.version}</p></div>
+    ) },
+    { key: 'cat', header: 'Category', cell: (d) => d.category ? <Badge variant={CATEGORY_VARIANT[d.category]}>{d.category}</Badge> : '—' },
+    { key: 'file', header: 'File', cell: (d) => <span className="text-xs font-mono text-muted-foreground truncate inline-block max-w-[200px]">{d.fileName}</span> },
+    { key: 'size', header: 'Size', cell: (d) => <span className="text-xs">{d.fileSize}</span> },
+    { key: 'stage', header: 'Stage', cell: (d) => { const s = manufacturingStages.find((x) => x.id === d.manufacturingStageId); return s ? <Badge variant="outline">{s.name}</Badge> : '—'; } },
+    { key: 'actions', header: '', width: 'w-12', cell: (d) => (
+      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1">
+        <Tooltip content="Download"><Button variant="ghost" size="icon-sm" onClick={() => downloadFile(d)}><Download className="h-3.5 w-3.5" /></Button></Tooltip>
+        <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
+          <DropdownItem onClick={() => downloadFile(d)}><Download className="h-4 w-4" /> Download</DropdownItem>
+          <DropdownItem onClick={() => openEdit(d)}><Pencil className="h-4 w-4" /> Edit</DropdownItem>
+          <DropdownSeparator />
+          <DropdownItem danger onClick={() => setConfirmDel(d)}><Trash2 className="h-4 w-4" /> Delete</DropdownItem>
+        </Dropdown>
+      </div>
+    ) },
+  ];
+
+  return (
+    <PageWrapper>
+      <PageHeader
+        title="Documents"
+        description="Procedures, policies, guidelines, checklists, templates and more."
+        action={
+          <>
+            <DataToolbar data={exportRows} filename="pqas-documents" />
+            <Button variant="accent" onClick={openAdd}><Upload className="h-4 w-4" /> Upload Document</Button>
+          </>
+        }
+      />
+
+      <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
+        {cats.map((c) => {
+          const count = documents.filter((d) => d.category === c).length;
+          return (
+            <motion.button variants={staggerItem} key={c}
+              onClick={() => setCategoryFilter((cur) => cur === c ? 'all' : c)}
+              className={`p-3 rounded-lg border text-left transition-colors ${categoryFilter === c ? 'border-accent bg-accent/5' : 'hover:border-accent/40'}`}
+            >
+              <p className="text-2xl font-bold tabular-nums">{count}</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">{c}</p>
+            </motion.button>
+          );
+        })}
+      </motion.div>
+
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search documents…" className="sm:w-72" />
+        <Select value={stageFilter} onChange={setStageFilter} options={[{ label: 'All Stages', value: 'all' }, ...manufacturingStages.map((s) => ({ label: s.name, value: s.id }))]} className="sm:w-56" />
+        <Select value={categoryFilter} onChange={(v) => setCategoryFilter(v as any)} options={[{ label: 'All Categories', value: 'all' }, ...cats.map((c) => ({ label: c, value: c }))]} className="sm:w-44" />
+        <div className="ml-auto inline-flex rounded-md border p-0.5">
+          <button onClick={() => setView('cards')} className={`px-2.5 py-1.5 rounded text-xs ${view === 'cards' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}>Cards</button>
+          <button onClick={() => setView('table')} className={`px-2.5 py-1.5 rounded text-xs ${view === 'table' ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}>Table</button>
+        </div>
+      </div>
+
+      {view === 'table' ? (
+        <DataTable columns={columns} data={filtered} emptyTitle="No documents" />
+      ) : (
+        <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.length === 0 ? <Card className="p-12 text-center text-sm text-muted-foreground col-span-full">No documents match filters</Card> :
+            filtered.map((d) => {
+              const Icon = FILE_ICON[d.fileType || 'PDF'];
+              return (
+                <motion.div variants={staggerItem} key={d.id}>
+                  <Card className="p-4 hover:shadow-md transition-shadow h-full flex flex-col">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent shrink-0"><Icon className="h-5 w-5" /></div>
+                      {d.category && <Badge variant={CATEGORY_VARIANT[d.category]}>{d.category}</Badge>}
+                    </div>
+                    <p className="font-semibold text-sm mb-1">{d.name}</p>
+                    <p className="text-[10px] font-mono text-muted-foreground mb-2">{d.code} · v{d.version}</p>
+                    <p className="text-xs text-muted-foreground mb-3 flex-1 line-clamp-2">{d.description}</p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-3 border-t">
+                      <span>{d.fileSize}</span><span>{d.uploadedBy}</span>
+                    </div>
+                    <div className="flex gap-1 mt-2">
+                      <Button variant="outline" size="sm" className="flex-1" onClick={() => downloadFile(d)}><Download className="h-3.5 w-3.5" /> Download</Button>
+                      <Button variant="ghost" size="icon-sm" onClick={() => openEdit(d)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  </Card>
+                </motion.div>
+              );
+            })
+          }
+        </motion.div>
+      )}
+
+      <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Document' : 'Upload Document'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Upload'}>
+        <div className="space-y-1.5"><Label>Name <span className="text-destructive">*</span></Label><Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />{errs.name && <p className="text-xs text-destructive">{errs.name}</p>}</div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5"><Label>Code <span className="text-destructive">*</span></Label><Input value={form.code} error={!!errs.code} onChange={(e) => { setForm({ ...form, code: e.target.value }); setErrs({ ...errs, code: '' }); }} />{errs.code && <p className="text-xs text-destructive">{errs.code}</p>}</div>
+          <div className="space-y-1.5"><Label>Version</Label><Input value={form.version} onChange={(e) => setForm({ ...form, version: e.target.value })} placeholder="1.0" /></div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5"><Label>Category</Label>
+            <Select value={form.category} onChange={(v) => setForm({ ...form, category: v as DocumentCategory })} options={cats.map((c) => ({ label: c, value: c }))} />
+          </div>
+          <div className="space-y-1.5"><Label>File Type</Label>
+            <Select value={form.fileType} onChange={(v) => setForm({ ...form, fileType: v as DocumentFileType })} options={[{ label: 'PDF', value: 'PDF' }, { label: 'DOCX', value: 'DOCX' }, { label: 'XLSX', value: 'XLSX' }, { label: 'DWG (Drawing)', value: 'DWG' }, { label: 'Image', value: 'IMAGE' }]} />
+          </div>
+        </div>
+        <div className="space-y-1.5"><Label>File Name</Label><Input value={form.fileName} onChange={(e) => setForm({ ...form, fileName: e.target.value })} placeholder="e.g., procedure.pdf" /></div>
+        <div className="space-y-1.5"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+        <div className="space-y-1.5"><Label>Manufacturing Stage <span className="text-destructive">*</span></Label>
+          <Select value={form.manufacturingStageId} onChange={(v) => { setForm({ ...form, manufacturingStageId: v }); setErrs({ ...errs, manufacturingStageId: '' }); }} options={manufacturingStages.map((s) => ({ label: s.name, value: s.id }))} error={!!errs.manufacturingStageId} />
+          {errs.manufacturingStageId && <p className="text-xs text-destructive">{errs.manufacturingStageId}</p>}
+        </div>
+        <div className="p-3 rounded-lg border-2 border-dashed text-center">
+          <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+          <p className="text-xs text-muted-foreground">Drag file here or click to upload</p>
+          <p className="text-[10px] text-muted-foreground mt-1">PDF, DOCX, XLSX, DWG up to 10MB</p>
+        </div>
+      </FormDrawer>
+
+      <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}
+        onConfirm={() => { if (confirmDel) { deleteDocument(confirmDel.id); toast.success('Deleted'); setConfirmDel(null); } }} />
+    </PageWrapper>
+  );
+};
