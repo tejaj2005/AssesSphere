@@ -41,12 +41,16 @@ export const Dropdown = ({ trigger, children, align = 'right', className }: Drop
   );
 };
 
-export const DropdownItem = ({ className, danger, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) => (
+export const DropdownItem = ({ className, danger, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { danger?: boolean }) => (
   <button
+    disabled={disabled}
     className={cn(
       'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-      'hover:bg-accent/10 hover:text-accent',
+      'text-[#0e5467] dark:text-foreground',
+      'hover:bg-[#f5af12]/15 hover:text-[#0a3d4d] dark:hover:text-foreground',
+      'focus-visible:outline-none focus-visible:bg-[#f5af12]/15',
       danger && 'text-destructive hover:bg-destructive/10 hover:text-destructive',
+      disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-current',
       className
     )}
     {...props}

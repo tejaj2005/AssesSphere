@@ -18,6 +18,41 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Sheet, SheetHeader, SheetTitle, SheetBody } from '@/components/ui/sheet';
+import { ConfigForm, FieldDef } from '@/components/shared/ConfigForm';
+
+const UserConfigForm = ({ form, setForm, errs, editing, roles, departments }: any) => {
+  const fields: FieldDef[] = [
+    { section: 'Personal Information', name: 'firstName', label: 'First Name', type: 'text', required: true, col: 'half' },
+    {                                  name: 'lastName',  label: 'Last Name',  type: 'text', required: true, col: 'half' },
+    {                                  name: 'email',     label: 'Email',      type: 'email', required: true, col: 'half' },
+    {                                  name: 'phone',     label: 'Phone Number', type: 'tel', col: 'half' },
+    {                                  name: 'photo',     label: 'Profile Photo', type: 'file' },
+
+    { section: 'Employment', name: 'employeeId',  label: 'Employee ID', type: 'text', required: true, col: 'half' },
+    {                        name: 'username',    label: 'Username',    type: 'text', col: 'half', help: 'Auto-suggested from name' },
+    {                        name: 'roleId',      label: 'Role',        type: 'select', required: true, options: roles.map((r: any) => ({ label: r.name, value: r.id })), col: 'half' },
+    {                        name: 'departmentId',label: 'Department',  type: 'select', required: true, options: departments.map((d: any) => ({ label: d.name, value: d.id })), col: 'half' },
+    {                        name: 'designation', label: 'Designation / Job Title', type: 'text', col: 'half' },
+    {                        name: 'dateOfJoining', label: 'Date of Joining', type: 'date', col: 'half' },
+
+    { section: 'Settings',   name: 'status', label: 'Active', type: 'toggle', col: 'half' },
+    ...(!editing ? [{ name: 'sendInvite', label: 'Send invite email on creation', type: 'checkbox' as const, col: 'half' as const }] : []),
+    {                        name: 'notes', label: 'Notes', type: 'textarea' },
+  ];
+  // map status string→boolean for the toggle
+  const wrappedValue = { ...form, status: form.status === 'Active' || form.status === true };
+  const handleChange = (next: any) => {
+    let username = next.username;
+    if (!editing && (next.firstName !== form.firstName || next.lastName !== form.lastName)) {
+      const auto = `${(next.firstName || '').toLowerCase()}.${(next.lastName || '').toLowerCase()}`.replace(/\s+/g, '');
+      if (!username || username === `${(form.firstName || '').toLowerCase()}.${(form.lastName || '').toLowerCase()}`.replace(/\s+/g, '')) {
+        username = auto;
+      }
+    }
+    setForm({ ...next, username, status: next.status ? 'Active' : 'Inactive' });
+  };
+  return <ConfigForm fields={fields} value={wrappedValue} onChange={handleChange} errors={errs} />;
+};
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
 import { useData } from '@/context/DataContext';
 import { isValidEmail, nextId } from '@/lib/utils';
@@ -38,8 +73,12 @@ export const UsersPage = () => {
   const [confirmBulkDel, setConfirmBulkDel] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
-  const initialForm = { name: '', employeeId: nextId('EMP', users), email: '', roleId: '', departmentId: '', status: 'Active' as 'Active' | 'Inactive' };
-  const [form, setForm] = useState(initialForm);
+  const initialForm: any = {
+    firstName: '', lastName: '', name: '', employeeId: nextId('EMP', users), email: '', phone: '',
+    username: '', roleId: '', departmentId: '', designation: '', dateOfJoining: new Date().toISOString().slice(0, 10),
+    photo: '', sendInvite: true, notes: '', status: 'Active' as 'Active' | 'Inactive',
+  };
+  const [form, setForm] = useState<any>(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   const filtered = useMemo(() => users.filter((u) => {
@@ -54,23 +93,34 @@ export const UsersPage = () => {
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, employeeId: nextId('EMP', users) }); setErrs({}); setDrawerOpen(true); };
   const openEdit = (u: User) => {
     setEditing(u);
-    setForm({ name: u.name, employeeId: u.employeeId, email: u.email, roleId: u.roleId, departmentId: u.departmentId, status: u.status });
+    const parts = u.name.split(' ');
+    setForm({
+      ...u,
+      firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '',
+      phone: (u as any).phone || '', username: (u as any).username || u.email.split('@')[0],
+      designation: (u as any).designation || '', dateOfJoining: u.createdAt?.slice(0, 10) || '',
+      photo: (u as any).photo || '', sendInvite: false, notes: (u as any).notes || '',
+    });
     setErrs({}); setDrawerOpen(true);
   };
 
   const submit = async () => {
     const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = 'Required';
-    if (!form.employeeId.trim()) e.employeeId = 'Required';
-    if (!form.email.trim()) e.email = 'Required';
+    const fullName = `${form.firstName || ''} ${form.lastName || ''}`.trim();
+    if (!form.firstName?.trim()) e.firstName = 'Required';
+    if (!form.lastName?.trim()) e.lastName = 'Required';
+    if (!form.employeeId?.trim()) e.employeeId = 'Required';
+    if (!form.email?.trim()) e.email = 'Required';
     else if (!isValidEmail(form.email)) e.email = 'Invalid email';
     if (!form.roleId) e.roleId = 'Required';
     if (!form.departmentId) e.departmentId = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
-    const res = editing ? updateUser(editing.id, form) : addUser(form);
+    const payload = { ...form, name: fullName };
+    const res = editing ? updateUser(editing.id, payload) : addUser(payload);
     if (!res.success) { toast.error(res.error || 'Failed'); return; }
-    toast.success(editing ? 'User updated' : 'User created');
+    if (form.sendInvite && !editing) toast.success(`User created — invite email sent to ${form.email}`);
+    else toast.success(editing ? 'User updated' : 'User created');
     setDrawerOpen(false);
   };
 
@@ -205,37 +255,14 @@ export const UsersPage = () => {
         onSubmit={submit}
         submitLabel={editing ? 'Update' : 'Create'}
       >
-        <div className="space-y-1.5">
-          <Label>Full Name <span className="text-destructive">*</span></Label>
-          <Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />
-          {errs.name && <p className="text-xs text-destructive">{errs.name}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Employee ID <span className="text-destructive">*</span></Label>
-          <Input value={form.employeeId} disabled={!!editing} error={!!errs.employeeId} onChange={(e) => { setForm({ ...form, employeeId: e.target.value }); setErrs({ ...errs, employeeId: '' }); }} />
-          {errs.employeeId && <p className="text-xs text-destructive">{errs.employeeId}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Email <span className="text-destructive">*</span></Label>
-          <Input type="email" value={form.email} error={!!errs.email} onChange={(e) => { setForm({ ...form, email: e.target.value }); setErrs({ ...errs, email: '' }); }} />
-          {errs.email && <p className="text-xs text-destructive">{errs.email}</p>}
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Role <span className="text-destructive">*</span></Label>
-            <Select value={form.roleId} onChange={(v) => setForm({ ...form, roleId: v })} options={roles.map((r) => ({ label: r.name, value: r.id }))} error={!!errs.roleId} placeholder="Select role" />
-            {errs.roleId && <p className="text-xs text-destructive">{errs.roleId}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label>Department <span className="text-destructive">*</span></Label>
-            <Select value={form.departmentId} onChange={(v) => setForm({ ...form, departmentId: v })} options={departments.filter((d) => d.status === 'Active').map((d) => ({ label: d.name, value: d.id }))} error={!!errs.departmentId} placeholder="Select department" />
-            {errs.departmentId && <p className="text-xs text-destructive">{errs.departmentId}</p>}
-          </div>
-        </div>
-        <div className="flex items-center justify-between pt-2">
-          <Label>Active</Label>
-          <Switch checked={form.status === 'Active'} onCheckedChange={(c) => setForm({ ...form, status: c ? 'Active' : 'Inactive' })} />
-        </div>
+        <UserConfigForm
+          form={form}
+          setForm={(f: any) => setForm(f)}
+          errs={errs}
+          editing={!!editing}
+          roles={roles}
+          departments={departments.filter((d) => d.status === 'Active')}
+        />
       </FormDrawer>
 
       <Sheet open={!!detailUser} onOpenChange={(o) => !o && setDetailUser(null)}>

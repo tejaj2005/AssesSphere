@@ -1,54 +1,99 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, MoreHorizontal, Grid3x3, List, Package, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, Grid3x3, List, Package, ArrowRight, Eye, Copy, Puzzle, Settings as SettingsIcon, Wrench, FileDown, Archive, History, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { FormDrawer } from '@/components/shared/FormDrawer';
+import { ConfigForm, FieldDef, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { MultiSelectChips } from '@/components/shared/MultiSelectChips';
+import { TypedConfirmDialog } from '@/components/shared/TypedConfirmDialog';
 import { DataToolbar } from '@/components/shared/DataToolbar';
+import { ActionMenu } from '@/components/shared/ActionMenu';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
+import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/components/ui/sheet';
 import { useData } from '@/context/DataContext';
-import { nextId, cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
+import { nextId, cn, formatDate } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+import { downloadJSON } from '@/lib/exporters';
 import type { Product } from '@/types';
 
 export const ProductsPage = () => {
   const { products, components, manufacturingStages, assemblingStages, addProduct, updateProduct, deleteProduct } = useData();
+  const { hasPermission } = useAuth();
   const navigate = useNavigate();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [search, setSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<Product | null>(null);
   const [confirmDel, setConfirmDel] = useState<Product | null>(null);
-  const initialForm = { name: '', code: '', manufacturingStageIds: [] as string[], assemblingStageIds: [] as string[] };
-  const [form, setForm] = useState(initialForm);
+  const [typedDel, setTypedDel] = useState<Product | null>(null);
+  const [detail, setDetail] = useState<Product | null>(null);
+  const initialForm: any = {
+    name: '', code: '', category: '', description: '', uom: 'pcs', batchSize: '', shelfLife: '',
+    storageConditions: '', regulatoryClass: '', drawingRef: '', attachments: [], status: true, notes: '',
+    manufacturingStageIds: [] as string[], assemblingStageIds: [] as string[],
+  };
+  const [form, setForm] = useState<any>(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
+
+  const canEdit = hasPermission('Products', 'edit');
+  const canDelete = hasPermission('Products', 'delete');
+  const canCreate = hasPermission('Products', 'create');
+
+  const PRODUCT_FIELDS: FieldDef[] = [
+    { section: 'Basic Information', name: 'name', label: 'Product Name', type: 'text', required: true, col: 'half' },
+    {                               name: 'code', label: 'Product Code', type: 'text', required: true, col: 'half', help: 'Must be unique' },
+    {                               name: 'category', label: 'Product Category', type: 'select', col: 'half',
+                                    options: [{ label: 'Mechanical Assembly', value: 'MECHANICAL' }, { label: 'Electronics', value: 'ELECTRONICS' }, { label: 'Sub-assembly', value: 'SUBASSEMBLY' }, { label: 'Raw Material', value: 'RAW' }] },
+    {                               name: 'uom',  label: 'Unit of Measure', type: 'select', col: 'half',
+                                    options: [{ label: 'kg', value: 'kg' }, { label: 'pcs', value: 'pcs' }, { label: 'L (liters)', value: 'L' }, { label: 'm (meters)', value: 'm' }] },
+    {                               name: 'description', label: 'Description', type: 'textarea' },
+
+    { section: 'Specifications', name: 'batchSize', label: 'Standard Batch Size', type: 'number', col: 'half' },
+    {                            name: 'shelfLife', label: 'Shelf Life (days)', type: 'number', col: 'half' },
+    {                            name: 'storageConditions', label: 'Storage Conditions', type: 'text', col: 'half', placeholder: 'e.g. 15–25°C, dry' },
+    {                            name: 'regulatoryClass', label: 'Regulatory Class', type: 'select', col: 'half',
+                                 options: [{ label: 'General', value: 'GENERAL' }, { label: 'Medical Device', value: 'MEDICAL' }, { label: 'Pharmaceutical', value: 'PHARMA' }, { label: 'Hazardous', value: 'HAZ' }] },
+    {                            name: 'drawingRef', label: 'Drawing / Spec Reference', type: 'text', col: 'half', placeholder: 'e.g. DWG-001' },
+    {                            name: 'status', label: 'Active', type: 'toggle', col: 'half' },
+
+    { section: 'Stages', name: 'manufacturingStageIds', label: 'Manufacturing Stages', type: 'multi-select', options: manufacturingStages.map((s) => ({ label: s.name, value: s.id })) },
+    {                    name: 'assemblingStageIds',    label: 'Assembling Stages',    type: 'multi-select', options: assemblingStages.map((s) => ({ label: s.name, value: s.id })) },
+
+    { section: 'Attachments', name: 'attachments', label: 'Attached Documents', type: 'file' },
+    {                         name: 'notes', label: 'Notes', type: 'textarea' },
+  ];
 
   const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase())), [products, search]);
 
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('PROD', products) }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (p: Product) => { setEditing(p); setForm({ name: p.name, code: p.code, manufacturingStageIds: p.manufacturingStageIds, assemblingStageIds: p.assemblingStageIds }); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (p: Product) => { setEditing(p); setForm({ ...initialForm, ...p, status: true }); setErrs({}); setDrawerOpen(true); };
 
   const submit = async () => {
-    const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = 'Required';
-    if (!form.code.trim()) e.code = 'Required';
-    setErrs(e);
-    if (Object.keys(e).length) return;
-    const res = editing ? updateProduct(editing.id, form) : addProduct(form);
+    const v = validateConfigForm(PRODUCT_FIELDS, form);
+    if (!v.valid) { setErrs(v.errors); toast.error('Please fix form errors'); return; }
+    const payload: any = { ...form, manufacturingStageIds: form.manufacturingStageIds || [], assemblingStageIds: form.assemblingStageIds || [] };
+    const res = editing ? updateProduct(editing.id, payload) : addProduct(payload);
     if (!res.success) { toast.error(res.error || 'Failed'); return; }
     toast.success(editing ? 'Product updated' : 'Product created');
     setDrawerOpen(false);
+  };
+
+  const cloneProduct = (p: Product) => {
+    const res = addProduct({ ...p, name: `${p.name} (Copy)`, code: `${p.code}-COPY-${Date.now().toString().slice(-3)}` } as any);
+    if (res.success) toast.success(`Cloned ${p.name}`);
+    else toast.error(res.error || 'Clone failed');
+  };
+
+  const archiveProduct = (p: Product) => {
+    toast.success(`${p.name} archived (soft delete)`);
   };
 
   const handleDelete = () => {
@@ -66,11 +111,18 @@ export const ProductsPage = () => {
     { key: 'mfg', header: 'Mfg Stages', cell: (p) => <Badge variant="accent">{p.manufacturingStageIds.length}</Badge> },
     { key: 'asm', header: 'Asm Stages', cell: (p) => <Badge variant="purple">{p.assemblingStageIds.length}</Badge> },
     { key: 'actions', header: '', width: 'w-12', cell: (p) => (
-      <Dropdown trigger={<button onClick={(e) => e.stopPropagation()} className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
-        <DropdownItem onClick={() => navigate(`/admin/products/${p.id}`)}>View Details</DropdownItem>
-        <DropdownItem onClick={() => openEdit(p)}><Pencil className="h-4 w-4" /> Edit</DropdownItem>
-        <DropdownItem danger onClick={() => setConfirmDel(p)}><Trash2 className="h-4 w-4" /> Delete</DropdownItem>
-      </Dropdown>
+      <ActionMenu actions={[
+        { label: 'View Details',     icon: Eye,       onClick: () => setDetail(p) },
+        { label: 'Edit Product',     icon: Pencil,    onClick: () => openEdit(p), show: canEdit },
+        { label: 'Clone Product',    icon: Copy,      onClick: () => cloneProduct(p), show: canCreate, separatorBefore: true },
+        { label: 'Manage Components',icon: Puzzle,    onClick: () => navigate(`/admin/components?product=${p.id}`) },
+        { label: 'View MFG Stages',  icon: SettingsIcon, onClick: () => navigate(`/admin/products/${p.id}#mfg`) },
+        { label: 'View ASM Stages',  icon: Wrench,    onClick: () => navigate(`/admin/products/${p.id}#asm`) },
+        { label: 'Export to JSON',   icon: FileDown,  onClick: () => { downloadJSON(p.code, p); toast.success('Exported'); }, separatorBefore: true },
+        { label: 'Archive Product',  icon: Archive,   onClick: () => setConfirmDel(p), show: canEdit },
+        { label: 'View History',     icon: History,   onClick: () => toast.message('Audit history opening…') },
+        { label: 'Delete Forever',   icon: Trash2,    onClick: () => setTypedDel(p), danger: true, show: canDelete, separatorBefore: true },
+      ]} />
     ) },
   ];
 
@@ -132,45 +184,88 @@ export const ProductsPage = () => {
         </motion.div>
       )}
 
-      <FormDrawer
-        open={drawerOpen} onOpenChange={setDrawerOpen}
-        title={editing ? 'Edit Product' : 'Add Product'}
-        onSubmit={submit}
-        submitLabel={editing ? 'Update' : 'Create'}
-      >
-        <div className="space-y-1.5">
-          <Label>Product Name <span className="text-destructive">*</span></Label>
-          <Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />
-          {errs.name && <p className="text-xs text-destructive">{errs.name}</p>}
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen} className="!w-[640px]">
+        <SheetHeader>
+          <SheetTitle>{editing ? 'Edit Product' : 'Add Product'}</SheetTitle>
+          <SheetDescription>{editing ? 'Update product configuration' : 'Configure a new product with specifications and stages'}</SheetDescription>
+        </SheetHeader>
+        <SheetBody>
+          <ConfigForm fields={PRODUCT_FIELDS} value={form} onChange={setForm} errors={errs} />
+        </SheetBody>
+        <div className="flex justify-end gap-2 p-4 border-t">
+          <Button variant="ghost" onClick={() => setDrawerOpen(false)}>Cancel</Button>
+          <Button variant="accent" onClick={submit}>{editing ? 'Update' : 'Create'}</Button>
         </div>
-        <div className="space-y-1.5">
-          <Label>Product Code <span className="text-destructive">*</span></Label>
-          <Input value={form.code} error={!!errs.code} onChange={(e) => { setForm({ ...form, code: e.target.value }); setErrs({ ...errs, code: '' }); }} />
-          {errs.code && <p className="text-xs text-destructive">{errs.code}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Manufacturing Stages</Label>
-          <MultiSelectChips
-            options={manufacturingStages.map((s) => ({ label: s.name, value: s.id }))}
-            values={form.manufacturingStageIds}
-            onChange={(v) => setForm({ ...form, manufacturingStageIds: v })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Assembling Stages</Label>
-          <MultiSelectChips
-            options={assemblingStages.map((s) => ({ label: s.name, value: s.id }))}
-            values={form.assemblingStageIds}
-            onChange={(v) => setForm({ ...form, assemblingStageIds: v })}
-          />
-        </div>
-      </FormDrawer>
+      </Sheet>
+
+      <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)} className="!w-[640px]">
+        {detail && (
+          <>
+            <SheetHeader>
+              <SheetTitle>{detail.name}</SheetTitle>
+              <SheetDescription>{detail.code}</SheetDescription>
+            </SheetHeader>
+            <SheetBody>
+              <dl className="grid grid-cols-2 gap-4 text-sm">
+                {[
+                  ['Code', detail.code], ['Created', formatDate(detail.createdAt)],
+                  ['Category', (detail as any).category || '—'], ['UoM', (detail as any).uom || '—'],
+                  ['Batch Size', (detail as any).batchSize || '—'], ['Shelf Life', (detail as any).shelfLife ? `${(detail as any).shelfLife} days` : '—'],
+                  ['Regulatory Class', (detail as any).regulatoryClass || '—'], ['Drawing Ref', (detail as any).drawingRef || '—'],
+                ].map(([l, v]) => (
+                  <div key={l as string}><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">{l}</dt><dd className="mt-1">{v}</dd></div>
+                ))}
+              </dl>
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">Mfg Stages</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {detail.manufacturingStageIds.map((id) => {
+                    const s = manufacturingStages.find((x) => x.id === id);
+                    return s && <Badge key={id} variant="accent">{s.name}</Badge>;
+                  })}
+                  {detail.manufacturingStageIds.length === 0 && <span className="text-xs text-muted-foreground italic">None</span>}
+                </div>
+              </div>
+              <div className="mt-4">
+                <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">Asm Stages</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {detail.assemblingStageIds.map((id) => {
+                    const s = assemblingStages.find((x) => x.id === id);
+                    return s && <Badge key={id} variant="purple">{s.name}</Badge>;
+                  })}
+                  {detail.assemblingStageIds.length === 0 && <span className="text-xs text-muted-foreground italic">None</span>}
+                </div>
+              </div>
+            </SheetBody>
+          </>
+        )}
+      </Sheet>
 
       <ConfirmDialog
         open={!!confirmDel}
         onOpenChange={(o) => !o && setConfirmDel(null)}
         entityName={confirmDel?.name}
+        title="Archive product?"
+        description="Archived products are hidden but can be restored. To permanently delete, use Delete Forever from the action menu."
+        confirmLabel="Archive"
         onConfirm={handleDelete}
+      />
+
+      <TypedConfirmDialog
+        open={!!typedDel}
+        onOpenChange={(o) => !o && setTypedDel(null)}
+        title="Permanently delete product?"
+        description="This will permanently remove the product and cannot be undone."
+        confirmationText={typedDel?.code || ''}
+        promptLabel={`Type the product code "${typedDel?.code}" to confirm`}
+        onConfirm={async () => {
+          if (!typedDel) return;
+          const res = deleteProduct(typedDel.id);
+          if (!res.success) toast.error(res.error);
+          else toast.success(`${typedDel.name} permanently deleted`);
+          setTypedDel(null);
+        }}
+        confirmLabel="Delete forever"
       />
     </PageWrapper>
   );

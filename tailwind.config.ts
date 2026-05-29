@@ -26,10 +26,26 @@ export default {
         sidebar: { DEFAULT: 'hsl(var(--sidebar-bg))', hover: 'hsl(var(--sidebar-hover))', active: 'hsl(var(--sidebar-active))' },
         gold: { DEFAULT: 'hsl(var(--gold))', foreground: 'hsl(var(--gold-foreground))' },
 
-        // ─── BRAND ───
+        // ─── BRAND — AssessSphere (Dark Azure + Golden Orange) ───
         brand: {
-          50: '#EFF6FF', 100: '#DBEAFE', 200: '#BFDBFE', 300: '#93C5FD', 400: '#60A5FA',
-          500: '#3B82F6', 600: '#2563EB', 700: '#1D4ED8', 800: '#1E40AF', 900: '#1E3A5F', 950: '#0C1929',
+          50:  '#E8F4F7',   // muted surface
+          100: '#C2DDE4',   // border
+          200: '#9CC4CE',
+          300: '#6BA4B3',
+          400: '#3F8497',
+          500: '#0e5467',   // PRIMARY — Dark Azure
+          600: '#0a3d4d',   // sidebar / dark surface
+          700: '#073544',
+          800: '#052B36',
+          900: '#031D24',
+          950: '#01101A',
+        },
+        gold: {
+          DEFAULT: '#f5af12',
+          50: '#FEF7E2', 100: '#FCEAB1', 200: '#FADC85', 300: '#F8C952',
+          400: '#F6BC29', 500: '#f5af12', 600: '#DC9C0C', 700: '#A77506',
+          800: '#714F03', 900: '#3A2901',
+          foreground: '#0a3d4d',
         },
 
         // ─── SURFACES ───
