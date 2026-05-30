@@ -12,22 +12,26 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
+import { ConfigForm, validateConfigForm } from '@/components/shared/ConfigForm';
+import { materialTypeFields } from '@/lib/entityFields';
 import { useData } from '@/context/DataContext';
 import type { MaterialType } from '@/types';
 
 export const MaterialTypesPage = () => {
   const { materialTypes, materials, addMaterialType, updateMaterialType, deleteMaterialType } = useData();
   const [drawer, setDrawer] = useState(false);
-  const [name, setName] = useState('');
-  const [err, setErr] = useState('');
+  const [form, setForm] = useState<any>({ name: '', code: '', regulatoryClass: 'GENERAL', storageTemperature: '', handlingRequirements: '', description: '', status: true });
+  const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<MaterialType | null>(null);
 
   const submit = async () => {
-    if (!name.trim()) { setErr('Required'); return; }
-    const res = addMaterialType({ name: name.trim() });
-    if (!res.success) { setErr(res.error || 'Failed'); toast.error(res.error); return; }
+    const v = validateConfigForm(materialTypeFields, form);
+    if (!v.valid) { setErrs(v.errors); toast.error('Please fix errors'); return; }
+    const res = addMaterialType({ name: form.name.trim() } as any);
+    if (!res.success) { toast.error(res.error || 'Failed'); return; }
     toast.success('Type added');
-    setName(''); setDrawer(false);
+    setForm({ name: '', code: '', regulatoryClass: 'GENERAL', storageTemperature: '', handlingRequirements: '', description: '', status: true });
+    setDrawer(false);
   };
 
   const columns: Column<MaterialType>[] = [
@@ -45,16 +49,12 @@ export const MaterialTypesPage = () => {
       <PageHeader
         title="Material Types"
         description="Categorize materials by type."
-        action={<Button variant="accent" onClick={() => { setName(''); setErr(''); setDrawer(true); }}><Plus className="h-4 w-4" /> Add Type</Button>}
+        action={<Button variant="accent" onClick={() => { setErrs({}); setDrawer(true); }}><Plus className="h-4 w-4" /> Add Type</Button>}
       />
       <DataTable columns={columns} data={materialTypes} emptyTitle="No material types" />
 
       <FormDrawer open={drawer} onOpenChange={setDrawer} title="Add Material Type" onSubmit={submit} submitLabel="Add">
-        <div className="space-y-1.5">
-          <Label>Name <span className="text-destructive">*</span></Label>
-          <Input value={name} error={!!err} onChange={(e) => { setName(e.target.value); setErr(''); }} autoFocus />
-          {err && <p className="text-xs text-destructive">{err}</p>}
-        </div>
+        <ConfigForm fields={materialTypeFields} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

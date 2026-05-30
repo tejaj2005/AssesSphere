@@ -6,7 +6,9 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { MultiSelectChips, TagChip } from '@/components/shared/MultiSelectChips';
+import { TagChip } from '@/components/shared/MultiSelectChips';
+import { ConfigForm } from '@/components/shared/ConfigForm';
+import { supplierFields } from '@/lib/entityFields';
 import { InlineEdit } from '@/components/shared/InlineEdit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,8 +30,8 @@ export const SuppliersPage = () => {
   // Suppliers drawer
   const [supDrawer, setSupDrawer] = useState(false);
   const [editingSup, setEditingSup] = useState<Supplier | null>(null);
-  const initialSup = { name: '', code: '', materialIds: [] as string[] };
-  const [supForm, setSupForm] = useState(initialSup);
+  const initialSup: any = { name: '', code: '', materialIds: [], supplierCategory: 'APPROVED', country: 'IN', contactPerson: '', email: '', phone: '', paymentTerms: '', address: '', certification: '', leadTime: '', rating: 4, status: true, attachments: [], notes: '' };
+  const [supForm, setSupForm] = useState<any>(initialSup);
   const [supErrs, setSupErrs] = useState<Record<string, string>>({});
   const [confirmSup, setConfirmSup] = useState<Supplier | null>(null);
   const [detailSup, setDetailSup] = useState<Supplier | null>(null);
@@ -40,7 +42,7 @@ export const SuppliersPage = () => {
   const [confirmEval, setConfirmEval] = useState<SupplierEvalMethod | null>(null);
 
   const openAddSup = () => { setEditingSup(null); setSupForm({ ...initialSup, code: nextId('SUP', suppliers) }); setSupErrs({}); setSupDrawer(true); };
-  const openEditSup = (s: Supplier) => { setEditingSup(s); setSupForm({ name: s.name, code: s.code, materialIds: s.materialIds }); setSupErrs({}); setSupDrawer(true); };
+  const openEditSup = (s: Supplier) => { setEditingSup(s); setSupForm({ ...initialSup, ...s }); setSupErrs({}); setSupDrawer(true); };
 
   const submitSup = async () => {
     const e: Record<string, string> = {};
@@ -149,9 +151,7 @@ export const SuppliersPage = () => {
       </Tabs>
 
       <FormDrawer open={supDrawer} onOpenChange={setSupDrawer} title={editingSup ? 'Edit Supplier' : 'Add Supplier'} onSubmit={submitSup} submitLabel={editingSup ? 'Update' : 'Create'}>
-        <div className="space-y-1.5"><Label>Name <span className="text-destructive">*</span></Label><Input value={supForm.name} error={!!supErrs.name} onChange={(e) => { setSupForm({ ...supForm, name: e.target.value }); setSupErrs({ ...supErrs, name: '' }); }} />{supErrs.name && <p className="text-xs text-destructive">{supErrs.name}</p>}</div>
-        <div className="space-y-1.5"><Label>Code <span className="text-destructive">*</span></Label><Input value={supForm.code} error={!!supErrs.code} onChange={(e) => { setSupForm({ ...supForm, code: e.target.value }); setSupErrs({ ...supErrs, code: '' }); }} />{supErrs.code && <p className="text-xs text-destructive">{supErrs.code}</p>}</div>
-        <div className="space-y-1.5"><Label>Materials Supplied</Label><MultiSelectChips options={materials.map((m) => ({ label: m.name, value: m.id }))} values={supForm.materialIds} onChange={(v) => setSupForm({ ...supForm, materialIds: v })} /></div>
+        <ConfigForm fields={supplierFields(materials)} value={supForm} onChange={setSupForm} errors={supErrs} />
       </FormDrawer>
 
       <FormDrawer open={evalDrawer} onOpenChange={setEvalDrawer} title="Add Evaluation Method" onSubmit={submitEval} submitLabel="Add">

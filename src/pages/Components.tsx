@@ -8,6 +8,8 @@ import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { ConfigForm } from '@/components/shared/ConfigForm';
+import { componentFields } from '@/lib/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,12 +21,12 @@ import { nextId } from '@/lib/utils';
 import type { ProductComponent } from '@/types';
 
 export const ComponentsPage = () => {
-  const { components, products, addComponent, updateComponent, deleteComponent } = useData();
+  const { components, products, suppliers, addComponent, updateComponent, deleteComponent } = useData();
   const [search, setSearch] = useState('');
   const [productFilter, setProductFilter] = useState('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<ProductComponent | null>(null);
-  const [form, setForm] = useState({ name: '', code: '', productId: '' });
+  const [form, setForm] = useState<any>({ name: '', code: '', productId: '', componentType: 'RAW', uom: 'pcs', supplierId: '', minimumStock: '', leadTime: '', certificate: false, storage: '', qualityStandard: '', notes: '' });
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<ProductComponent | null>(null);
 
@@ -34,8 +36,8 @@ export const ComponentsPage = () => {
     return true;
   }), [components, search, productFilter]);
 
-  const openAdd = () => { setEditing(null); setForm({ name: '', code: nextId('COMP', components), productId: products[0]?.id || '' }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (c: ProductComponent) => { setEditing(c); setForm({ name: c.name, code: c.code, productId: c.productId }); setErrs({}); setDrawerOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ name: '', code: nextId('COMP', components), productId: products[0]?.id || '', componentType: 'RAW', uom: 'pcs', supplierId: '', minimumStock: '', leadTime: '', certificate: false, storage: '', qualityStandard: '', notes: '' }); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (c: ProductComponent) => { setEditing(c); setForm({ ...form, name: c.name, code: c.code, productId: c.productId }); setErrs({}); setDrawerOpen(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};
@@ -81,21 +83,7 @@ export const ComponentsPage = () => {
         onSubmit={submit}
         submitLabel={editing ? 'Update' : 'Create'}
       >
-        <div className="space-y-1.5">
-          <Label>Component Name <span className="text-destructive">*</span></Label>
-          <Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />
-          {errs.name && <p className="text-xs text-destructive">{errs.name}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Component Code <span className="text-destructive">*</span></Label>
-          <Input value={form.code} error={!!errs.code} onChange={(e) => { setForm({ ...form, code: e.target.value }); setErrs({ ...errs, code: '' }); }} />
-          {errs.code && <p className="text-xs text-destructive">{errs.code}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>Parent Product <span className="text-destructive">*</span></Label>
-          <Select value={form.productId} onChange={(v) => { setForm({ ...form, productId: v }); setErrs({ ...errs, productId: '' }); }} options={products.map((p) => ({ label: p.name, value: p.id }))} error={!!errs.productId} placeholder="Select product" />
-          {errs.productId && <p className="text-xs text-destructive">{errs.productId}</p>}
-        </div>
+        <ConfigForm fields={componentFields(products, suppliers)} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog

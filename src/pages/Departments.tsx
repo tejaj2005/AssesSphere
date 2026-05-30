@@ -7,6 +7,7 @@ import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { ConfigForm, FieldDef, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { AuditHistoryDialog } from '@/components/shared/AuditHistoryDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { DataToolbar } from '@/components/shared/DataToolbar';
 import { ActionMenu } from '@/components/shared/ActionMenu';
@@ -27,6 +28,7 @@ export const DepartmentsPage = () => {
   const [form, setForm] = useState<Record<string, any>>({});
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<Department | null>(null);
+  const [history, setHistory] = useState<Department | null>(null);
 
   const canEdit = hasPermission('Departments', 'edit');
   const canDelete = hasPermission('Departments', 'delete');
@@ -110,7 +112,7 @@ export const DepartmentsPage = () => {
         { label: 'Duplicate', icon: Copy, onClick: () => { const r = addDepartment({ name: `${d.name} (Copy)`, status: 'Active' } as any); if (r.success) toast.success('Duplicated'); }, show: canCreate },
         { label: 'Toggle Status', icon: ToggleLeft, onClick: () => toggleStatus(d), show: canEdit },
         { label: 'Copy ID', icon: Copy, onClick: () => { navigator.clipboard.writeText(d.id); toast.success('ID copied'); }, separatorBefore: true },
-        { label: 'View History', icon: History, onClick: () => toast.message('Audit log opening…') },
+        { label: 'View History', icon: History, onClick: () => setHistory(d) },
         { label: 'Export', icon: Download, onClick: () => { const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${d.name}.json`; a.click(); URL.revokeObjectURL(url); toast.success('Exported'); } },
         { label: 'Delete', icon: Trash2, onClick: () => setConfirmDel(d), danger: true, show: canDelete, separatorBefore: true },
       ]} />
@@ -187,6 +189,7 @@ export const DepartmentsPage = () => {
       </Sheet>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name} onConfirm={handleDelete} />
+      <AuditHistoryDialog open={!!history} onOpenChange={(o) => !o && setHistory(null)} entityType="Department" entityName={history?.name} />
     </PageWrapper>
   );
 };

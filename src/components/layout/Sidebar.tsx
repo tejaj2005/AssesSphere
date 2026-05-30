@@ -27,10 +27,10 @@ export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
           <>
             <AssessSphereLogoWhite size={36} />
             <motion.div variants={sidebarText} animate="expanded" initial="expanded" className="flex-1 min-w-0">
-              <p className="text-[15px] font-bold truncate tracking-tight leading-tight">
+              <p className="text-[15px] font-extrabold italic truncate tracking-tight leading-tight">
                 <span className="text-white">Assess</span><span className="text-[#f5af12]">Sphere</span>
               </p>
-              <p className="text-[9px] text-[#f5af12]/80 uppercase tracking-[0.18em] font-semibold leading-tight mt-0.5">Admin</p>
+              <p className="text-[9px] text-white/50 tracking-[0.05em] font-medium leading-tight mt-0.5">Powered by QMICS</p>
             </motion.div>
             <Tooltip content="Collapse sidebar (⌘B)" side="right">
               <button

@@ -16,18 +16,20 @@ import { Select } from '@/components/ui/select';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
 import { DataToolbar } from '@/components/shared/DataToolbar';
+import { ConfigForm } from '@/components/shared/ConfigForm';
+import { equipmentFields } from '@/lib/entityFields';
 import { useData } from '@/context/DataContext';
 import { nextId, formatDate } from '@/lib/utils';
 import type { InspectionEquipment, CalibrationStatus } from '@/types';
 
 export const EquipmentPage = () => {
-  const { equipment, addEquipment, updateEquipment, deleteEquipment } = useData();
+  const { equipment, departments, inspectionTypes, addEquipment, updateEquipment, deleteEquipment } = useData();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState<InspectionEquipment | null>(null);
-  const initialForm = { name: '', code: '', supplier: '', calibrationStatus: 'COMPLETED' as CalibrationStatus, calibrationDueDate: new Date().toISOString().slice(0, 10) };
-  const [form, setForm] = useState(initialForm);
+  const initialForm: any = { name: '', code: '', assetTag: '', equipmentType: 'MEASURING', departmentId: '', location: '', supplier: '', modelNumber: '', serialNumber: '', purchaseDate: '', calibrationDueDate: new Date().toISOString().slice(0, 10), calibrationFrequency: 'ANNUAL', calibrationStatus: 'COMPLETED' as CalibrationStatus, condition: 'GOOD', inspectionTypeIds: [], manuals: [], notes: '' };
+  const [form, setForm] = useState<any>(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<InspectionEquipment | null>(null);
 
@@ -38,7 +40,7 @@ export const EquipmentPage = () => {
   }), [equipment, search, statusFilter]);
 
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('EQP', equipment) }); setErrs({}); setDrawer(true); };
-  const openEdit = (e: InspectionEquipment) => { setEditing(e); setForm({ name: e.name, code: e.code, supplier: e.supplier, calibrationStatus: e.calibrationStatus, calibrationDueDate: e.calibrationDueDate }); setErrs({}); setDrawer(true); };
+  const openEdit = (e: InspectionEquipment) => { setEditing(e); setForm({ ...initialForm, ...e }); setErrs({}); setDrawer(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};
@@ -94,13 +96,7 @@ export const EquipmentPage = () => {
       <DataTable columns={columns} data={filtered} emptyTitle="No equipment" rowClassName={(e) => e.calibrationStatus === 'PENDING' ? 'border-l-4 border-l-warning' : ''} />
 
       <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Equipment' : 'Add Equipment'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Create'}>
-        <div className="space-y-1.5"><Label>Name <span className="text-destructive">*</span></Label><Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />{errs.name && <p className="text-xs text-destructive">{errs.name}</p>}</div>
-        <div className="space-y-1.5"><Label>Code <span className="text-destructive">*</span></Label><Input value={form.code} error={!!errs.code} onChange={(e) => { setForm({ ...form, code: e.target.value }); setErrs({ ...errs, code: '' }); }} />{errs.code && <p className="text-xs text-destructive">{errs.code}</p>}</div>
-        <div className="space-y-1.5"><Label>Supplier <span className="text-destructive">*</span></Label><Input value={form.supplier} error={!!errs.supplier} onChange={(e) => { setForm({ ...form, supplier: e.target.value }); setErrs({ ...errs, supplier: '' }); }} />{errs.supplier && <p className="text-xs text-destructive">{errs.supplier}</p>}</div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5"><Label>Calibration Status</Label><Select value={form.calibrationStatus} onChange={(v) => setForm({ ...form, calibrationStatus: v as CalibrationStatus })} options={[{ label: 'Completed', value: 'COMPLETED' }, { label: 'Pending', value: 'PENDING' }]} /></div>
-          <div className="space-y-1.5"><Label>Due Date</Label><Input type="date" value={form.calibrationDueDate} onChange={(e) => setForm({ ...form, calibrationDueDate: e.target.value })} /></div>
-        </div>
+        <ConfigForm fields={equipmentFields(departments, inspectionTypes)} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

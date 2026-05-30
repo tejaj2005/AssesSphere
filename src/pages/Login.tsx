@@ -78,12 +78,14 @@ export const Login = () => {
           className="relative z-10 flex flex-col justify-between p-12 text-white w-full"
         >
           <div className="flex items-center gap-3">
-            <motion.div whileHover={{ rotate: 8, scale: 1.05 }}>
-              <AssessSphereLogoWhite size={56} />
+            <motion.div whileHover={{ scale: 1.05 }}>
+              <AssessSphereLogoWhite size={64} />
             </motion.div>
             <div>
-              <p className="text-2xl font-bold tracking-tight">AssessSphere</p>
-              <p className="text-[10px] text-amber-300/90 uppercase tracking-[0.22em] font-semibold mt-1">Quality Assessment System · by QMICS</p>
+              <p className="text-3xl font-extrabold italic tracking-tight">
+                <span className="text-white">Assess</span><span className="text-[#f5af12]">Sphere</span>
+              </p>
+              <p className="text-[11px] text-white/60 tracking-[0.05em] font-medium mt-1">Quality Assessment System · Powered by QMICS</p>
             </div>
           </div>
           <div className="space-y-6">
@@ -111,11 +113,7 @@ export const Login = () => {
           className="w-full max-w-md"
         >
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <AssessSphereLogo size={44} />
-            <div>
-              <p className="text-lg font-bold tracking-tight">AssessSphere</p>
-              <p className="text-[9px] text-muted-foreground uppercase tracking-[0.18em] font-semibold">by QMICS</p>
-            </div>
+            <AssessSphereLogo size={48} showText showPoweredBy />
           </div>
 
           <Card className="p-8">

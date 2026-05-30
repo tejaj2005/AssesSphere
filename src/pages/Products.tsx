@@ -11,6 +11,7 @@ import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfigForm, FieldDef, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { TypedConfirmDialog } from '@/components/shared/TypedConfirmDialog';
+import { AuditHistoryDialog } from '@/components/shared/AuditHistoryDialog';
 import { DataToolbar } from '@/components/shared/DataToolbar';
 import { ActionMenu } from '@/components/shared/ActionMenu';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ export const ProductsPage = () => {
   const [confirmDel, setConfirmDel] = useState<Product | null>(null);
   const [typedDel, setTypedDel] = useState<Product | null>(null);
   const [detail, setDetail] = useState<Product | null>(null);
+  const [history, setHistory] = useState<Product | null>(null);
   const initialForm: any = {
     name: '', code: '', category: '', description: '', uom: 'pcs', batchSize: '', shelfLife: '',
     storageConditions: '', regulatoryClass: '', drawingRef: '', attachments: [], status: true, notes: '',
@@ -120,7 +122,7 @@ export const ProductsPage = () => {
         { label: 'View ASM Stages',  icon: Wrench,    onClick: () => navigate(`/admin/products/${p.id}#asm`) },
         { label: 'Export to JSON',   icon: FileDown,  onClick: () => { downloadJSON(p.code, p); toast.success('Exported'); }, separatorBefore: true },
         { label: 'Archive Product',  icon: Archive,   onClick: () => setConfirmDel(p), show: canEdit },
-        { label: 'View History',     icon: History,   onClick: () => toast.message('Audit history opening…') },
+        { label: 'View History',     icon: History,   onClick: () => setHistory(p) },
         { label: 'Delete Forever',   icon: Trash2,    onClick: () => setTypedDel(p), danger: true, show: canDelete, separatorBefore: true },
       ]} />
     ) },
@@ -267,6 +269,8 @@ export const ProductsPage = () => {
         }}
         confirmLabel="Delete forever"
       />
+
+      <AuditHistoryDialog open={!!history} onOpenChange={(o) => !o && setHistory(null)} entityType="Product" entityName={history?.name} />
     </PageWrapper>
   );
 };

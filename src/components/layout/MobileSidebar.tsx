@@ -11,11 +11,11 @@ export const MobileSidebar = ({ open, onClose }: { open: boolean; onClose: () =>
   const { user } = useAuth();
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()} side="left" className="!bg-sidebar text-slate-300 w-72">
-      <div className="flex h-16 items-center gap-3 px-4 border-b border-slate-800 shrink-0">
+      <div className="flex h-16 items-center gap-3 px-4 border-b border-white/5 shrink-0">
         <AssessSphereLogoWhite size={36} />
         <div>
-          <p className="text-sm font-bold text-white">AssessSphere</p>
-          <p className="text-[9px] text-amber-400/80 uppercase tracking-[0.18em] font-semibold">Admin Module</p>
+          <p className="text-sm font-extrabold italic"><span className="text-white">Assess</span><span className="text-[#f5af12]">Sphere</span></p>
+          <p className="text-[9px] text-white/50 tracking-[0.05em] font-medium mt-0.5">Powered by QMICS</p>
         </div>
       </div>
       <nav className="flex-1 overflow-y-auto py-3">

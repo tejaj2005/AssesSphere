@@ -55,9 +55,9 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
   const total = data.length;
 
   const donut = [
-    { name: 'Green', value: green, color: '#22c55e' },
-    { name: 'Amber', value: amber, color: '#f59e0b' },
-    { name: 'Red',   value: red,   color: '#ef4444' },
+    { name: 'Good',     value: green, color: '#2e9e6b' },
+    { name: 'Warning',  value: amber, color: '#f5af12' },
+    { name: 'Critical', value: red,   color: '#d9534f' },
   ].filter((d) => d.value > 0);
 
   const trend = useMemo(() => {
@@ -80,9 +80,9 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
 
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <motion.div variants={staggerItem}><StatsCard label="Total Inspections" value={total} icon={Package} /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Green" value={green} icon={CheckCircle2} variant="success" /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Amber" value={amber} icon={AlertTriangle} variant="warning" /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Red" value={red} icon={XCircle} variant="danger" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Good" value={green} icon={CheckCircle2} variant="success" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Warning" value={amber} icon={AlertTriangle} variant="warning" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Critical" value={red} icon={XCircle} variant="danger" /></motion.div>
       </motion.div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">

@@ -8,6 +8,8 @@ import { SearchInput } from '@/components/shared/SearchInput';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { DataToolbar } from '@/components/shared/DataToolbar';
+import { ConfigForm } from '@/components/shared/ConfigForm';
+import { materialFields } from '@/lib/entityFields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,8 +26,8 @@ export const MaterialsPage = () => {
   const [typeFilter, setTypeFilter] = useState('all');
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState<Material | null>(null);
-  const initialForm = { name: '', code: '', materialTypeId: '' };
-  const [form, setForm] = useState(initialForm);
+  const initialForm: any = { name: '', code: '', materialTypeId: '', uom: 'kg', grade: '', casNumber: '', supplierIds: [], minimumStock: '', reorderPoint: '', leadTime: '', shelfLife: '', msdsAvailable: false, storageConditions: '', status: true, notes: '' };
+  const [form, setForm] = useState<any>(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<Material | null>(null);
 
@@ -36,7 +38,7 @@ export const MaterialsPage = () => {
   }), [materials, search, typeFilter]);
 
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('MAT', materials), materialTypeId: materialTypes[0]?.id || '' }); setErrs({}); setDrawer(true); };
-  const openEdit = (m: Material) => { setEditing(m); setForm({ name: m.name, code: m.code, materialTypeId: m.materialTypeId }); setErrs({}); setDrawer(true); };
+  const openEdit = (m: Material) => { setEditing(m); setForm({ ...initialForm, ...m, supplierIds: suppliers.filter((s) => s.materialIds.includes(m.id)).map((s) => s.id), status: true }); setErrs({}); setDrawer(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};
@@ -92,9 +94,7 @@ export const MaterialsPage = () => {
       <DataTable columns={columns} data={filtered} emptyTitle="No materials" />
 
       <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Material' : 'Add Material'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Create'}>
-        <div className="space-y-1.5"><Label>Name <span className="text-destructive">*</span></Label><Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />{errs.name && <p className="text-xs text-destructive">{errs.name}</p>}</div>
-        <div className="space-y-1.5"><Label>Code <span className="text-destructive">*</span></Label><Input value={form.code} error={!!errs.code} onChange={(e) => { setForm({ ...form, code: e.target.value }); setErrs({ ...errs, code: '' }); }} />{errs.code && <p className="text-xs text-destructive">{errs.code}</p>}</div>
-        <div className="space-y-1.5"><Label>Material Type <span className="text-destructive">*</span></Label><Select value={form.materialTypeId} onChange={(v) => { setForm({ ...form, materialTypeId: v }); setErrs({ ...errs, materialTypeId: '' }); }} options={materialTypes.map((t) => ({ label: t.name, value: t.id }))} error={!!errs.materialTypeId} />{errs.materialTypeId && <p className="text-xs text-destructive">{errs.materialTypeId}</p>}</div>
+        <ConfigForm fields={materialFields(materialTypes, suppliers)} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

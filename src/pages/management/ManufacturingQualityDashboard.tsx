@@ -32,7 +32,7 @@ export const ManufacturingQualityDashboard = () => {
         filters={[
           { key: 'productId', label: 'Products', options: products.map((p) => ({ label: p.name, value: p.id })) },
           { key: 'stageId', label: 'Stages', options: manufacturingStages.map((s) => ({ label: s.name, value: s.id })) },
-          { key: 'status', label: 'Status', options: [{ label: 'Green', value: 'GREEN' }, { label: 'Amber', value: 'AMBER' }, { label: 'Red', value: 'RED' }] },
+          { key: 'status', label: 'Status', options: [{ label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }] },
         ]}
         filterState={filterState}
         onFilterChange={(k, v) => setFilterState({ ...filterState, [k]: v })}

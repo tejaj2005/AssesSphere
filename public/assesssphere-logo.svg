@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 90" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <!-- Blue gradient for "Assess" -->
+    <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e6a82"/>
+      <stop offset="0.5" stop-color="#0e5467"/>
+      <stop offset="1" stop-color="#063040"/>
+    </linearGradient>
+    <!-- Gold gradient for "Sphere" -->
+    <linearGradient id="goldGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbd24c"/>
+      <stop offset="0.5" stop-color="#f5af12"/>
+      <stop offset="1" stop-color="#c08006"/>
+    </linearGradient>
+    <!-- Icon gradient -->
+    <linearGradient id="iconBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e6a82"/>
+      <stop offset="1" stop-color="#063040"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="1" dy="2" stdDeviation="1.2" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Icon: triangle frame + circle + checkmark -->
+  <g filter="url(#softShadow)" transform="translate(8 12)">
+    <path d="M32 6 L60 60 L4 60 Z" stroke="url(#goldGrad)" stroke-width="3.5" fill="none" stroke-linejoin="round"/>
+    <circle cx="32" cy="36" r="17" fill="none" stroke="url(#iconBlue)" stroke-width="4.5"/>
+    <path d="M23 36 L30 43 L42 28" stroke="url(#goldGrad)" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark: Assess (blue) + Sphere (gold) -->
+  <g filter="url(#softShadow)" font-family="Inter, -apple-system, sans-serif" font-weight="800" font-size="44">
+    <text x="86" y="58" fill="url(#blueGrad)" font-style="italic">Assess</text>
+    <text x="226" y="58" fill="url(#goldGrad)" font-style="italic">Sphere</text>
+  </g>
+</svg>

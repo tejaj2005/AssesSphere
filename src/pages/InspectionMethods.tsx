@@ -13,26 +13,30 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
+import { ConfigForm } from '@/components/shared/ConfigForm';
+import { inspectionMethodFields } from '@/lib/entityFields';
 import { useData } from '@/context/DataContext';
 import type { InspectionMethod } from '@/types';
 
 export const InspectionMethodsPage = () => {
-  const { inspectionMethods, addInspectionMethod, updateInspectionMethod, deleteInspectionMethod } = useData();
+  const { inspectionMethods, equipment, users, addInspectionMethod, updateInspectionMethod, deleteInspectionMethod } = useData();
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState<InspectionMethod | null>(null);
-  const [form, setForm] = useState({ name: '', description: '' });
+  const initForm: any = { name: '', code: '', methodType: 'PHYSICAL', referenceStandard: '', description: '', equipmentIds: [], sampleSize: '', acceptanceCriteria: '', approvalStatus: 'DRAFT', approvedById: '', effectiveDate: '', sopFile: '' };
+  const [form, setForm] = useState<any>(initForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<InspectionMethod | null>(null);
 
-  const openAdd = () => { setEditing(null); setForm({ name: '', description: '' }); setErrs({}); setDrawer(true); };
-  const openEdit = (m: InspectionMethod) => { setEditing(m); setForm({ name: m.name, description: m.description }); setErrs({}); setDrawer(true); };
+  const openAdd = () => { setEditing(null); setForm(initForm); setErrs({}); setDrawer(true); };
+  const openEdit = (m: InspectionMethod) => { setEditing(m); setForm({ ...initForm, name: m.name, description: m.description }); setErrs({}); setDrawer(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
-    const res = editing ? updateInspectionMethod(editing.id, form) : addInspectionMethod(form);
+    const payload = { name: form.name, description: form.description };
+    const res = editing ? updateInspectionMethod(editing.id, payload) : addInspectionMethod(payload);
     if (!res.success) { toast.error(res.error); return; }
     toast.success(editing ? 'Method updated' : 'Method added');
     setDrawer(false);
@@ -61,8 +65,7 @@ export const InspectionMethodsPage = () => {
       <DataTable columns={columns} data={inspectionMethods} emptyTitle="No methods" />
 
       <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Method' : 'Add Custom Method'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Add'}>
-        <div className="space-y-1.5"><Label>Name <span className="text-destructive">*</span></Label><Input value={form.name} error={!!errs.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setErrs({ ...errs, name: '' }); }} />{errs.name && <p className="text-xs text-destructive">{errs.name}</p>}</div>
-        <div className="space-y-1.5"><Label>Description</Label><Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} /></div>
+        <ConfigForm fields={inspectionMethodFields(equipment, users)} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

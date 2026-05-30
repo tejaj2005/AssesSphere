@@ -12,25 +12,29 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
+import { ConfigForm, validateConfigForm } from '@/components/shared/ConfigForm';
+import { inspectionTypeFields } from '@/lib/entityFields';
 import { useData } from '@/context/DataContext';
 import type { InspectionType } from '@/types';
 
 export const InspectionTypesPage = () => {
-  const { inspectionTypes, addInspectionType, updateInspectionType, deleteInspectionType } = useData();
+  const { inspectionTypes, products, manufacturingStages, assemblingStages, addInspectionType, updateInspectionType, deleteInspectionType } = useData();
   const [search, setSearch] = useState('');
   const [drawer, setDrawer] = useState(false);
-  const [name, setName] = useState('');
-  const [err, setErr] = useState('');
+  const [form, setForm] = useState<any>({ name: '', code: '', category: 'IN_PROCESS', frequency: 'PER_BATCH', productIds: [], stageIds: [], regulatory: false, status: true, criteria: '', requiredDocs: '' });
+  const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<InspectionType | null>(null);
 
   const filtered = useMemo(() => inspectionTypes.filter((t) => t.name.toLowerCase().includes(search.toLowerCase())), [inspectionTypes, search]);
 
   const submit = async () => {
-    if (!name.trim()) { setErr('Required'); return; }
-    const res = addInspectionType({ name: name.trim() });
-    if (!res.success) { setErr(res.error || 'Failed'); toast.error(res.error); return; }
+    const v = validateConfigForm(inspectionTypeFields(products, [...manufacturingStages, ...assemblingStages]), form);
+    if (!v.valid) { setErrs(v.errors); toast.error('Please fix errors'); return; }
+    const res = addInspectionType({ name: form.name.trim() } as any);
+    if (!res.success) { toast.error(res.error); return; }
     toast.success('Inspection type added');
-    setName(''); setDrawer(false);
+    setForm({ name: '', code: '', category: 'IN_PROCESS', frequency: 'PER_BATCH', productIds: [], stageIds: [], regulatory: false, status: true, criteria: '', requiredDocs: '' });
+    setDrawer(false);
   };
 
   const columns: Column<InspectionType>[] = [
@@ -48,7 +52,7 @@ export const InspectionTypesPage = () => {
       <PageHeader
         title="Inspection Types"
         description="Categorize inspection workflows."
-        action={<Button variant="accent" onClick={() => { setName(''); setErr(''); setDrawer(true); }}><Plus className="h-4 w-4" /> Add Type</Button>}
+        action={<Button variant="accent" onClick={() => { setErrs({}); setDrawer(true); }}><Plus className="h-4 w-4" /> Add Type</Button>}
       />
       <div className="mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search…" className="sm:w-72" />
@@ -56,11 +60,7 @@ export const InspectionTypesPage = () => {
       <DataTable columns={columns} data={filtered} emptyTitle="No inspection types" />
 
       <FormDrawer open={drawer} onOpenChange={setDrawer} title="Add Inspection Type" onSubmit={submit} submitLabel="Add">
-        <div className="space-y-1.5">
-          <Label>Name <span className="text-destructive">*</span></Label>
-          <Input value={name} error={!!err} onChange={(e) => { setName(e.target.value); setErr(''); }} autoFocus />
-          {err && <p className="text-xs text-destructive">{err}</p>}
-        </div>
+        <ConfigForm fields={inspectionTypeFields(products, [...manufacturingStages, ...assemblingStages])} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

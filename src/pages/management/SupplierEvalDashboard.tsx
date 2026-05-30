@@ -78,9 +78,9 @@ export const SupplierEvalDashboard = () => {
 
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <motion.div variants={staggerItem}><StatsCard label="Total Suppliers" value={filtered.length} icon={Truck} /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Green" value={green} icon={CheckCircle2} variant="success" /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Amber" value={amber} icon={AlertTriangle} variant="warning" /></motion.div>
-        <motion.div variants={staggerItem}><StatsCard label="Red" value={red} icon={XCircle} variant="danger" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Good" value={green} icon={CheckCircle2} variant="success" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Warning" value={amber} icon={AlertTriangle} variant="warning" /></motion.div>
+        <motion.div variants={staggerItem}><StatsCard label="Critical" value={red} icon={XCircle} variant="danger" /></motion.div>
       </motion.div>
 
       <Card className="mb-6">
@@ -111,7 +111,7 @@ export const SupplierEvalDashboard = () => {
           <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
         </div>
         <Select value={supplierFilter} onChange={setSupplierFilter} options={[{ label: 'All Suppliers', value: 'all' }, ...suppliers.map((s) => ({ label: s.name, value: s.id }))]} className="w-48" />
-        <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Green', value: 'GREEN' }, { label: 'Amber', value: 'AMBER' }, { label: 'Red', value: 'RED' }]} className="w-40" />
+        <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }]} className="w-40" />
       </div>
 
       <DataTable columns={columns} data={filtered} onRowClick={(e) => setExpanded(expanded === e.id ? null : e.id)} emptyTitle="No evaluations" />

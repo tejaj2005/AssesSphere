@@ -26,7 +26,7 @@ export const SMMaterialQualityDash = () => {
         filters={[
           { key: 'materialId', label: 'Materials', options: materials.map((m) => ({ label: m.name, value: m.id })) },
           { key: 'supplierName', label: 'Suppliers', options: supplierNames.map((s) => ({ label: s, value: s })) },
-          { key: 'status', label: 'Status', options: [{ label: 'Green', value: 'GREEN' }, { label: 'Amber', value: 'AMBER' }, { label: 'Red', value: 'RED' }] },
+          { key: 'status', label: 'Status', options: [{ label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }] },
         ]}
         filterState={filterState}
         onFilterChange={(k, v) => setFilterState({ ...filterState, [k]: v })}

@@ -22,12 +22,8 @@ export const Home = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 h-16 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60 flex items-center px-4 sm:px-8">
-        <Link to="/" className="flex items-center gap-2.5">
-          <AssessSphereLogo size={36} />
-          <div>
-            <span className="font-bold text-lg tracking-tight">AssessSphere</span>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-[0.18em] font-semibold leading-none mt-0.5">by QMICS</p>
-          </div>
+        <Link to="/" className="flex items-center">
+          <AssessSphereLogo size={40} showText showPoweredBy />
         </Link>
         <nav className="hidden md:flex items-center gap-6 ml-10 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
