@@ -62,12 +62,17 @@ export const SMDashboard = () => {
                       <p className="text-sm font-medium">{s.materialName}</p>
                       <Badge variant={okPercent === 100 ? 'success' : okPercent > 70 ? 'accent' : 'warning'}>{okPercent.toFixed(0)}% OK</Badge>
                     </div>
-                    <div className="flex h-2 rounded-full overflow-hidden bg-muted">
-                      <div className="bg-emerald-500" style={{ width: `${(s.approvedCount / s.totalAvailable) * 100}%` }} />
-                      <div className="bg-amber-500" style={{ width: `${(s.pendingCount / s.totalAvailable) * 100}%` }} />
-                      <div className="bg-red-500" style={{ width: `${(s.rejectedCount / s.totalAvailable) * 100}%` }} />
+                    <div className="flex h-2.5 rounded-full overflow-hidden bg-muted shadow-inner">
+                      <div className="bg-[#2e9e6b] transition-all" style={{ width: `${(s.approvedCount / s.totalAvailable) * 100}%` }} title={`${s.approvedCount} approved`} />
+                      <div className="bg-[#f5af12] transition-all" style={{ width: `${(s.pendingCount  / s.totalAvailable) * 100}%` }} title={`${s.pendingCount} pending`} />
+                      <div className="bg-[#d9534f] transition-all" style={{ width: `${(s.rejectedCount / s.totalAvailable) * 100}%` }} title={`${s.rejectedCount} rejected`} />
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-1">{s.approvedCount} approved · {s.pendingCount} pending · {s.rejectedCount} rejected · {s.unit}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center gap-2 flex-wrap">
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#2e9e6b]" /> {s.approvedCount} approved</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#f5af12]" /> {s.pendingCount} pending</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#d9534f]" /> {s.rejectedCount} rejected</span>
+                      <span className="text-muted-foreground/60">· {s.unit}</span>
+                    </p>
                   </li>
                 );
               })}

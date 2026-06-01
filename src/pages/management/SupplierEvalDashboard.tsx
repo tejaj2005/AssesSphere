@@ -88,15 +88,15 @@ export const SupplierEvalDashboard = () => {
         <CardContent>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={comparison}>
+              <BarChart data={comparison} barCategoryGap="22%">
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" domain={[0, 10]} />
-                <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} cursor={{ fill: 'hsl(var(--muted))' }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="Quality"  fill="#22c55e" radius={[4,4,0,0]} />
-                <Bar dataKey="Delivery" fill="#3b82f6" radius={[4,4,0,0]} />
-                <Bar dataKey="Quantity" fill="#a855f7" radius={[4,4,0,0]} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
+                <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                <Bar dataKey="Quality"  fill="#2e9e6b" radius={[6,6,0,0]} />
+                <Bar dataKey="Delivery" fill="#0e5467" radius={[6,6,0,0]} />
+                <Bar dataKey="Quantity" fill="#f5af12" radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

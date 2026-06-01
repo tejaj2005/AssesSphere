@@ -11,7 +11,14 @@ import { useAuth } from '@/context/AuthContext';
 import { relativeTime } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 
-const ROLE_COLORS: Record<string, string> = { Admin: '#475569', Management: '#a855f7', 'Production Manager': '#3b82f6', 'Stores Manager': '#14b8a6', 'Quality Manager': '#f59e0b', Inspector: '#22c55e' };
+const ROLE_COLORS: Record<string, string> = {
+  Admin:                '#0a3d4d', // brand primary-dark
+  Management:           '#0e5467', // brand primary
+  'Production Manager': '#2d8aa4', // azure
+  'Stores Manager':     '#2e9e6b', // success
+  'Quality Manager':    '#f5af12', // gold
+  Inspector:            '#dc9c0c', // gold-hover
+};
 
 export const Dashboard = () => {
   const { products, materials, suppliers, equipment, users, departments, inspectionTypes, roles, auditLog } = useData();
@@ -24,8 +31,8 @@ export const Dashboard = () => {
   const usersByRole = roles.map((r) => ({ name: r.name.replace('Manager', 'Mgr.'), count: users.filter((u) => u.roleId === r.id).length, color: ROLE_COLORS[r.name] || '#64748b' })).filter((r) => r.count > 0);
 
   const calibrationData = [
-    { name: 'Completed', value: completed, color: 'hsl(142 71% 45%)' },
-    { name: 'Pending', value: pending, color: 'hsl(38 92% 50%)' },
+    { name: 'Completed', value: completed, color: '#2e9e6b' },
+    { name: 'Pending Calibration',   value: pending,   color: '#f5af12' },
   ];
 
   const ActionIcon = ({ action }: { action: string }) => {
@@ -64,10 +71,10 @@ export const Dashboard = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={usersByRole} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
-                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} cursor={{ fill: 'hsl(var(--muted))' }} />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" allowDecimals={false} />
+                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                  <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={800}>
                     {usersByRole.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Bar>
                 </BarChart>
@@ -84,11 +91,11 @@ export const Dashboard = () => {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={calibrationData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={4}>
+                  <Pie data={calibrationData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={4} stroke="hsl(var(--card))" strokeWidth={2}>
                     {calibrationData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} />
+                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>
