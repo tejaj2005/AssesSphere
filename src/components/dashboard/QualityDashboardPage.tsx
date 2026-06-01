@@ -67,9 +67,9 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
       const day = data.filter((r: any) => r.date && r.date.startsWith(key));
       return {
         date: format(d, 'MMM dd'),
-        green: day.filter((r: any) => r.status === 'GREEN').length,
-        amber: day.filter((r: any) => r.status === 'AMBER').length,
-        red:   day.filter((r: any) => r.status === 'RED').length,
+        Good:     day.filter((r: any) => r.status === 'GREEN').length,
+        Warning:  day.filter((r: any) => r.status === 'AMBER').length,
+        Critical: day.filter((r: any) => r.status === 'RED').length,
       };
     });
   }, [data]);
@@ -94,24 +94,24 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
                 {chartType === 'comparison' && comparisonData ? (
                   <BarChart data={comparisonData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" domain={[0, 10]} />
-                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} cursor={{ fill: 'hsl(var(--muted))' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Quality"  fill="#22c55e" radius={[4,4,0,0]} />
-                    <Bar dataKey="Delivery" fill="#3b82f6" radius={[4,4,0,0]} />
-                    <Bar dataKey="Quantity" fill="#a855f7" radius={[4,4,0,0]} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
+                    <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
+                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                    <Bar dataKey="Quality"  fill="#2e9e6b" radius={[4,4,0,0]} />
+                    <Bar dataKey="Delivery" fill="#0e5467" radius={[4,4,0,0]} />
+                    <Bar dataKey="Quantity" fill="#f5af12" radius={[4,4,0,0]} />
                   </BarChart>
                 ) : (
                   <LineChart data={trend}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={Math.ceil(trend.length / 8)} />
-                    <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
-                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Line type="monotone" dataKey="green" stroke="#22c55e" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="amber" stroke="#f59e0b" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="red"   stroke="#ef4444" strokeWidth={2} dot={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" interval={Math.ceil(trend.length / 8)} />
+                    <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" allowDecimals={false} />
+                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ stroke: 'hsl(var(--accent))', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                    <Line type="monotone" dataKey="Good"     stroke="#2e9e6b" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Warning"  stroke="#f5af12" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Critical" stroke="#d9534f" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 )}
               </ResponsiveContainer>
@@ -129,11 +129,11 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
                 <>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={donut} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4}>
+                      <Pie data={donut} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4} stroke="hsl(var(--card))" strokeWidth={2}>
                         {donut.map((d, i) => <Cell key={i} fill={d.color} />)}
                       </Pie>
-                      <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }} />
-                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} />
+                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-[-30px]">

@@ -137,11 +137,11 @@ export const RolesPage = () => {
             <SheetBody>
               <div className="rounded-lg border overflow-hidden">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
+                  <thead className="bg-[#0e5467] text-white">
                     <tr>
-                      <th className="text-left px-4 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Module</th>
-                      {(['view', 'create', 'edit', 'delete'] as const).map((k) => (
-                        <th key={k} className="px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground text-center">{k}</th>
+                      <th className="text-left px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider">Module</th>
+                      {(['View', 'Create', 'Edit', 'Delete'] as const).map((k) => (
+                        <th key={k} className="px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-center">{k}</th>
                       ))}
                     </tr>
                   </thead>
@@ -194,16 +194,16 @@ export const RolesPage = () => {
               <Button type="button" size="sm" variant="ghost" onClick={() => setAllPermissions(false)}>None</Button>
             </div>
           </div>
-          <div className="rounded-lg border max-h-72 overflow-y-auto">
+          <div className="rounded-lg border max-h-80 overflow-y-auto">
             <table className="w-full text-xs">
-              <thead className="bg-muted/50 sticky top-0 z-10">
+              <thead className="bg-[#0e5467] text-white sticky top-0 z-10">
                 <tr>
-                  <th className="text-left px-3 py-2">Module</th>
-                  <th className="px-2 py-2 w-12 text-center">V</th>
-                  <th className="px-2 py-2 w-12 text-center">C</th>
-                  <th className="px-2 py-2 w-12 text-center">E</th>
-                  <th className="px-2 py-2 w-12 text-center">D</th>
-                  <th className="px-2 py-2 w-12 text-center">All</th>
+                  <th className="text-left px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px]">Module</th>
+                  <th className="px-3 py-2.5 w-16 text-center font-semibold uppercase tracking-wider text-[10px]">View</th>
+                  <th className="px-3 py-2.5 w-16 text-center font-semibold uppercase tracking-wider text-[10px]">Create</th>
+                  <th className="px-3 py-2.5 w-16 text-center font-semibold uppercase tracking-wider text-[10px]">Edit</th>
+                  <th className="px-3 py-2.5 w-16 text-center font-semibold uppercase tracking-wider text-[10px]">Delete</th>
+                  <th className="px-3 py-2.5 w-16 text-center font-semibold uppercase tracking-wider text-[10px]">All</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -211,14 +211,14 @@ export const RolesPage = () => {
                   const perm = form.permissions[p] || { view: false, create: false, edit: false, delete: false };
                   const allSet = perm.view && perm.create && perm.edit && perm.delete;
                   return (
-                    <tr key={p} className="hover:bg-muted/30">
-                      <td className="px-3 py-1.5 font-medium">{p}</td>
+                    <tr key={p} className="hover:bg-[#e8f4f7]/60 dark:hover:bg-[#0e5467]/20 transition-colors">
+                      <td className="px-3 py-2 font-medium">{p}</td>
                       {(['view', 'create', 'edit', 'delete'] as const).map((k) => (
-                        <td key={k} className="px-2 py-1.5 text-center">
+                        <td key={k} className="px-3 py-2 text-center">
                           <Checkbox checked={perm[k] || false} onCheckedChange={() => togglePerm(p, k)} />
                         </td>
                       ))}
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-3 py-2 text-center">
                         <Checkbox checked={allSet} onCheckedChange={() => toggleAllForPage(p, !allSet)} />
                       </td>
                     </tr>
@@ -227,7 +227,7 @@ export const RolesPage = () => {
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-muted-foreground">V=View · C=Create · E=Edit · D=Delete</p>
+          <p className="text-[10px] text-muted-foreground italic">Tick each cell to grant the matching permission. Use the rightmost column to grant all four at once.</p>
         </div>
       </FormDrawer>
 

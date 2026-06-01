@@ -154,6 +154,148 @@ export const materialFields = (types: { id: string; name: string }[], suppliers:
   {                         name: 'notes',         label: 'Notes', type: 'textarea' },
 ];
 
+// ─── ORGANIZATION ───
+export const organizationFields = (): FieldDef[] => [
+  { section: 'Identity',    name: 'name',         label: 'Organization Name', type: 'text', required: true, col: 'half' },
+  {                         name: 'code',         label: 'Organization Code', type: 'text', col: 'half' },
+  {                         name: 'type',         label: 'Industry / Sector', type: 'select', col: 'half',
+                            options: [
+                              { label: 'Engineering',    value: 'ENGINEERING' },
+                              { label: 'Manufacturing',  value: 'MANUFACTURING' },
+                              { label: 'Pharmaceutical', value: 'PHARMACEUTICAL' },
+                              { label: 'Automotive',     value: 'AUTOMOTIVE' },
+                              { label: 'Electronics',    value: 'ELECTRONICS' },
+                              { label: 'Aerospace',      value: 'AEROSPACE' },
+                              { label: 'Food & Beverage', value: 'FOOD' },
+                            ] },
+  {                         name: 'establishedDate', label: 'Date Established', type: 'date', col: 'half' },
+
+  { section: 'Address',     name: 'addressLine1', label: 'Address Line 1', type: 'text' },
+  {                         name: 'addressLine2', label: 'Address Line 2', type: 'text' },
+  {                         name: 'city',         label: 'City', type: 'text', col: 'third' },
+  {                         name: 'state',        label: 'State / Region', type: 'text', col: 'third' },
+  {                         name: 'country',      label: 'Country', type: 'select', col: 'third',
+                            options: [
+                              { label: 'India',          value: 'IN' },
+                              { label: 'United States',  value: 'US' },
+                              { label: 'Germany',        value: 'DE' },
+                              { label: 'Japan',          value: 'JP' },
+                              { label: 'China',          value: 'CN' },
+                              { label: 'Singapore',      value: 'SG' },
+                              { label: 'United Kingdom', value: 'UK' },
+                            ] },
+  {                         name: 'postalCode',   label: 'Postal Code', type: 'text', col: 'third' },
+  {                         name: 'phone',        label: 'Phone Number', type: 'tel', col: 'third' },
+  {                         name: 'email',        label: 'Email', type: 'email', col: 'third' },
+  {                         name: 'website',      label: 'Website URL', type: 'url', col: 'full', placeholder: 'https://example.com' },
+
+  { section: 'Compliance',  name: 'accreditationBody', label: 'Accreditation Body', type: 'text', col: 'half', placeholder: 'e.g. NABL' },
+  {                         name: 'isoStandards', label: 'ISO Standard(s)', type: 'multi-select', col: 'half',
+                            options: [
+                              { label: 'ISO 9001 (Quality Management)',     value: 'ISO_9001' },
+                              { label: 'ISO 14001 (Environmental)',         value: 'ISO_14001' },
+                              { label: 'ISO 17025 (Testing & Calibration)', value: 'ISO_17025' },
+                              { label: 'ISO 45001 (Health & Safety)',       value: 'ISO_45001' },
+                              { label: 'IATF 16949 (Automotive)',           value: 'IATF_16949' },
+                              { label: 'AS 9100 (Aerospace)',               value: 'AS_9100' },
+                            ] },
+
+  { section: 'Branding',    name: 'logo',         label: 'Organization Logo', type: 'file' },
+  {                         name: 'description',  label: 'Notes / Description', type: 'textarea' },
+];
+
+// ─── DEPARTMENT ───
+export const departmentFields = (
+  departments: { id: string; name: string }[],
+  users: { id: string; name: string }[],
+): FieldDef[] => [
+  { section: 'Identity',    name: 'name',          label: 'Department Name', type: 'text', required: true, col: 'half' },
+  {                         name: 'code',          label: 'Department Code', type: 'text', col: 'half' },
+  {                         name: 'parentId',      label: 'Parent Department', type: 'select', col: 'half',
+                            options: [{ label: '— None (top-level) —', value: '' }, ...departments.map((d) => ({ label: d.name, value: d.id }))] },
+  {                         name: 'headUserId',    label: 'Department Head', type: 'select', col: 'half',
+                            options: [{ label: '— Unassigned —', value: '' }, ...users.map((u) => ({ label: u.name, value: u.id }))] },
+
+  { section: 'Location',    name: 'location',      label: 'Location / Floor', type: 'text', col: 'half' },
+  {                         name: 'contactEmail',  label: 'Contact Email', type: 'email', col: 'half' },
+  {                         name: 'contactPhone',  label: 'Contact Phone', type: 'tel', col: 'half' },
+  {                         name: 'costCenter',    label: 'Cost Center Code', type: 'text', col: 'half' },
+
+  { section: 'Budget',      name: 'budget',        label: 'Budget Allocation', type: 'number', col: 'half', placeholder: '0.00' },
+  {                         name: 'status',        label: 'Active', type: 'toggle', col: 'half' },
+  {                         name: 'description',   label: 'Description', type: 'textarea' },
+];
+
+// ─── USER ───
+export const userFields = (
+  roles: { id: string; name: string }[],
+  departments: { id: string; name: string }[],
+): FieldDef[] => [
+  { section: 'Identity',    name: 'firstName',     label: 'First Name', type: 'text', required: true, col: 'half' },
+  {                         name: 'lastName',      label: 'Last Name', type: 'text', required: true, col: 'half' },
+  {                         name: 'employeeId',    label: 'Employee ID', type: 'text', required: true, col: 'half' },
+  {                         name: 'username',      label: 'Username', type: 'text', col: 'half', help: 'Auto-suggested from name' },
+
+  { section: 'Contact',     name: 'email',         label: 'Email', type: 'email', required: true, col: 'half' },
+  {                         name: 'phone',         label: 'Phone Number', type: 'tel', col: 'half' },
+
+  { section: 'Assignment',  name: 'roleId',        label: 'Role', type: 'select', required: true, col: 'half',
+                            options: roles.map((r) => ({ label: r.name, value: r.id })) },
+  {                         name: 'departmentId',  label: 'Department', type: 'select', required: true, col: 'half',
+                            options: departments.map((d) => ({ label: d.name, value: d.id })) },
+  {                         name: 'designation',   label: 'Designation / Job Title', type: 'text', col: 'half' },
+  {                         name: 'joiningDate',   label: 'Date of Joining', type: 'date', col: 'half' },
+
+  { section: 'Account',     name: 'profilePhoto',  label: 'Profile Photo', type: 'file' },
+  {                         name: 'status',        label: 'Active', type: 'toggle', col: 'half' },
+  {                         name: 'sendInvite',    label: 'Send Invite Email', type: 'checkbox', col: 'half' },
+  {                         name: 'notes',         label: 'Notes', type: 'textarea' },
+];
+
+// ─── PRODUCT ───
+export const productFields = (
+  manufacturingStages: { id: string; name: string }[],
+  assemblingStages: { id: string; name: string }[],
+): FieldDef[] => [
+  { section: 'Identity',    name: 'name',          label: 'Product Name', type: 'text', required: true, col: 'half' },
+  {                         name: 'code',          label: 'Product Code', type: 'text', required: true, col: 'half' },
+  {                         name: 'category',      label: 'Product Category', type: 'select', col: 'half',
+                            options: [
+                              { label: 'Finished Good',    value: 'FINISHED' },
+                              { label: 'Semi-Finished',    value: 'SEMI' },
+                              { label: 'Raw Material',     value: 'RAW' },
+                              { label: 'Consumable',       value: 'CONSUMABLE' },
+                            ] },
+  {                         name: 'uom',           label: 'Unit of Measure', type: 'select', col: 'half',
+                            options: [
+                              { label: 'kilograms (kg)', value: 'kg' },
+                              { label: 'pieces (pcs)',   value: 'pcs' },
+                              { label: 'liters (L)',     value: 'L' },
+                              { label: 'meters (m)',     value: 'm' },
+                            ] },
+  {                         name: 'description',   label: 'Description', type: 'textarea' },
+
+  { section: 'Manufacturing', name: 'batchSize',     label: 'Standard Batch Size', type: 'number', col: 'half' },
+  {                           name: 'shelfLife',     label: 'Shelf Life (days)', type: 'number', col: 'half' },
+  {                           name: 'storageConditions', label: 'Storage Conditions', type: 'text', col: 'half' },
+  {                           name: 'regulatoryClass', label: 'Regulatory Class', type: 'select', col: 'half',
+                              options: [
+                                { label: 'Standard',  value: 'STD' },
+                                { label: 'Controlled', value: 'CTRL' },
+                                { label: 'Hazardous', value: 'HAZ' },
+                              ] },
+  {                           name: 'drawingRef',    label: 'Drawing / Spec Reference', type: 'text' },
+
+  { section: 'Production',  name: 'manufacturingStageIds', label: 'Manufacturing Stages', type: 'multi-select',
+                            options: manufacturingStages.map((s) => ({ label: s.name, value: s.id })) },
+  {                         name: 'assemblingStageIds',    label: 'Assembling Stages', type: 'multi-select',
+                            options: assemblingStages.map((s) => ({ label: s.name, value: s.id })) },
+
+  { section: 'Documents',   name: 'documents',     label: 'Attached Documents', type: 'file' },
+  {                         name: 'status',        label: 'Active', type: 'toggle', col: 'half' },
+  {                         name: 'notes',         label: 'Notes', type: 'textarea' },
+];
+
 // ─── SUPPLIER ───
 export const supplierFields = (materials: { id: string; name: string }[]): FieldDef[] => [
   { section: 'Identity',    name: 'name',          label: 'Supplier Name', type: 'text', required: true, col: 'half' },

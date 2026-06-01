@@ -48,19 +48,21 @@ export const Home = () => {
       </header>
 
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-accent/5 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 gradient-mesh pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-20 sm:py-28 text-center relative">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border bg-card text-xs font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#c2dde4] bg-card text-xs font-medium mb-6">
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-              All systems operational
+              <span className="text-[#0e5467] dark:text-foreground">Trusted by quality teams · Powered by QMICS</span>
             </div>
             <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance">
-              Quality assessment with{' '}
-              <span className="bg-gradient-to-r from-accent to-amber-500 bg-clip-text text-transparent">precision</span>
+              <span className="text-[#0e5467] dark:text-white">Quality assessment with</span>{' '}
+              <span className="bg-gradient-to-r from-[#0e5467] via-[#f5af12] to-[#dc9c0c] bg-clip-text text-transparent italic">precision</span>
             </h1>
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto text-balance">
-              An enterprise-grade Product Quality Assurance System for engineering teams. Streamline organization setup, configure inspections, and monitor every step from raw material to delivery.
+              <span className="italic font-semibold text-[#0e5467] dark:text-[#f5af12]">"Where every measurement matters."</span>
+              <br className="hidden sm:block" />
+              An enterprise-grade Product Quality Assurance System for engineering teams. Streamline organization setup, configure inspections, and monitor every step from raw material to delivery — powered by QMICS Pvt. Ltd.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button variant="accent" size="lg" asChild>
@@ -117,7 +119,12 @@ export const Home = () => {
 
       <footer className="border-t mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
-          <p>&copy; 2026 Precision Parts Pvt. Ltd. All rights reserved.</p>
+          <p>
+            &copy; 2026 <span className="font-semibold text-[#0e5467] dark:text-foreground">AssessSphere</span>
+            {' · '}
+            <span className="text-[#f5af12] font-medium">Powered by QMICS Pvt. Ltd.</span>
+            {' · '}All rights reserved.
+          </p>
           <div className="flex gap-6">
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
