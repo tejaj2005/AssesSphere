@@ -9,7 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { useData } from '@/context/DataContext';
 import { staggerContainer, staggerItem, pendingPulse } from '@/lib/animations';
@@ -62,7 +62,7 @@ export const InspectorDashboard = () => {
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <Select value={typeFilter} onChange={setTypeFilter} options={[{ label: 'All Types', value: 'all' }, { label: 'Material', value: 'MATERIAL' }, { label: 'Component', value: 'COMPONENT' }, { label: 'Assembly', value: 'ASSEMBLY' }, { label: 'Final Product', value: 'FINAL_PRODUCT' }, { label: 'Calibration', value: 'CALIBRATION' }]} className="w-44" />
             <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Assigned', value: 'ASSIGNED' }, { label: 'Submitted', value: 'SUBMITTED' }, { label: 'Approved', value: 'APPROVED' }, { label: 'Rejected', value: 'REJECTED' }]} className="w-40" />
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+            <DateRangeFilter from={from} onChange={(f) => setFrom(f)} singleDate />
           </div>
 
           <motion.div variants={staggerContainer} initial="initial" animate="animate" className="space-y-3">

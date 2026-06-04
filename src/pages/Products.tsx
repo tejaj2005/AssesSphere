@@ -145,10 +145,14 @@ export const ProductsPage = () => {
                   <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <Package className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline" className="font-mono text-xs">{p.code}</Badge>
+                  <Badge variant="accent" className="font-mono text-xs">{p.id}</Badge>
                 </div>
                 <h3 className="font-semibold mb-1">{p.name}</h3>
-                <p className="text-xs text-muted-foreground mb-3">{components.filter((c) => c.productId === p.id).length} components</p>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-xs text-muted-foreground">
+                  <span>Code <span className="font-mono text-foreground">{p.code}</span></span>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span>{components.filter((c) => c.productId === p.id).length} components</span>
+                </div>
                 <div className="flex flex-wrap gap-1.5 mb-3">
                   <Badge variant="accent" className="text-[10px]">{p.manufacturingStageIds.length} mfg</Badge>
                   <Badge variant="purple" className="text-[10px]">{p.assemblingStageIds.length} asm</Badge>

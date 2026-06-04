@@ -82,26 +82,28 @@ export const initialUsers: User[] = [
   { id: 'U-020', employeeId: 'EMP-020', name: 'Aditya Shah',    email: 'aditya@pqas.com',   roleId: 'ROLE-001', departmentId: 'DEPT-005', status: 'Active', createdAt: daysAgo(60) },
 ];
 
+const stageTs = (d: number) => ({ createdAt: daysAgo(d), updatedAt: daysAgo(Math.max(0, d - 30)) });
+
 export const initialManufacturingStages: ManufacturingStage[] = [
-  { id: 'MFG-001', name: 'Machining', order: 1 },
-  { id: 'MFG-002', name: 'Heat Treatment', order: 2 },
-  { id: 'MFG-003', name: 'Grinding', order: 3 },
-  { id: 'MFG-004', name: 'CNC Turning', order: 4 },
-  { id: 'MFG-005', name: 'Surface Finishing', order: 5 },
-  { id: 'MFG-006', name: 'PCB Assembly', order: 6 },
-  { id: 'MFG-007', name: 'Wiring', order: 7 },
-  { id: 'MFG-008', name: 'Coating', order: 8 },
-  { id: 'MFG-009', name: 'Welding', order: 9 },
-  { id: 'MFG-010', name: 'Quality Control', order: 10 },
+  { id: 'MFG-001', name: 'Machining',         order: 1,  status: 'ACTIVE', workCenter: 'Machine Shop', standardTimeMin: 18, setupTimeMin: 25, criticalToQuality: true,  description: 'Rough and finish machining of raw stock to drawing dimensions.', ...stageTs(200) },
+  { id: 'MFG-002', name: 'Heat Treatment',    order: 2,  status: 'ACTIVE', workCenter: 'Furnace Bay',  standardTimeMin: 45, setupTimeMin: 30, criticalToQuality: true,  description: 'Controlled heating and quenching to achieve specified hardness.', ...stageTs(200) },
+  { id: 'MFG-003', name: 'Grinding',          order: 3,  status: 'ACTIVE', workCenter: 'Finishing',    standardTimeMin: 12, setupTimeMin: 15, criticalToQuality: false, description: 'Precision grinding to final surface tolerance.', ...stageTs(190) },
+  { id: 'MFG-004', name: 'CNC Turning',       order: 4,  status: 'ACTIVE', workCenter: 'CNC Cell',     standardTimeMin: 22, setupTimeMin: 20, criticalToQuality: true,  description: 'Automated turning of cylindrical features.', ...stageTs(180) },
+  { id: 'MFG-005', name: 'Surface Finishing', order: 5,  status: 'ACTIVE', workCenter: 'Finishing',    standardTimeMin: 10, setupTimeMin: 10, criticalToQuality: false, description: 'Deburring and surface preparation prior to coating.', ...stageTs(170) },
+  { id: 'MFG-006', name: 'PCB Assembly',      order: 6,  status: 'ACTIVE', workCenter: 'Electronics',  standardTimeMin: 30, setupTimeMin: 18, criticalToQuality: true,  description: 'Population and reflow of printed circuit boards.', ...stageTs(160) },
+  { id: 'MFG-007', name: 'Wiring',            order: 7,  status: 'ACTIVE', workCenter: 'Electronics',  standardTimeMin: 16, setupTimeMin: 8,  criticalToQuality: false, description: 'Harness routing and termination.', ...stageTs(150) },
+  { id: 'MFG-008', name: 'Coating',           order: 8,  status: 'ACTIVE', workCenter: 'Paint Line',   standardTimeMin: 20, setupTimeMin: 35, criticalToQuality: false, description: 'Protective coating application and cure.', ...stageTs(140) },
+  { id: 'MFG-009', name: 'Welding',           order: 9,  status: 'ACTIVE', workCenter: 'Weld Bay',     standardTimeMin: 28, setupTimeMin: 22, criticalToQuality: true,  description: 'Structural welding of sub-frames.', ...stageTs(130) },
+  { id: 'MFG-010', name: 'Quality Control',   order: 10, status: 'ACTIVE', workCenter: 'QC Lab',       standardTimeMin: 15, setupTimeMin: 5,  criticalToQuality: true,  description: 'Final dimensional and visual inspection gate.', ...stageTs(120) },
 ];
 
 export const initialAssemblingStages: AssemblingStage[] = [
-  { id: 'ASM-001', name: 'Sub-Assembly', order: 1 },
-  { id: 'ASM-002', name: 'Final Assembly', order: 2 },
-  { id: 'ASM-003', name: 'Enclosure Assembly', order: 3 },
-  { id: 'ASM-004', name: 'Testing', order: 4 },
-  { id: 'ASM-005', name: 'Packaging', order: 5 },
-  { id: 'ASM-006', name: 'Labeling', order: 6 },
+  { id: 'ASM-001', name: 'Sub-Assembly',       order: 1, status: 'ACTIVE', workCenter: 'Assembly Line A', standardTimeMin: 24, setupTimeMin: 12, criticalToQuality: false, description: 'Build-up of component sub-assemblies.', ...stageTs(200) },
+  { id: 'ASM-002', name: 'Final Assembly',     order: 2, status: 'ACTIVE', workCenter: 'Assembly Line A', standardTimeMin: 40, setupTimeMin: 15, criticalToQuality: true,  description: 'Integration of sub-assemblies into the finished unit.', ...stageTs(190) },
+  { id: 'ASM-003', name: 'Enclosure Assembly', order: 3, status: 'ACTIVE', workCenter: 'Assembly Line B', standardTimeMin: 18, setupTimeMin: 10, criticalToQuality: false, description: 'Mounting of enclosure and fasteners.', ...stageTs(180) },
+  { id: 'ASM-004', name: 'Testing',            order: 4, status: 'ACTIVE', workCenter: 'Test Bench',      standardTimeMin: 35, setupTimeMin: 20, criticalToQuality: true,  description: 'Functional and safety testing of the assembled unit.', ...stageTs(170) },
+  { id: 'ASM-005', name: 'Packaging',          order: 5, status: 'ACTIVE', workCenter: 'Pack Station',    standardTimeMin: 8,  setupTimeMin: 5,  criticalToQuality: false, description: 'Protective packaging for dispatch.', ...stageTs(160) },
+  { id: 'ASM-006', name: 'Labeling',           order: 6, status: 'ACTIVE', workCenter: 'Pack Station',    standardTimeMin: 4,  setupTimeMin: 3,  criticalToQuality: false, description: 'Serial/label application and traceability scan.', ...stageTs(150) },
 ];
 
 export const initialProducts: Product[] = [

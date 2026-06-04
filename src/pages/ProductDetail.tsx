@@ -120,8 +120,9 @@ export const ProductDetailPage = () => {
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
-                <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-                  <Badge variant="outline" className="font-mono">{product.code}</Badge>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
+                  <Badge variant="accent" className="font-mono">ID {product.id}</Badge>
+                  <Badge variant="outline" className="font-mono">Code {product.code}</Badge>
                   <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Created {formatDate(product.createdAt)}</span>
                 </div>
               </div>

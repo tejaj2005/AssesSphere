@@ -17,6 +17,7 @@ import * as moduleData from '@/data/moduleData';
 import { nextId } from '@/lib/utils';
 
 type Result = { success: boolean; error?: string };
+type StageInput = Partial<Omit<ManufacturingStage, 'id' | 'order' | 'createdAt' | 'updatedAt'>> & { name: string };
 
 interface DataContextType {
   organization: Organization;
@@ -60,12 +61,12 @@ interface DataContextType {
   updateComponent: (id: string, data: Partial<ProductComponent>) => Result;
   deleteComponent: (id: string) => Result;
 
-  addManufacturingStage: (data: { name: string }) => Result;
+  addManufacturingStage: (data: StageInput) => Result;
   updateManufacturingStage: (id: string, data: Partial<ManufacturingStage>) => Result;
   deleteManufacturingStage: (id: string) => Result;
   reorderManufacturingStages: (ids: string[]) => void;
 
-  addAssemblingStage: (data: { name: string }) => Result;
+  addAssemblingStage: (data: StageInput) => Result;
   updateAssemblingStage: (id: string, data: Partial<AssemblingStage>) => Result;
   deleteAssemblingStage: (id: string) => Result;
   reorderAssemblingStages: (ids: string[]) => void;
@@ -341,14 +342,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   // Manufacturing Stages
   const addManufacturingStage: DataContextType['addManufacturingStage'] = (data) => {
     if (manufacturingStages.some((s) => s.name.toLowerCase() === data.name.toLowerCase())) return { success: false, error: 'Stage name already exists' };
-    const s: ManufacturingStage = { id: nextId('MFG', manufacturingStages), name: data.name, order: manufacturingStages.length + 1 };
+    const now = new Date().toISOString();
+    const s: ManufacturingStage = { status: 'ACTIVE', ...data, id: nextId('MFG', manufacturingStages), name: data.name, order: manufacturingStages.length + 1, createdAt: now, updatedAt: now };
     setManufacturingStages((p) => [...p, s]);
     pushAudit(newAudit('Created', 'Manufacturing Stage', s.name));
     return { success: true };
   };
   const updateManufacturingStage: DataContextType['updateManufacturingStage'] = (id, data) => {
     let name = '';
-    setManufacturingStages((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data }; } return s; }));
+    setManufacturingStages((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data, updatedAt: new Date().toISOString() }; } return s; }));
     pushAudit(newAudit('Updated', 'Manufacturing Stage', name));
     return { success: true };
   };
@@ -370,14 +372,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   // Assembling Stages
   const addAssemblingStage: DataContextType['addAssemblingStage'] = (data) => {
     if (assemblingStages.some((s) => s.name.toLowerCase() === data.name.toLowerCase())) return { success: false, error: 'Stage name already exists' };
-    const s: AssemblingStage = { id: nextId('ASM', assemblingStages), name: data.name, order: assemblingStages.length + 1 };
+    const now = new Date().toISOString();
+    const s: AssemblingStage = { status: 'ACTIVE', ...data, id: nextId('ASM', assemblingStages), name: data.name, order: assemblingStages.length + 1, createdAt: now, updatedAt: now };
     setAssemblingStages((p) => [...p, s]);
     pushAudit(newAudit('Created', 'Assembling Stage', s.name));
     return { success: true };
   };
   const updateAssemblingStage: DataContextType['updateAssemblingStage'] = (id, data) => {
     let name = '';
-    setAssemblingStages((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data }; } return s; }));
+    setAssemblingStages((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data, updatedAt: new Date().toISOString() }; } return s; }));
     pushAudit(newAudit('Updated', 'Assembling Stage', name));
     return { success: true };
   };

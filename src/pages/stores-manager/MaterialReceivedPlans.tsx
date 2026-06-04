@@ -10,7 +10,7 @@ import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/components/ui/sheet';
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
@@ -102,8 +102,7 @@ export const MaterialReceivedPlans = () => {
         <SearchInput value={search} onChange={setSearch} placeholder="Search…" className="sm:w-72" />
         <Select value={matFilter} onChange={setMatFilter} options={[{ label: 'All Materials', value: 'all' }, ...materials.map((m) => ({ label: m.name, value: m.id }))]} className="w-44" />
         <Select value={supFilter} onChange={setSupFilter} options={[{ label: 'All Suppliers', value: 'all' }, ...suppliers.map((s) => ({ label: s.name, value: s.id }))]} className="w-44" />
-        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
-        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
+        <DateRangeFilter from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
       </div>
 
       <DataTable columns={columns} data={filtered} onRowClick={(p) => setDetail(p)} emptyTitle="No material plans" emptyAction={<Button variant="accent" onClick={openAdd}><Plus className="h-4 w-4" /> Create Plan</Button>} />

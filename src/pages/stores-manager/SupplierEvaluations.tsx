@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { formatDate, cn } from '@/lib/utils';
 import type { RAGStatus, SupplierEvaluation } from '@/types';
 
@@ -100,8 +101,7 @@ export const SupplierEvaluations = () => {
       } />
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search…" className="sm:w-72" />
-        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
-        <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
+        <DateRangeFilter from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
       </div>
       <DataTable columns={columns} data={filtered} emptyTitle="No evaluations" />
 

@@ -59,17 +59,28 @@ export interface ProductComponent {
   createdAt: string;
 }
 
-export interface ManufacturingStage {
+export type StageStatus = 'ACTIVE' | 'INACTIVE';
+
+// Shared shape for manufacturing & assembly process stages.
+// Carries time-study (standard time), motion-study (setup time) and
+// methods-study (method) attributes plus lifecycle timestamps.
+export interface ProcessStage {
   id: string;
   name: string;
   order: number;
+  description?: string;       // Methods study: documented work method / SOP summary
+  workCenter?: string;        // Responsible department / work centre
+  standardTimeMin?: number;   // Time study: standard cycle time per unit (minutes)
+  setupTimeMin?: number;      // Motion study: setup / changeover time (minutes)
+  criticalToQuality?: boolean;// CTQ control point flag
+  status?: StageStatus;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface AssemblingStage {
-  id: string;
-  name: string;
-  order: number;
-}
+export type ManufacturingStage = ProcessStage;
+
+export type AssemblingStage = ProcessStage;
 
 export interface InspectionType {
   id: string;

@@ -8,8 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { EmptyState } from '@/components/shared/EmptyState';
@@ -90,7 +90,7 @@ export const CalibrationApprovals = () => {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <Select value={statusFilter} onChange={(v) => setStatusFilter(v as any)} options={[{ label: 'All', value: 'all' }, { label: 'Pending', value: 'PENDING' }, { label: 'Approved', value: 'APPROVED' }, { label: 'Rejected', value: 'REJECTED' }]} className="w-40" />
         <Select value={eqpFilter} onChange={setEqpFilter} options={[{ label: 'All Equipment', value: 'all' }, ...equipment.map((e) => ({ label: e.name, value: e.id }))]} className="w-56" />
-        <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+        <DateRangeFilter from={from} onChange={(f) => setFrom(f)} singleDate />
       </div>
 
       {filtered.length === 0 ? (

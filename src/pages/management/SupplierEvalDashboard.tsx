@@ -12,8 +12,8 @@ import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { RAGBadge } from '@/components/dashboard/RAGBadge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { useData } from '@/context/DataContext';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { useChartColors } from '@/lib/chartColors';
@@ -107,11 +107,7 @@ export const SupplierEvalDashboard = () => {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search supplier…" className="sm:w-72" />
-        <div className="flex items-center gap-2">
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
-          <span className="text-xs text-muted-foreground">to</span>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
-        </div>
+        <DateRangeFilter from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
         <Select value={supplierFilter} onChange={setSupplierFilter} options={[{ label: 'All Suppliers', value: 'all' }, ...suppliers.map((s) => ({ label: s.name, value: s.id }))]} className="w-48" />
         <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }]} className="w-40" />
       </div>

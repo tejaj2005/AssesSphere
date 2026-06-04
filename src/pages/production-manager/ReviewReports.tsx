@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select } from '@/components/ui/select';
 import { SearchInput } from '@/components/shared/SearchInput';
-import { Input } from '@/components/ui/input';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { ReviewQueue } from '@/components/review/ReviewQueue';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { useData } from '@/context/DataContext';
@@ -56,11 +56,7 @@ export const ReviewReports = () => {
           <SearchInput value={search} onChange={setSearch} placeholder="Search…" className="sm:w-72" />
           <Select value={productFilter} onChange={setProductFilter} options={[{ label: 'All Products', value: 'all' }, ...products.map((p) => ({ label: p.name, value: p.id }))]} className="w-48" />
           <Select value={statusFilter} onChange={(v) => setStatusFilter(v as any)} options={[{ label: 'All Status', value: 'all' }, { label: 'Pending', value: 'PENDING' }, { label: 'Approved', value: 'APPROVED' }, { label: 'Rejected', value: 'REJECTED' }, { label: 'Info Requested', value: 'INFO_REQUESTED' }]} className="w-44" />
-          <div className="flex items-center gap-2">
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" />
-          </div>
+          <DateRangeFilter from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
         </div>
 
         <TabsContent value="mfg"><ReviewQueue records={mfg} /></TabsContent>

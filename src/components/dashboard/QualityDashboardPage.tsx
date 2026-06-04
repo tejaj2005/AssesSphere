@@ -9,9 +9,9 @@ import { StatsCard } from '@/components/shared/StatsCard';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ExportButtons } from './ExportButtons';
+import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { useChartColors } from '@/lib/chartColors';
 import type { InspectionRecord } from '@/types';
@@ -156,11 +156,7 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
       <div className="flex flex-wrap items-center gap-3 mb-4">
         {onSearchChange && <SearchInput value={search || ''} onChange={onSearchChange} placeholder="Search…" className="sm:w-72" />}
         {fromDate !== undefined && (
-          <div className="flex items-center gap-2">
-            <Input type="date" value={fromDate} onChange={(e) => onDateChange?.(e.target.value, toDate || '')} className="w-40" />
-            <span className="text-xs text-muted-foreground">to</span>
-            <Input type="date" value={toDate} onChange={(e) => onDateChange?.(fromDate, e.target.value)} className="w-40" />
-          </div>
+          <DateRangeFilter from={fromDate} to={toDate || ''} onChange={(f, t) => onDateChange?.(f, t)} />
         )}
         {filters.map((f) => (
           <Select key={f.key} value={filterState[f.key] || 'all'} onChange={(v) => onFilterChange?.(f.key, v)} options={[{ label: `All ${f.label}`, value: 'all' }, ...f.options]} className="w-40" />
