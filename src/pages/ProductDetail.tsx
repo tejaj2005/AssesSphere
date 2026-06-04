@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { ArrowLeft, Pencil, Plus, Trash2, Package, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -10,25 +10,41 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/components/ui/sheet';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { FormDrawer } from '@/components/shared/FormDrawer';
+import { ConfigForm, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useData } from '@/context/DataContext';
 import { formatDate, nextId } from '@/lib/utils';
+import { buildProductFields, PRODUCT_INITIAL_FORM } from '@/lib/productFields';
 import type { ProductComponent } from '@/types';
+
+const HASH_TO_TAB: Record<string, string> = { '#mfg': 'mfg', '#asm': 'asm', '#components': 'components' };
 
 export const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { products, components, manufacturingStages, assemblingStages, addComponent, updateComponent, deleteComponent } = useData();
+  const location = useLocation();
+  const { products, components, manufacturingStages, assemblingStages, addComponent, updateComponent, deleteComponent, updateProduct } = useData();
   const product = products.find((p) => p.id === id);
 
+  const [tab, setTab] = useState('components');
   const [compDrawer, setCompDrawer] = useState(false);
   const [editingComp, setEditingComp] = useState<ProductComponent | null>(null);
   const [compName, setCompName] = useState('');
   const [compCode, setCompCode] = useState('');
   const [compErr, setCompErr] = useState<Record<string, string>>({});
   const [confirmComp, setConfirmComp] = useState<ProductComponent | null>(null);
+  const [prodDrawer, setProdDrawer] = useState(false);
+  const [prodForm, setProdForm] = useState<any>(PRODUCT_INITIAL_FORM);
+  const [prodErrs, setProdErrs] = useState<Record<string, string>>({});
+
+  // Deep-link support: /admin/products/:id#mfg selects the matching tab.
+  useEffect(() => {
+    const mapped = HASH_TO_TAB[location.hash];
+    if (mapped) setTab(mapped);
+  }, [location.hash]);
 
   if (!product) return (
     <PageWrapper>
@@ -56,6 +72,26 @@ export const ProductDetailPage = () => {
     if (!res.success) { toast.error(res.error); return; }
     toast.success(editingComp ? 'Component updated' : 'Component added');
     setCompDrawer(false);
+  };
+
+  const PRODUCT_FIELDS = buildProductFields(manufacturingStages, assemblingStages);
+
+  const openEditProduct = () => {
+    if (!product) return;
+    setProdForm({ ...PRODUCT_INITIAL_FORM, ...product, status: true });
+    setProdErrs({});
+    setProdDrawer(true);
+  };
+
+  const submitProduct = () => {
+    if (!product) return;
+    const v = validateConfigForm(PRODUCT_FIELDS, prodForm);
+    if (!v.valid) { setProdErrs(v.errors); toast.error('Please fix form errors'); return; }
+    const payload: any = { ...prodForm, manufacturingStageIds: prodForm.manufacturingStageIds || [], assemblingStageIds: prodForm.assemblingStageIds || [] };
+    const res = updateProduct(product.id, payload);
+    if (!res.success) { toast.error(res.error || 'Failed'); return; }
+    toast.success('Product updated');
+    setProdDrawer(false);
   };
 
   const compColumns: Column<ProductComponent>[] = [
@@ -89,13 +125,13 @@ export const ProductDetailPage = () => {
                   <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Created {formatDate(product.createdAt)}</span>
                 </div>
               </div>
-              <Button variant="outline"><Pencil className="h-4 w-4" /> Edit Product</Button>
+              <Button variant="outline" onClick={openEditProduct}><Pencil className="h-4 w-4" /> Edit Product</Button>
             </div>
           </div>
         </div>
       </Card>
 
-      <Tabs defaultValue="components">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="components">Components ({prodComps.length})</TabsTrigger>
           <TabsTrigger value="mfg">Mfg Stages ({mfgStages.length})</TabsTrigger>
@@ -161,6 +197,20 @@ export const ProductDetailPage = () => {
           {compErr.code && <p className="text-xs text-destructive">{compErr.code}</p>}
         </div>
       </FormDrawer>
+
+      <Sheet open={prodDrawer} onOpenChange={setProdDrawer} className="!w-[640px]">
+        <SheetHeader>
+          <SheetTitle>Edit Product</SheetTitle>
+          <SheetDescription>Update product configuration, specifications and stages.</SheetDescription>
+        </SheetHeader>
+        <SheetBody>
+          <ConfigForm fields={PRODUCT_FIELDS} value={prodForm} onChange={setProdForm} errors={prodErrs} />
+        </SheetBody>
+        <div className="flex justify-end gap-2 p-4 border-t">
+          <Button variant="ghost" onClick={() => setProdDrawer(false)}>Cancel</Button>
+          <Button variant="accent" onClick={submitProduct}>Update</Button>
+        </div>
+      </Sheet>
 
       <ConfirmDialog
         open={!!confirmComp}

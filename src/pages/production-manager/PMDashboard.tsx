@@ -20,6 +20,12 @@ export const PMDashboard = () => {
   const { inspectionRecords, inspectionPlans, products } = useData();
   const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords);
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
+  const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
+
+  const acknowledge = (productId: string, productName: string) => {
+    setAcknowledged((prev) => new Set(prev).add(productId));
+    toast.success(`Acknowledged plan for ${productName}`);
+  };
 
   const myProducts = products.length;
   const activePlans = inspectionPlans.filter((p) => p.status === 'ACTIVE').length;
@@ -67,7 +73,11 @@ export const PMDashboard = () => {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={percent === 100 ? 'success' : 'accent'}>{percent}%</Badge>
-                    <Button size="sm" variant="outline" onClick={() => toast.success(`Acknowledged plan for ${product.name}`)}>Review & Acknowledge</Button>
+                    {acknowledged.has(product.id) ? (
+                      <Button size="sm" variant="ghost" disabled className="text-success"><CheckCircle2 className="h-4 w-4" /> Acknowledged</Button>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => acknowledge(product.id, product.name)}>Review & Acknowledge</Button>
+                    )}
                   </div>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">

@@ -20,11 +20,11 @@ export const AssessSphereLogo = ({ size = 40, className, showText = false, textV
     {showText && (
       <span className="flex flex-col leading-none">
         <span className="font-extrabold tracking-tight text-base italic">
-          <span className={textVariant === 'light' ? 'text-white' : 'text-[#0e5467]'}>Assess</span>
+          <span className={textVariant === 'light' ? 'text-white' : 'text-[#0e5467] dark:text-[#7fb6c4]'}>Assess</span>
           <span className="text-[#f5af12]">Sphere</span>
         </span>
         {showPoweredBy && (
-          <span className={cn('text-[10px] font-medium tracking-[0.05em] mt-1', textVariant === 'light' ? 'text-white/60' : 'text-[#5a8a97]')}>
+          <span className={cn('text-[10px] font-medium tracking-[0.05em] mt-1', textVariant === 'light' ? 'text-white/60' : 'text-[#5a8a97] dark:text-[#7fb6c4]/70')}>
             Powered by QMICS
           </span>
         )}

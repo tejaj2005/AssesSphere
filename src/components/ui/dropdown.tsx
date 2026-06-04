@@ -46,9 +46,9 @@ export const DropdownItem = ({ className, danger, disabled, ...props }: React.Bu
     disabled={disabled}
     className={cn(
       'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
-      'text-[#0e5467] dark:text-foreground',
-      'hover:bg-[#f5af12]/15 hover:text-[#0a3d4d] dark:hover:text-foreground',
-      'focus-visible:outline-none focus-visible:bg-[#f5af12]/15',
+      'text-foreground',
+      'hover:bg-accent/15 hover:text-foreground',
+      'focus-visible:outline-none focus-visible:bg-accent/15',
       danger && 'text-destructive hover:bg-destructive/10 hover:text-destructive',
       disabled && 'opacity-50 cursor-not-allowed hover:bg-transparent hover:text-current',
       className

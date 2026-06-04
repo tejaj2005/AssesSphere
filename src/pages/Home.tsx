@@ -1,11 +1,15 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, ShieldCheck, BarChart3, Boxes, Sun, Moon, Workflow, Package, Microscope } from 'lucide-react';
 import { AssessSphereLogo } from '@/components/AssessSphereLogo';
 import { Button } from '@/components/ui/button';
+import { LegalDialog, LegalKind } from '@/components/shared/LegalDialog';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+
+const CONTACT_EMAIL = 'support@qmics.com';
 
 const features = [
   { icon: Workflow, title: 'Organization Setup', text: 'Manage departments, users, roles and permissions in a centralized hub.' },
@@ -19,6 +23,7 @@ const features = [
 export const Home = () => {
   const { isAuthenticated, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [legal, setLegal] = useState<LegalKind | null>(null);
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-30 h-16 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60 flex items-center px-4 sm:px-8">
@@ -28,7 +33,7 @@ export const Home = () => {
         <nav className="hidden md:flex items-center gap-6 ml-10 text-sm text-muted-foreground">
           <a href="#features" className="hover:text-foreground transition-colors">Features</a>
           <a href="#about" className="hover:text-foreground transition-colors">About</a>
-          <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+          <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-foreground transition-colors">Contact</a>
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" size="icon-sm" onClick={toggleTheme}>
@@ -51,16 +56,16 @@ export const Home = () => {
         <div className="absolute inset-0 gradient-mesh pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-20 sm:py-28 text-center relative">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#c2dde4] bg-card text-xs font-medium mb-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-card text-xs font-medium mb-6">
               <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-              <span className="text-[#0e5467] dark:text-foreground">Trusted by quality teams · Powered by QMICS</span>
+              <span className="text-foreground">Trusted by quality teams · Powered by QMICS</span>
             </div>
             <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-balance">
-              <span className="text-[#0e5467] dark:text-white">Quality assessment with</span>{' '}
-              <span className="bg-gradient-to-r from-[#0e5467] via-[#f5af12] to-[#dc9c0c] bg-clip-text text-transparent italic">precision</span>
+              <span className="text-foreground">Quality assessment with</span>{' '}
+              <span className="bg-gradient-to-r from-[#0e5467] via-[#f5af12] to-[#dc9c0c] dark:from-[#3f8497] dark:via-[#f5af12] dark:to-[#f6bc29] bg-clip-text text-transparent italic">precision</span>
             </h1>
             <p className="mt-6 text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto text-balance">
-              <span className="italic font-semibold text-[#0e5467] dark:text-[#f5af12]">"Where every measurement matters."</span>
+              <span className="italic font-semibold text-primary dark:text-accent">"Where every measurement matters."</span>
               <br className="hidden sm:block" />
               An enterprise-grade Product Quality Assurance System for engineering teams. Streamline organization setup, configure inspections, and monitor every step from raw material to delivery — powered by QMICS Pvt. Ltd.
             </p>
@@ -120,18 +125,20 @@ export const Home = () => {
       <footer className="border-t mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 flex flex-col sm:flex-row justify-between items-center gap-4 text-xs text-muted-foreground">
           <p>
-            &copy; 2026 <span className="font-semibold text-[#0e5467] dark:text-foreground">AssessSphere</span>
+            &copy; 2026 <span className="font-semibold text-foreground">AssessSphere</span>
             {' · '}
-            <span className="text-[#f5af12] font-medium">Powered by QMICS Pvt. Ltd.</span>
+            <span className="text-accent font-medium">Powered by QMICS Pvt. Ltd.</span>
             {' · '}All rights reserved.
           </p>
           <div className="flex gap-6">
-            <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-            <a href="#" className="hover:text-foreground transition-colors">Contact</a>
+            <button onClick={() => setLegal('privacy')} className="hover:text-foreground transition-colors">Privacy</button>
+            <button onClick={() => setLegal('terms')} className="hover:text-foreground transition-colors">Terms</button>
+            <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-foreground transition-colors">Contact</a>
           </div>
         </div>
       </footer>
+
+      <LegalDialog kind={legal} onOpenChange={(o) => !o && setLegal(null)} />
     </div>
   );
 };

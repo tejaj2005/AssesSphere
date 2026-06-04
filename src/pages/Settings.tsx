@@ -17,7 +17,7 @@ import { downloadJSON } from '@/lib/exporters';
 import { cn } from '@/lib/utils';
 
 export const SettingsPage = () => {
-  const { theme, setTheme } = useTheme();
+  const { themeSetting, setThemeSetting } = useTheme();
   const data = useData();
   const [language, setLanguage] = useState('en-IN');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
@@ -54,19 +54,22 @@ export const SettingsPage = () => {
     setConfirmReset(false);
   };
 
-  const ThemeBtn = ({ value, label, icon: Icon }: any) => (
-    <motion.button
-      whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
-      onClick={() => { setTheme(value); toast.success(`Theme set to ${label}`); }}
-      className={cn(
-        'flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors',
-        theme === value ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/40'
-      )}
-    >
-      <Icon className={cn('h-5 w-5', theme === value ? 'text-accent' : 'text-muted-foreground')} />
-      <span className={cn('text-sm font-medium', theme === value ? 'text-accent' : '')}>{label}</span>
-    </motion.button>
-  );
+  const ThemeBtn = ({ value, label, icon: Icon }: any) => {
+    const active = themeSetting === value;
+    return (
+      <motion.button
+        whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+        onClick={() => { setThemeSetting(value); toast.success(`Theme set to ${label}`); }}
+        className={cn(
+          'flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-colors',
+          active ? 'border-accent bg-accent/5' : 'border-border hover:border-accent/40'
+        )}
+      >
+        <Icon className={cn('h-5 w-5', active ? 'text-accent' : 'text-muted-foreground')} />
+        <span className={cn('text-sm font-medium', active ? 'text-accent' : '')}>{label}</span>
+      </motion.button>
+    );
+  };
 
   return (
     <PageWrapper>
@@ -87,7 +90,7 @@ export const SettingsPage = () => {
             <div className="flex gap-3">
               <ThemeBtn value="light" label="Light" icon={Sun} />
               <ThemeBtn value="dark" label="Dark" icon={Moon} />
-              <ThemeBtn value="light" label="System" icon={Monitor} />
+              <ThemeBtn value="system" label="System" icon={Monitor} />
             </div>
             <div className="mt-8 pt-6 border-t">
               <h3 className="font-semibold mb-2">Display Density</h3>

@@ -88,13 +88,13 @@ export const OrganizationPage = () => {
 
       <Card className="p-8 max-w-4xl">
         <div className="flex items-start gap-5 mb-6 pb-6 border-b">
-          <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#0e5467]/10 text-[#0e5467] shrink-0">
+          <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
             <Building2 className="h-8 w-8" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-[#0e5467]">{organization.name}</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">{organization.name}</h2>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
-              <Badge className="bg-[#f5af12]/15 text-[#0a3d4d] border-[#f5af12]/30">{industryLabel}</Badge>
+              <Badge className="bg-accent/15 text-accent-foreground dark:text-accent border-accent/30">{industryLabel}</Badge>
               <span className="text-xs font-mono text-muted-foreground">{(organization as any).code || organization.id}</span>
               <span className="text-xs text-muted-foreground inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> Established {formatDate(organization.createdAt)}</span>
             </div>
@@ -125,7 +125,7 @@ export const OrganizationPage = () => {
             <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">ISO Standards</p>
             <div className="flex flex-wrap gap-1.5">
               {((organization as any).isoStandards || []).map((s: string) => (
-                <Badge key={s} className="bg-[#0e5467]/10 text-[#0e5467] border-[#0e5467]/20">{ISO_OPTS.find((i) => i.value === s)?.label || s}</Badge>
+                <Badge key={s} className="bg-primary/10 text-primary border-primary/20">{ISO_OPTS.find((i) => i.value === s)?.label || s}</Badge>
               ))}
             </div>
           </div>

@@ -53,8 +53,8 @@ export const StageTimeline = ({ title = 'Production Timeline', defaultProductId 
   const renderRow = (stages: typeof mfg, label: string, color: string) => (
     <div className="mb-8 last:mb-0">
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0e5467] dark:text-[#7fb6c4]">{label}</p>
-        <Badge variant="outline" className="border-[#c2dde4]">{stages.length} stage{stages.length === 1 ? '' : 's'}</Badge>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{label}</p>
+        <Badge variant="outline" className="border-border">{stages.length} stage{stages.length === 1 ? '' : 's'}</Badge>
       </div>
       {stages.length === 0 ? (
         <p className="text-xs text-muted-foreground italic py-4 text-center border border-dashed rounded-lg">No stages assigned for this product</p>
@@ -86,10 +86,10 @@ export const StageTimeline = ({ title = 'Production Timeline', defaultProductId 
                       <motion.div animate={{ scale: [1, 1.35, 1], opacity: [0.55, 0, 0.55] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute inset-0 rounded-full bg-amber-500" />
                     )}
                     {status === 'IN_PROGRESS' && (
-                      <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.45, 0, 0.45] }} transition={{ repeat: Infinity, duration: 2.2 }} className="absolute inset-0 rounded-full bg-[#0e5467]" />
+                      <motion.div animate={{ scale: [1, 1.25, 1], opacity: [0.45, 0, 0.45] }} transition={{ repeat: Infinity, duration: 2.2 }} className="absolute inset-0 rounded-full bg-accent" />
                     )}
                   </motion.div>
-                  <p className="text-xs font-semibold mt-2.5 text-center px-1 text-[#0e5467] dark:text-foreground" title={s.name}>{s.name}</p>
+                  <p className="text-xs font-semibold mt-2.5 text-center px-1 text-foreground" title={s.name}>{s.name}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">{cfg.label}</p>
                   {date && <p className="text-[9px] text-muted-foreground/80 mt-0.5">{formatDate(date)}</p>}
                 </motion.div>
@@ -115,8 +115,8 @@ export const StageTimeline = ({ title = 'Production Timeline', defaultProductId 
           <p className="text-sm text-muted-foreground py-6 text-center">Select a product to view its production timeline.</p>
         ) : (
           <>
-            {renderRow(mfg, 'Manufacturing Stages', 'bg-gradient-to-r from-[#f5af12]/40 via-[#f5af12]/80 to-[#f5af12]/40')}
-            {renderRow(asm, 'Assembling Stages',    'bg-gradient-to-r from-[#0e5467]/40 via-[#0e5467]/80 to-[#0e5467]/40')}
+            {renderRow(mfg, 'Manufacturing Stages', 'bg-gradient-to-r from-accent/30 via-accent/70 to-accent/30')}
+            {renderRow(asm, 'Assembling Stages',    'bg-gradient-to-r from-primary/30 via-primary/70 to-primary/30')}
 
             <div className="flex items-center gap-4 mt-6 pt-4 border-t flex-wrap">
               {(Object.keys(STATUS_STYLE) as StatusKey[]).map((k) => {

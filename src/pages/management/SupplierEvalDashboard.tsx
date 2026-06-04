@@ -16,11 +16,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useData } from '@/context/DataContext';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+import { useChartColors } from '@/lib/chartColors';
 import { formatDate, cn } from '@/lib/utils';
 import type { SupplierEvaluation } from '@/types';
 
 export const SupplierEvalDashboard = () => {
   const { supplierEvaluations, suppliers } = useData();
+  const chart = useChartColors();
   const [search, setSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -94,9 +96,9 @@ export const SupplierEvalDashboard = () => {
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
                 <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
-                <Bar dataKey="Quality"  fill="#2e9e6b" radius={[6,6,0,0]} />
-                <Bar dataKey="Delivery" fill="#0e5467" radius={[6,6,0,0]} />
-                <Bar dataKey="Quantity" fill="#f5af12" radius={[6,6,0,0]} />
+                <Bar dataKey="Quality"  fill={chart.green} radius={[6,6,0,0]} />
+                <Bar dataKey="Delivery" fill={chart.primary} radius={[6,6,0,0]} />
+                <Bar dataKey="Quantity" fill={chart.gold} radius={[6,6,0,0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

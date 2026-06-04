@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { ExportButtons } from './ExportButtons';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+import { useChartColors } from '@/lib/chartColors';
 import type { InspectionRecord } from '@/types';
 
 export interface DashFilterDef {
@@ -49,15 +50,16 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
   search, onSearchChange,
   chartType = 'trend', comparisonData, onRowClick, extraSlot,
 }: QualityDashboardPageProps<T>) {
+  const chart = useChartColors();
   const green = data.filter((r: any) => r.status === 'GREEN').length;
   const amber = data.filter((r: any) => r.status === 'AMBER').length;
   const red = data.filter((r: any) => r.status === 'RED').length;
   const total = data.length;
 
   const donut = [
-    { name: 'Good',     value: green, color: '#2e9e6b' },
-    { name: 'Warning',  value: amber, color: '#f5af12' },
-    { name: 'Critical', value: red,   color: '#d9534f' },
+    { name: 'Good',     value: green, color: chart.green },
+    { name: 'Warning',  value: amber, color: chart.amber },
+    { name: 'Critical', value: red,   color: chart.red },
   ].filter((d) => d.value > 0);
 
   const trend = useMemo(() => {
@@ -98,9 +100,9 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
                     <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
                     <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
-                    <Bar dataKey="Quality"  fill="#2e9e6b" radius={[4,4,0,0]} />
-                    <Bar dataKey="Delivery" fill="#0e5467" radius={[4,4,0,0]} />
-                    <Bar dataKey="Quantity" fill="#f5af12" radius={[4,4,0,0]} />
+                    <Bar dataKey="Quality"  fill={chart.green} radius={[4,4,0,0]} />
+                    <Bar dataKey="Delivery" fill={chart.primary} radius={[4,4,0,0]} />
+                    <Bar dataKey="Quantity" fill={chart.gold} radius={[4,4,0,0]} />
                   </BarChart>
                 ) : (
                   <LineChart data={trend}>
@@ -109,9 +111,9 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
                     <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" allowDecimals={false} />
                     <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ stroke: 'hsl(var(--accent))', strokeWidth: 1, strokeDasharray: '4 4' }} />
                     <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
-                    <Line type="monotone" dataKey="Good"     stroke="#2e9e6b" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    <Line type="monotone" dataKey="Warning"  stroke="#f5af12" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                    <Line type="monotone" dataKey="Critical" stroke="#d9534f" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Good"     stroke={chart.green} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Warning"  stroke={chart.amber} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                    <Line type="monotone" dataKey="Critical" stroke={chart.red} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   </LineChart>
                 )}
               </ResponsiveContainer>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Pencil, Trash2, MoreHorizontal, Download, Upload, FileText, FileSpreadsheet, File, Image as ImageIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,7 +19,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
 import { useData } from '@/context/DataContext';
-import { nextId, formatDate } from '@/lib/utils';
+import { nextId, formatDate, cn } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { MfgDocument, DocumentCategory, DocumentFileType } from '@/types';
 
@@ -29,6 +29,18 @@ const CATEGORY_VARIANT: Record<DocumentCategory, any> = {
 };
 
 const FILE_ICON: Record<DocumentFileType, any> = { PDF: FileText, DOCX: FileText, XLSX: FileSpreadsheet, DWG: File, IMAGE: ImageIcon };
+
+const EXT_TO_TYPE: Record<string, DocumentFileType> = {
+  PDF: 'PDF', DOC: 'DOCX', DOCX: 'DOCX', XLS: 'XLSX', XLSX: 'XLSX', CSV: 'XLSX',
+  DWG: 'DWG', PNG: 'IMAGE', JPG: 'IMAGE', JPEG: 'IMAGE', GIF: 'IMAGE', WEBP: 'IMAGE', SVG: 'IMAGE',
+};
+
+const humanSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${Math.round(kb)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+};
 
 const downloadFile = (doc: MfgDocument) => {
   // Generate a fake placeholder file
@@ -53,10 +65,23 @@ export const DocumentsPage = () => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState<MfgDocument | null>(null);
-  const initialForm = { name: '', code: '', description: '', manufacturingStageId: '', category: 'Procedure' as DocumentCategory, fileType: 'PDF' as DocumentFileType, fileName: '', version: '1.0' };
+  const initialForm = { name: '', code: '', description: '', manufacturingStageId: '', category: 'Procedure' as DocumentCategory, fileType: 'PDF' as DocumentFileType, fileName: '', fileSize: '', version: '1.0' };
   const [form, setForm] = useState(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<MfgDocument | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const acceptUpload = (file: File) => {
+    const ext = file.name.split('.').pop()?.toUpperCase() || '';
+    setForm((f) => ({
+      ...f,
+      fileName: file.name,
+      fileType: EXT_TO_TYPE[ext] || f.fileType,
+      fileSize: humanSize(file.size),
+      name: f.name.trim() ? f.name : file.name.replace(/\.[^.]+$/, ''),
+    }));
+  };
 
   const filtered = useMemo(() => documents.filter((d) => {
     if (search && !(d.name + d.code + (d.fileName || '')).toLowerCase().includes(search.toLowerCase())) return false;
@@ -66,7 +91,7 @@ export const DocumentsPage = () => {
   }), [documents, search, stageFilter, categoryFilter]);
 
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('DOC', documents), manufacturingStageId: manufacturingStages[0]?.id || '' }); setErrs({}); setDrawer(true); };
-  const openEdit = (d: MfgDocument) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description, manufacturingStageId: d.manufacturingStageId, category: d.category || 'Procedure', fileType: d.fileType || 'PDF', fileName: d.fileName || '', version: d.version || '1.0' }); setErrs({}); setDrawer(true); };
+  const openEdit = (d: MfgDocument) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description, manufacturingStageId: d.manufacturingStageId, category: d.category || 'Procedure', fileType: d.fileType || 'PDF', fileName: d.fileName || '', fileSize: d.fileSize || '', version: d.version || '1.0' }); setErrs({}); setDrawer(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};
@@ -199,11 +224,37 @@ export const DocumentsPage = () => {
           <Select value={form.manufacturingStageId} onChange={(v) => { setForm({ ...form, manufacturingStageId: v }); setErrs({ ...errs, manufacturingStageId: '' }); }} options={manufacturingStages.map((s) => ({ label: s.name, value: s.id }))} error={!!errs.manufacturingStageId} />
           {errs.manufacturingStageId && <p className="text-xs text-destructive">{errs.manufacturingStageId}</p>}
         </div>
-        <div className="p-3 rounded-lg border-2 border-dashed text-center">
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.dwg,.png,.jpg,.jpeg,.gif,.webp,.svg"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) acceptUpload(f); e.target.value = ''; }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files?.[0]; if (f) acceptUpload(f); }}
+          className={cn(
+            'w-full p-4 rounded-lg border-2 border-dashed text-center transition-colors',
+            dragOver ? 'border-accent bg-accent/5' : 'hover:border-accent/40'
+          )}
+        >
           <Upload className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
-          <p className="text-xs text-muted-foreground">Drag file here or click to upload</p>
-          <p className="text-[10px] text-muted-foreground mt-1">PDF, DOCX, XLSX, DWG up to 10MB</p>
-        </div>
+          {form.fileName ? (
+            <>
+              <p className="text-xs font-medium text-foreground truncate">{form.fileName}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">{form.fileSize || 'Ready'} · click to replace</p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">Drag file here or click to upload</p>
+              <p className="text-[10px] text-muted-foreground mt-1">PDF, DOCX, XLSX, DWG up to 10MB</p>
+            </>
+          )}
+        </button>
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}

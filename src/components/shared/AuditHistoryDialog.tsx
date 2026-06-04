@@ -42,7 +42,7 @@ export const AuditHistoryDialog = ({ open, onOpenChange, entityType, entityName,
     <Dialog open={open} onOpenChange={onOpenChange} className="!max-w-2xl">
       <DialogHeader>
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0e5467]/10 text-[#0e5467] shrink-0">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
             <History className="h-5 w-5" />
           </div>
           <div>

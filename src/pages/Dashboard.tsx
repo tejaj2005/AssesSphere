@@ -10,29 +10,31 @@ import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import { relativeTime } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
-
-const ROLE_COLORS: Record<string, string> = {
-  Admin:                '#0a3d4d', // brand primary-dark
-  Management:           '#0e5467', // brand primary
-  'Production Manager': '#2d8aa4', // azure
-  'Stores Manager':     '#2e9e6b', // success
-  'Quality Manager':    '#f5af12', // gold
-  Inspector:            '#dc9c0c', // gold-hover
-};
+import { useChartColors } from '@/lib/chartColors';
 
 export const Dashboard = () => {
   const { products, materials, suppliers, equipment, users, departments, inspectionTypes, roles, auditLog } = useData();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const chart = useChartColors();
+
+  const roleColors: Record<string, string> = {
+    Admin:                chart.primaryDark,
+    Management:           chart.primary,
+    'Production Manager': chart.azure,
+    'Stores Manager':     chart.green,
+    'Quality Manager':    chart.gold,
+    Inspector:            chart.goldHover,
+  };
 
   const pending = equipment.filter((e) => e.calibrationStatus === 'PENDING').length;
   const completed = equipment.filter((e) => e.calibrationStatus === 'COMPLETED').length;
 
-  const usersByRole = roles.map((r) => ({ name: r.name.replace('Manager', 'Mgr.'), count: users.filter((u) => u.roleId === r.id).length, color: ROLE_COLORS[r.name] || '#64748b' })).filter((r) => r.count > 0);
+  const usersByRole = roles.map((r) => ({ name: r.name.replace('Manager', 'Mgr.'), count: users.filter((u) => u.roleId === r.id).length, color: roleColors[r.name] || chart.grey })).filter((r) => r.count > 0);
 
   const calibrationData = [
-    { name: 'Completed', value: completed, color: '#2e9e6b' },
-    { name: 'Pending Calibration',   value: pending,   color: '#f5af12' },
+    { name: 'Completed', value: completed, color: chart.green },
+    { name: 'Pending Calibration',   value: pending,   color: chart.amber },
   ];
 
   const ActionIcon = ({ action }: { action: string }) => {

@@ -6,6 +6,7 @@ import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropd
 import { Button } from '@/components/ui/button';
 import { Avatar } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { CommandPalette } from '@/components/shared/CommandPalette';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { NAV } from './navConfig';
@@ -26,12 +27,24 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
   const label = findLabel(location.pathname);
   const isDashboard = location.pathname === '/admin';
   const [fullscreen, setFullscreen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [notifRead, setNotifRead] = useState(false);
 
   useEffect(() => {
     const onChange = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onChange);
     return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCmdOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const toggleFullscreen = () => {
@@ -81,11 +94,14 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
 
       <div className="flex-1" />
 
-      <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-background/50 text-sm text-muted-foreground w-64 cursor-text hover:border-accent/40 transition-colors">
+      <button
+        onClick={() => setCmdOpen(true)}
+        className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg border bg-background/50 text-sm text-muted-foreground w-64 hover:border-accent/40 transition-colors"
+      >
         <Search className="h-3.5 w-3.5" />
         <span className="text-xs">Quick search…</span>
         <kbd className="ml-auto pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium">⌘K</kbd>
-      </div>
+      </button>
 
       <Button variant="ghost" size="icon-sm" onClick={toggleFullscreen} aria-label="Toggle fullscreen" className="hidden md:inline-flex">
         {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -107,14 +123,14 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
         trigger={
           <button className="relative p-2 rounded-md hover:bg-muted">
             <Bell className="h-4 w-4 text-muted-foreground" />
-            <Badge variant="danger" className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 text-[9px] py-0">3</Badge>
+            {!notifRead && <Badge variant="danger" className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 text-[9px] py-0">{notifications.length}</Badge>}
           </button>
         }
         className="!w-80"
       >
         <div className="px-3 py-2 border-b flex items-center justify-between">
           <p className="text-sm font-semibold">Notifications</p>
-          <button onClick={() => setNotifOpen(false)} className="text-xs text-accent hover:underline">Mark all read</button>
+          <button onClick={() => setNotifRead(true)} className="text-xs text-accent hover:underline disabled:opacity-40" disabled={notifRead}>Mark all read</button>
         </div>
         <div className="max-h-80 overflow-y-auto">
           {notifications.map((n) => (
@@ -125,6 +141,7 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
                 <p className="text-xs text-muted-foreground line-clamp-2">{n.desc}</p>
                 <p className="text-[10px] text-muted-foreground mt-0.5">{n.time}</p>
               </div>
+              {!notifRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-accent shrink-0" />}
             </button>
           ))}
         </div>
@@ -160,6 +177,8 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
         <DropdownSeparator />
         <DropdownItem danger onClick={handleLogout}><LogOut className="h-4 w-4" /> Sign Out</DropdownItem>
       </Dropdown>
+
+      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
     </header>
   );
 };

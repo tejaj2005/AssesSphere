@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { FormDrawer } from '@/components/shared/FormDrawer';
-import { ConfigForm, FieldDef, validateConfigForm } from '@/components/shared/ConfigForm';
+import { ConfigForm, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { TypedConfirmDialog } from '@/components/shared/TypedConfirmDialog';
 import { AuditHistoryDialog } from '@/components/shared/AuditHistoryDialog';
@@ -23,6 +23,7 @@ import { useAuth } from '@/context/AuthContext';
 import { nextId, cn, formatDate } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { downloadJSON } from '@/lib/exporters';
+import { buildProductFields, PRODUCT_INITIAL_FORM } from '@/lib/productFields';
 import type { Product } from '@/types';
 
 export const ProductsPage = () => {
@@ -37,46 +38,19 @@ export const ProductsPage = () => {
   const [typedDel, setTypedDel] = useState<Product | null>(null);
   const [detail, setDetail] = useState<Product | null>(null);
   const [history, setHistory] = useState<Product | null>(null);
-  const initialForm: any = {
-    name: '', code: '', category: '', description: '', uom: 'pcs', batchSize: '', shelfLife: '',
-    storageConditions: '', regulatoryClass: '', drawingRef: '', attachments: [], status: true, notes: '',
-    manufacturingStageIds: [] as string[], assemblingStageIds: [] as string[],
-  };
-  const [form, setForm] = useState<any>(initialForm);
+  const [form, setForm] = useState<any>(PRODUCT_INITIAL_FORM);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   const canEdit = hasPermission('Products', 'edit');
   const canDelete = hasPermission('Products', 'delete');
   const canCreate = hasPermission('Products', 'create');
 
-  const PRODUCT_FIELDS: FieldDef[] = [
-    { section: 'Basic Information', name: 'name', label: 'Product Name', type: 'text', required: true, col: 'half' },
-    {                               name: 'code', label: 'Product Code', type: 'text', required: true, col: 'half', help: 'Must be unique' },
-    {                               name: 'category', label: 'Product Category', type: 'select', col: 'half',
-                                    options: [{ label: 'Mechanical Assembly', value: 'MECHANICAL' }, { label: 'Electronics', value: 'ELECTRONICS' }, { label: 'Sub-assembly', value: 'SUBASSEMBLY' }, { label: 'Raw Material', value: 'RAW' }] },
-    {                               name: 'uom',  label: 'Unit of Measure', type: 'select', col: 'half',
-                                    options: [{ label: 'kg', value: 'kg' }, { label: 'pcs', value: 'pcs' }, { label: 'L (liters)', value: 'L' }, { label: 'm (meters)', value: 'm' }] },
-    {                               name: 'description', label: 'Description', type: 'textarea' },
-
-    { section: 'Specifications', name: 'batchSize', label: 'Standard Batch Size', type: 'number', col: 'half' },
-    {                            name: 'shelfLife', label: 'Shelf Life (days)', type: 'number', col: 'half' },
-    {                            name: 'storageConditions', label: 'Storage Conditions', type: 'text', col: 'half', placeholder: 'e.g. 15–25°C, dry' },
-    {                            name: 'regulatoryClass', label: 'Regulatory Class', type: 'select', col: 'half',
-                                 options: [{ label: 'General', value: 'GENERAL' }, { label: 'Medical Device', value: 'MEDICAL' }, { label: 'Pharmaceutical', value: 'PHARMA' }, { label: 'Hazardous', value: 'HAZ' }] },
-    {                            name: 'drawingRef', label: 'Drawing / Spec Reference', type: 'text', col: 'half', placeholder: 'e.g. DWG-001' },
-    {                            name: 'status', label: 'Active', type: 'toggle', col: 'half' },
-
-    { section: 'Stages', name: 'manufacturingStageIds', label: 'Manufacturing Stages', type: 'multi-select', options: manufacturingStages.map((s) => ({ label: s.name, value: s.id })) },
-    {                    name: 'assemblingStageIds',    label: 'Assembling Stages',    type: 'multi-select', options: assemblingStages.map((s) => ({ label: s.name, value: s.id })) },
-
-    { section: 'Attachments', name: 'attachments', label: 'Attached Documents', type: 'file' },
-    {                         name: 'notes', label: 'Notes', type: 'textarea' },
-  ];
+  const PRODUCT_FIELDS = buildProductFields(manufacturingStages, assemblingStages);
 
   const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase())), [products, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('PROD', products) }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (p: Product) => { setEditing(p); setForm({ ...initialForm, ...p, status: true }); setErrs({}); setDrawerOpen(true); };
+  const openAdd = () => { setEditing(null); setForm({ ...PRODUCT_INITIAL_FORM, code: nextId('PROD', products) }); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (p: Product) => { setEditing(p); setForm({ ...PRODUCT_INITIAL_FORM, ...p, status: true }); setErrs({}); setDrawerOpen(true); };
 
   const submit = async () => {
     const v = validateConfigForm(PRODUCT_FIELDS, form);

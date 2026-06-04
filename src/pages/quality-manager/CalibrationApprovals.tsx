@@ -56,6 +56,33 @@ export const CalibrationApprovals = () => {
 
   const exportRows = filtered.map((c) => ({ Equipment: c.equipmentName, Code: c.equipmentCode, Lab: c.calibrationLab, Cert: c.certificateNumber, Standard: c.calibrationStandard, Result: c.result, NextDue: formatDate(c.nextDueDate), Status: c.approvalStatus }));
 
+  const downloadCertificate = (c: CalibrationApproval) => {
+    const lines = [
+      'EQUIPMENT CALIBRATION CERTIFICATE',
+      '==================================',
+      '',
+      `Equipment:        ${c.equipmentName} (${c.equipmentCode})`,
+      `Calibration Lab:  ${c.calibrationLab}`,
+      `Certificate No:   ${c.certificateNumber}`,
+      `Standard:         ${c.calibrationStandard}`,
+      `Result:           ${c.result}`,
+      `Next Due:         ${formatDate(c.nextDueDate)}`,
+      `Approval Status:  ${c.approvalStatus}`,
+      '',
+      `Inspector Remarks: ${c.inspectorRemarks}`,
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = c.certificateFileName || `${c.certificateNumber}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${c.certificateFileName || c.certificateNumber}`);
+  };
+
   return (
     <PageWrapper>
       <PageHeader title="Calibration Approvals" description="Review and approve equipment calibration certificates." action={<ExportButtons data={exportRows} fileName="calibration-approvals" />} />
@@ -92,7 +119,7 @@ export const CalibrationApprovals = () => {
                 </dl>
 
                 <p className="text-xs text-muted-foreground mb-3 italic">"{c.inspectorRemarks}"</p>
-                <a href="#" onClick={(e) => { e.preventDefault(); toast.message(`Opening ${c.certificateFileName}…`); }} className="inline-flex items-center gap-1 text-xs text-accent hover:underline mb-3"><FileText className="h-3 w-3" /> {c.certificateFileName}</a>
+                <button type="button" onClick={() => downloadCertificate(c)} className="inline-flex items-center gap-1 text-xs text-accent hover:underline mb-3"><FileText className="h-3 w-3" /> {c.certificateFileName}</button>
 
                 {c.approvalStatus === 'PENDING' ? (
                   <div className="flex gap-2 pt-3 border-t">

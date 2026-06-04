@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { LegalDialog, LegalKind } from '@/components/shared/LegalDialog';
 import { useAuth, MOCK_ACCOUNTS } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { isValidEmail, cn } from '@/lib/utils';
@@ -31,6 +32,7 @@ export const Login = () => {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   const [showAccounts, setShowAccounts] = useState(false);
+  const [legal, setLegal] = useState<LegalKind | null>(null);
 
   if (isAuthenticated) return <Navigate to="/app" replace />;
 
@@ -100,8 +102,8 @@ export const Login = () => {
           <div className="flex items-center justify-between text-xs text-white/40">
             <p>&copy; 2026 PQAS. All rights reserved.</p>
             <div className="flex gap-4">
-              <a href="#" className="hover:text-white/60 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-white/60 transition-colors">Terms</a>
+              <button onClick={() => setLegal('privacy')} className="hover:text-white/60 transition-colors">Privacy</button>
+              <button onClick={() => setLegal('terms')} className="hover:text-white/60 transition-colors">Terms</button>
             </div>
           </div>
         </motion.div>
@@ -183,7 +185,7 @@ export const Login = () => {
             </div>
 
             <p className="mt-6 text-center text-[11px] text-muted-foreground">
-              By signing in you agree to our <a href="#" className="text-accent hover:underline">Terms</a> and <a href="#" className="text-accent hover:underline">Privacy</a>.
+              By signing in you agree to our <button type="button" onClick={() => setLegal('terms')} className="text-accent hover:underline">Terms</button> and <button type="button" onClick={() => setLegal('privacy')} className="text-accent hover:underline">Privacy</button>.
             </p>
           </Card>
 
@@ -192,6 +194,8 @@ export const Login = () => {
           </p>
         </motion.div>
       </div>
+
+      <LegalDialog kind={legal} onOpenChange={(o) => !o && setLegal(null)} />
     </div>
   );
 };
