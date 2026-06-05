@@ -2,6 +2,7 @@ import { useState, useMemo, ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { Package, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTip, ResponsiveContainer, PieChart, Pie, Cell, Legend, BarChart, Bar } from 'recharts';
+import { ChartTooltip, BarGradient, chartGrid, chartAxisTick, chartAxisTickSm, chartAxisLine, chartLegendStyle, barCursor, lineCursor } from './ChartTooltip';
 import { format, subDays, eachDayOfInterval } from 'date-fns';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -95,22 +96,27 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
               <ResponsiveContainer width="100%" height="100%">
                 {chartType === 'comparison' && comparisonData ? (
                   <BarChart data={comparisonData}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
-                    <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
-                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
-                    <Bar dataKey="Quality"  fill={chart.green} radius={[4,4,0,0]} />
-                    <Bar dataKey="Delivery" fill={chart.primary} radius={[4,4,0,0]} />
-                    <Bar dataKey="Quantity" fill={chart.gold} radius={[4,4,0,0]} />
+                    <defs>
+                      <BarGradient id="qg-quality" color={chart.green} />
+                      <BarGradient id="qg-delivery" color={chart.primary} />
+                      <BarGradient id="qg-quantity" color={chart.gold} />
+                    </defs>
+                    <CartesianGrid {...chartGrid} vertical={false} />
+                    <XAxis dataKey="name" tick={chartAxisTick} stroke={chartAxisLine} />
+                    <YAxis tick={chartAxisTick} stroke={chartAxisLine} domain={[0, 10]} />
+                    <RTip content={<ChartTooltip valueSuffix="/10" />} cursor={barCursor} />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
+                    <Bar dataKey="Quality"  fill="url(#qg-quality)"  radius={[4,4,0,0]} maxBarSize={40} />
+                    <Bar dataKey="Delivery" fill="url(#qg-delivery)" radius={[4,4,0,0]} maxBarSize={40} />
+                    <Bar dataKey="Quantity" fill="url(#qg-quantity)" radius={[4,4,0,0]} maxBarSize={40} />
                   </BarChart>
                 ) : (
                   <LineChart data={trend}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" interval={Math.ceil(trend.length / 8)} />
-                    <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" allowDecimals={false} />
-                    <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ stroke: 'hsl(var(--accent))', strokeWidth: 1, strokeDasharray: '4 4' }} />
-                    <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                    <CartesianGrid {...chartGrid} vertical={false} />
+                    <XAxis dataKey="date" tick={chartAxisTickSm} stroke={chartAxisLine} interval={Math.ceil(trend.length / 8)} />
+                    <YAxis tick={chartAxisTick} stroke={chartAxisLine} allowDecimals={false} />
+                    <RTip content={<ChartTooltip />} cursor={lineCursor} />
+                    <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
                     <Line type="monotone" dataKey="Good"     stroke={chart.green} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     <Line type="monotone" dataKey="Warning"  stroke={chart.amber} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                     <Line type="monotone" dataKey="Critical" stroke={chart.red} strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
@@ -131,11 +137,11 @@ export function QualityDashboardPage<T extends { id: string; status?: any; date?
                 <>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={donut} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4} stroke="hsl(var(--card))" strokeWidth={2}>
+                      <Pie data={donut} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={4} cornerRadius={6} stroke="hsl(var(--card))" strokeWidth={2}>
                         {donut.map((d, i) => <Cell key={i} fill={d.color} />)}
                       </Pie>
-                      <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} />
-                      <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                      <RTip content={<ChartTooltip hideLabel />} />
+                      <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none mt-[-30px]">

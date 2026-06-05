@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RTip, ResponsiveContainer, PieChart, Pie, Legend } from 'recharts';
+import { ChartTooltip, chartGrid, chartAxisTick, chartAxisLine, chartLegendStyle, barCursor } from '@/components/dashboard/ChartTooltip';
 import { Package, Layers, Factory, AlertTriangle, Users as UsersIcon, Building, ClipboardList, Plus, Pencil, Trash2, Activity } from 'lucide-react';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -72,11 +73,11 @@ export const Dashboard = () => {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={usersByRole} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
-                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" allowDecimals={false} />
-                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
-                  <Bar dataKey="count" radius={[6, 6, 0, 0]} animationDuration={800}>
+                  <CartesianGrid {...chartGrid} vertical={false} />
+                  <XAxis dataKey="name" tick={chartAxisTick} stroke={chartAxisLine} />
+                  <YAxis tick={chartAxisTick} stroke={chartAxisLine} allowDecimals={false} />
+                  <RTip content={<ChartTooltip />} cursor={barCursor} />
+                  <Bar dataKey="count" name="Users" radius={[6, 6, 0, 0]} animationDuration={800} maxBarSize={56}>
                     {usersByRole.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Bar>
                 </BarChart>
@@ -93,11 +94,11 @@ export const Dashboard = () => {
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={calibrationData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} paddingAngle={4} stroke="hsl(var(--card))" strokeWidth={2}>
+                  <Pie data={calibrationData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={4} cornerRadius={6} stroke="hsl(var(--card))" strokeWidth={2}>
                     {calibrationData.map((d, i) => <Cell key={i} fill={d.color} />)}
                   </Pie>
-                  <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} />
-                  <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
+                  <RTip content={<ChartTooltip hideLabel />} />
+                  <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>

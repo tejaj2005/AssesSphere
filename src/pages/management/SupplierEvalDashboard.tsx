@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, CheckCircle2, AlertTriangle, XCircle, ChevronDown } from 'lucide-react';
 import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTip, ResponsiveContainer, Legend } from 'recharts';
+import { ChartTooltip, BarGradient, chartGrid, chartAxisTick, chartAxisLine, chartLegendStyle, barCursor } from '@/components/dashboard/ChartTooltip';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatsCard } from '@/components/shared/StatsCard';
@@ -91,14 +92,19 @@ export const SupplierEvalDashboard = () => {
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparison} barCategoryGap="22%">
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" />
-                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} stroke="hsl(var(--border))" domain={[0, 10]} />
-                <RTip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12, color: 'hsl(var(--foreground))' }} cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }} />
-                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} iconType="circle" />
-                <Bar dataKey="Quality"  fill={chart.green} radius={[6,6,0,0]} />
-                <Bar dataKey="Delivery" fill={chart.primary} radius={[6,6,0,0]} />
-                <Bar dataKey="Quantity" fill={chart.gold} radius={[6,6,0,0]} />
+                <defs>
+                  <BarGradient id="sg-quality" color={chart.green} />
+                  <BarGradient id="sg-delivery" color={chart.primary} />
+                  <BarGradient id="sg-quantity" color={chart.gold} />
+                </defs>
+                <CartesianGrid {...chartGrid} vertical={false} />
+                <XAxis dataKey="name" tick={chartAxisTick} stroke={chartAxisLine} />
+                <YAxis tick={chartAxisTick} stroke={chartAxisLine} domain={[0, 10]} />
+                <RTip content={<ChartTooltip valueSuffix="/10" />} cursor={barCursor} />
+                <Legend wrapperStyle={chartLegendStyle} iconType="circle" />
+                <Bar dataKey="Quality"  fill="url(#sg-quality)"  radius={[6,6,0,0]} maxBarSize={44} />
+                <Bar dataKey="Delivery" fill="url(#sg-delivery)" radius={[6,6,0,0]} maxBarSize={44} />
+                <Bar dataKey="Quantity" fill="url(#sg-quantity)" radius={[6,6,0,0]} maxBarSize={44} />
               </BarChart>
             </ResponsiveContainer>
           </div>

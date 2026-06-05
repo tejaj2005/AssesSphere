@@ -25,16 +25,18 @@ export interface ChartColors {
 export const useChartColors = (): ChartColors => {
   const { theme } = useTheme();
   const dark = theme === 'dark';
-  const primary = dark ? '#3f8497' : '#0e5467';
-  const primaryDark = dark ? '#6ba4b3' : '#0a3d4d';
-  const azure = dark ? '#4ba3bd' : '#2d8aa4';
-  const gold = dark ? '#f6bc29' : '#f5af12';
-  const goldHover = dark ? '#f8c952' : '#dc9c0c';
-  const grey = dark ? '#94a3b8' : '#64748b';
+  // Dark-mode series are deliberately lighter/more saturated so they stay
+  // vivid against the very dark teal card (--card: 195 50% 12%).
+  const primary = dark ? '#4fb0cb' : '#0e5467';
+  const primaryDark = dark ? '#82c7d6' : '#0a3d4d';
+  const azure = dark ? '#5fc6e0' : '#2d8aa4';
+  const gold = dark ? '#fbc63a' : '#f5af12';
+  const goldHover = dark ? '#ffd566' : '#dc9c0c';
+  const grey = dark ? '#a7b7c9' : '#64748b';
   return {
-    green: dark ? '#34b27e' : '#2e9e6b',
+    green: dark ? '#3ccb8f' : '#2e9e6b',
     amber: gold,
-    red: dark ? '#e2706c' : '#d9534f',
+    red: dark ? '#f0817d' : '#d9534f',
     primary,
     primaryDark,
     azure,
