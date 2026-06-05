@@ -71,7 +71,7 @@ export const ModuleLayout = ({ moduleName, groups, profileLink }: ModuleLayoutPr
         </nav>
         <div className="border-t border-slate-800 p-3">
           <div className="flex items-center gap-3">
-            <Avatar name={user?.name || ''} size="sm" />
+            <Avatar name={user?.name || ''} src={user?.avatar} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-white truncate">{user?.name}</p>
               <p className="text-[10px] text-slate-500 flex items-center gap-1"><Circle className="h-1.5 w-1.5 fill-success text-success" />{user?.role}</p>

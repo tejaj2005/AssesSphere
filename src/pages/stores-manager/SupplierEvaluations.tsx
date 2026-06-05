@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Badge } from '@/components/ui/badge';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
@@ -116,7 +116,7 @@ export const SupplierEvaluations = () => {
               <div className="space-y-1.5"><Label>Supplier <span className="text-destructive">*</span></Label>
                 <Select value={form.supplierId} onChange={(v) => setForm({ ...form, supplierId: v })} options={suppliers.map((s) => ({ label: s.name, value: s.id }))} placeholder="Select" />
               </div>
-              <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>Date</Label><DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></div>
             </div>
             <div className="space-y-1.5"><Label>Services Details</Label><Textarea value={form.servicesDetails} onChange={(e) => setForm({ ...form, servicesDetails: e.target.value })} rows={2} placeholder="What does this supplier provide?" /></div>
             <div className="space-y-1.5"><Label>Evaluation Method</Label>

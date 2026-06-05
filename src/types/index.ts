@@ -40,6 +40,13 @@ export interface User {
   departmentId: string;
   status: Status;
   createdAt: string;
+  phone?: string;
+  username?: string;
+  designation?: string;
+  dateOfJoining?: string;
+  /** Data URL (base64) or remote URL of the user's profile photo. */
+  photo?: string;
+  notes?: string;
 }
 
 export interface Product {
@@ -57,6 +64,15 @@ export interface ProductComponent {
   code: string;
   productId: string;
   createdAt: string;
+  componentType?: string;
+  uom?: string;
+  supplierId?: string;
+  minimumStock?: number | string;
+  leadTime?: number | string;
+  certificate?: boolean;
+  storage?: string;
+  qualityStandard?: string;
+  notes?: string;
 }
 
 export type StageStatus = 'ACTIVE' | 'INACTIVE';
@@ -101,6 +117,16 @@ export interface InspectionMethod {
   name: string;
   description: string;
   isSystem: boolean;
+  code?: string;
+  methodType?: string;
+  referenceStandard?: string;
+  equipmentIds?: string[];
+  sampleSize?: string;
+  acceptanceCriteria?: string;
+  approvalStatus?: string;
+  approvedById?: string;
+  effectiveDate?: string;
+  sopFile?: string | string[];
 }
 
 export type DocumentCategory = 'Procedure' | 'Policy' | 'Guideline' | 'Checklist' | 'Template' | 'Design' | 'Report' | 'Certificate';
@@ -119,6 +145,8 @@ export interface MfgDocument {
   version?: string;
   uploadedBy?: string;
   uploadedAt?: string;
+  /** Data URL (base64) of the actually uploaded file, when available. */
+  fileData?: string;
 }
 
 export interface Material {
@@ -162,6 +190,9 @@ export interface AuthUser {
   email: string;
   role: string;
   avatar?: string;
+  phone?: string;
+  address?: string;
+  bio?: string;
 }
 
 // ─── INSPECTION DATA ──────────────────────────────────────

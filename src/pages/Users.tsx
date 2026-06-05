@@ -97,9 +97,9 @@ export const UsersPage = () => {
     setForm({
       ...u,
       firstName: parts[0] || '', lastName: parts.slice(1).join(' ') || '',
-      phone: (u as any).phone || '', username: (u as any).username || u.email.split('@')[0],
-      designation: (u as any).designation || '', dateOfJoining: u.createdAt?.slice(0, 10) || '',
-      photo: (u as any).photo || '', sendInvite: false, notes: (u as any).notes || '',
+      phone: u.phone || '', username: u.username || u.email.split('@')[0],
+      designation: u.designation || '', dateOfJoining: u.dateOfJoining || u.createdAt?.slice(0, 10) || '',
+      photo: u.photo || '', sendInvite: false, notes: u.notes || '',
     });
     setErrs({}); setDrawerOpen(true);
   };
@@ -116,7 +116,9 @@ export const UsersPage = () => {
     if (!form.departmentId) e.departmentId = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
-    const payload = { ...form, name: fullName };
+    // FileInput yields string[]; a user photo is single — store the last entry as a plain string.
+    const photo = Array.isArray(form.photo) ? form.photo[form.photo.length - 1] || '' : form.photo || '';
+    const payload = { ...form, name: fullName, photo };
     const res = editing ? updateUser(editing.id, payload) : addUser(payload);
     if (!res.success) { toast.error(res.error || 'Failed'); return; }
     if (form.sendInvite && !editing) toast.success(`User created — invite email sent to ${form.email}`);
@@ -178,7 +180,7 @@ export const UsersPage = () => {
 
   const columns: Column<User>[] = [
     { key: 'name',  header: 'Name', sortable: true, sortValue: (u) => u.name, cell: (u) => (
-      <div className="flex items-center gap-3"><Avatar name={u.name} size="sm" /><span className="font-medium">{u.name}</span></div>
+      <div className="flex items-center gap-3"><Avatar name={u.name} src={u.photo} size="sm" /><span className="font-medium">{u.name}</span></div>
     ) },
     { key: 'emp',   header: 'Employee ID', sortable: true, sortValue: (u) => u.employeeId, cell: (u) => <span className="text-xs font-mono text-muted-foreground">{u.employeeId}</span> },
     { key: 'email', header: 'Email', cell: (u) => <span className="text-sm">{u.email}</span> },
@@ -271,7 +273,7 @@ export const UsersPage = () => {
             <SheetHeader><SheetTitle>User Details</SheetTitle></SheetHeader>
             <SheetBody>
               <div className="flex items-center gap-4 mb-6">
-                <Avatar name={detailUser.name} size="lg" />
+                <Avatar name={detailUser.name} src={detailUser.photo} size="lg" />
                 <div>
                   <p className="text-lg font-semibold">{detailUser.name}</p>
                   <p className="text-sm text-muted-foreground">{detailUser.email}</p>
@@ -282,7 +284,11 @@ export const UsersPage = () => {
                 <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Status</dt><dd className="mt-1"><StatusBadge status={detailUser.status} /></dd></div>
                 <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Role</dt><dd className="mt-1">{roles.find((r) => r.id === detailUser.roleId)?.name}</dd></div>
                 <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Department</dt><dd className="mt-1">{departments.find((d) => d.id === detailUser.departmentId)?.name}</dd></div>
+                {detailUser.designation && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Designation</dt><dd className="mt-1">{detailUser.designation}</dd></div>}
+                {detailUser.phone && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Phone</dt><dd className="mt-1">{detailUser.phone}</dd></div>}
+                {detailUser.dateOfJoining && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Date of Joining</dt><dd className="mt-1">{detailUser.dateOfJoining}</dd></div>}
               </dl>
+              {detailUser.notes && <div className="mt-4 pt-4 border-t"><dt className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</dt><dd className="text-sm">{detailUser.notes}</dd></div>}
               <div className="mt-6 pt-6 border-t flex gap-2 flex-wrap">
                 <Button variant="outline" onClick={() => { setDetailUser(null); openEdit(detailUser); }}><Pencil className="h-4 w-4" /> Edit User</Button>
                 <Button variant="outline" onClick={() => sendEmail(detailUser.email)}><Send className="h-4 w-4" /> Email</Button>

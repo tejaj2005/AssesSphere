@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import type { InspectionPlan, InspectionParameter, PlanType, PlanStatus } from '@/types';
@@ -236,7 +237,7 @@ export const InspectionPlanForm = ({ open, onOpenChange, type, editing }: Inspec
             </div>
             <div className="space-y-1.5">
               <Label>Inspection Date</Label>
-              <Input type="date" value={form.inspectionDate} onChange={(e) => setForm({ ...form, inspectionDate: e.target.value })} />
+              <DatePicker value={form.inspectionDate} onChange={(v) => setForm({ ...form, inspectionDate: v })} />
             </div>
           </div>
         </div>

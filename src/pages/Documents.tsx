@@ -42,19 +42,98 @@ const humanSize = (bytes: number): string => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-const downloadFile = (doc: MfgDocument) => {
-  // Generate a fake placeholder file
-  const content = `${doc.name}\n${doc.code}\n${doc.description}\n\nFile: ${doc.fileName}\nVersion: ${doc.version}\nUploaded by: ${doc.uploadedBy}`;
-  const blob = new Blob([content], { type: 'text/plain' });
+const stripExt = (name: string) => name.replace(/\.[^.]+$/, '');
+const ensureExt = (name: string, ext: string) => `${stripExt(name)}.${ext}`;
+
+const dataURLToBlob = (dataUrl: string): Blob => {
+  const [head, b64] = dataUrl.split(',');
+  const mime = head.match(/data:(.*?);base64/)?.[1] || 'application/octet-stream';
+  const bin = atob(b64 || '');
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+};
+
+const wrapText = (text: string, width: number): string[] => {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let line = '';
+  for (const w of words) {
+    if ((line + ' ' + w).trim().length > width) { if (line) lines.push(line); line = w; }
+    else line = (line + ' ' + w).trim();
+  }
+  if (line) lines.push(line);
+  return lines;
+};
+
+/** Build a genuinely valid single-page PDF (correct xref offsets) so it opens
+ *  in Adobe / browsers without a "damaged file" error. ASCII text only. */
+const buildPdf = (title: string, bodyLines: string[]): Blob => {
+  const ascii = (s: string) => s.replace(/[^\x20-\x7E]/g, '?');
+  const esc = (s: string) => ascii(s).replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  let content = `BT\n/F1 16 Tf\n50 760 Td\n(${esc(title)}) Tj\n/F1 11 Tf\n0 -30 Td\n`;
+  bodyLines.forEach((ln, i) => { content += `${i > 0 ? '0 -18 Td\n' : ''}(${esc(ln)}) Tj\n`; });
+  content += 'ET';
+
+  const objects: Record<number, string> = {
+    1: '<< /Type /Catalog /Pages 2 0 R >>',
+    2: '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    3: '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    4: '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    5: `<< /Length ${content.length} >>\nstream\n${content}\nendstream`,
+  };
+
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  for (let i = 1; i <= 5; i++) { offsets[i] = pdf.length; pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`; }
+  const xrefStart = pdf.length;
+  pdf += 'xref\n0 6\n0000000000 65535 f \n';
+  for (let i = 1; i <= 5; i++) pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  pdf += `trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+  return new Blob([pdf], { type: 'application/pdf' });
+};
+
+const triggerDownload = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = doc.fileName || `${doc.code}.txt`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  toast.success(`Downloaded ${doc.fileName || doc.code}`);
+};
+
+const downloadFile = (doc: MfgDocument) => {
+  let blob: Blob;
+  let filename = doc.fileName || doc.code;
+
+  if (doc.fileData && doc.fileData.startsWith('data:')) {
+    // Real uploaded bytes — download verbatim with its original name/extension.
+    blob = dataURLToBlob(doc.fileData);
+    filename = doc.fileName || `${doc.code}`;
+  } else if ((doc.fileType || 'PDF') === 'PDF') {
+    // Generate a valid PDF so it opens cleanly in Adobe (the old code shipped
+    // plain text under a .pdf name, which Adobe reports as corrupt).
+    blob = buildPdf(doc.name, [
+      `Document Code: ${doc.code}`,
+      `Version: ${doc.version || '1.0'}`,
+      `Category: ${doc.category || '-'}`,
+      `Uploaded by: ${doc.uploadedBy || '-'}`,
+      '',
+      ...wrapText(doc.description || 'No description provided.', 88),
+    ]);
+    filename = ensureExt(filename, 'pdf');
+  } else {
+    // No real bytes for non-PDF types — emit a readable text file with a
+    // matching .txt extension so it never opens as a broken document.
+    const content = `${doc.name}\n${doc.code} · v${doc.version || '1.0'}\n\n${doc.description || ''}\n\nUploaded by: ${doc.uploadedBy || '-'}`;
+    blob = new Blob([content], { type: 'text/plain' });
+    filename = ensureExt(filename, 'txt');
+  }
+
+  triggerDownload(blob, filename);
+  toast.success(`Downloaded ${filename}`);
 };
 
 export const DocumentsPage = () => {
@@ -65,7 +144,7 @@ export const DocumentsPage = () => {
   const [view, setView] = useState<'table' | 'cards'>('cards');
   const [drawer, setDrawer] = useState(false);
   const [editing, setEditing] = useState<MfgDocument | null>(null);
-  const initialForm = { name: '', code: '', description: '', manufacturingStageId: '', category: 'Procedure' as DocumentCategory, fileType: 'PDF' as DocumentFileType, fileName: '', fileSize: '', version: '1.0' };
+  const initialForm = { name: '', code: '', description: '', manufacturingStageId: '', category: 'Procedure' as DocumentCategory, fileType: 'PDF' as DocumentFileType, fileName: '', fileSize: '', version: '1.0', fileData: '' };
   const [form, setForm] = useState(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [confirmDel, setConfirmDel] = useState<MfgDocument | null>(null);
@@ -81,6 +160,17 @@ export const DocumentsPage = () => {
       fileSize: humanSize(file.size),
       name: f.name.trim() ? f.name : file.name.replace(/\.[^.]+$/, ''),
     }));
+    // Read the real bytes so Download returns the exact uploaded file (no Adobe
+    // "damaged file" from a mislabeled extension). Capped to keep mock state sane.
+    if (file.size <= 10 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = () => { if (typeof reader.result === 'string') setForm((f) => ({ ...f, fileData: reader.result as string })); };
+      reader.onerror = () => setForm((f) => ({ ...f, fileData: '' }));
+      reader.readAsDataURL(file);
+    } else {
+      setForm((f) => ({ ...f, fileData: '' }));
+      toast.error('File over 10MB — stored as metadata only');
+    }
   };
 
   const filtered = useMemo(() => documents.filter((d) => {
@@ -91,7 +181,7 @@ export const DocumentsPage = () => {
   }), [documents, search, stageFilter, categoryFilter]);
 
   const openAdd = () => { setEditing(null); setForm({ ...initialForm, code: nextId('DOC', documents), manufacturingStageId: manufacturingStages[0]?.id || '' }); setErrs({}); setDrawer(true); };
-  const openEdit = (d: MfgDocument) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description, manufacturingStageId: d.manufacturingStageId, category: d.category || 'Procedure', fileType: d.fileType || 'PDF', fileName: d.fileName || '', fileSize: d.fileSize || '', version: d.version || '1.0' }); setErrs({}); setDrawer(true); };
+  const openEdit = (d: MfgDocument) => { setEditing(d); setForm({ name: d.name, code: d.code, description: d.description, manufacturingStageId: d.manufacturingStageId, category: d.category || 'Procedure', fileType: d.fileType || 'PDF', fileName: d.fileName || '', fileSize: d.fileSize || '', version: d.version || '1.0', fileData: d.fileData || '' }); setErrs({}); setDrawer(true); };
 
   const submit = async () => {
     const e: Record<string, string> = {};

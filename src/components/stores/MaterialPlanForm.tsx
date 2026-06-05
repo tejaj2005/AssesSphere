@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 import type { MaterialReceivedPlan, MaterialInspectionParam, MaterialUnit, InspectionMethodType, MaterialPlanStatus } from '@/types';
@@ -84,7 +85,7 @@ export const MaterialPlanForm = ({ open, onOpenChange, editing }: Props) => {
       <SheetBody>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+            <div className="space-y-1.5"><Label>Date</Label><DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} /></div>
             <div className="space-y-1.5"><Label>Inspection Method</Label>
               <Select value={form.method} onChange={(v) => setForm({ ...form, method: v as InspectionMethodType })}
                 options={[{ label: 'Physical Test', value: 'PHYSICAL_TEST' }, { label: 'Analytical Test', value: 'ANALYTICAL_TEST' }, { label: 'Observation', value: 'OBSERVATION' }]} />

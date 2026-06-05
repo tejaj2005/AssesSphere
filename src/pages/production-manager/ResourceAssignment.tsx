@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetFooter, SheetDescription } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import { DatePicker } from '@/components/ui/date-picker';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { useData } from '@/context/DataContext';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
@@ -162,7 +162,7 @@ export const ResourceAssignment = () => {
             </div>
             <div className="space-y-1.5">
               <Label>Date <span className="text-destructive">*</span></Label>
-              <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+              <DatePicker value={form.date} onChange={(v) => setForm({ ...form, date: v })} />
             </div>
           </div>
         </SheetBody>

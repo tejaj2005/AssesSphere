@@ -106,7 +106,7 @@ export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
           collapsed ? 'h-11 w-11 justify-center mx-auto' : 'gap-3 px-2 py-2',
           isActive ? 'bg-white/10' : 'hover:bg-white/8'
         )}>
-          <Avatar name={user?.name || 'User'} size="sm" />
+          <Avatar name={user?.name || 'User'} src={user?.avatar} size="sm" />
           <AnimatePresence>
             {!collapsed && (
               <motion.div variants={sidebarText} initial="collapsed" animate="expanded" exit="collapsed" className="flex-1 min-w-0">

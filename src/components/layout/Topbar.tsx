@@ -152,7 +152,7 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
       <Dropdown
         trigger={
           <button className="flex items-center gap-2 px-2 py-1 rounded-md hover:bg-muted">
-            <Avatar name={user?.name || 'U'} size="sm" />
+            <Avatar name={user?.name || 'U'} src={user?.avatar} size="sm" />
             <div className="hidden sm:block text-left">
               <p className="text-xs font-medium leading-tight">{user?.name}</p>
               <p className="text-[10px] text-muted-foreground">{user?.role}</p>

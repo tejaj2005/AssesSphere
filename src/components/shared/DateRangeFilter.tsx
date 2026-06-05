@@ -1,5 +1,6 @@
 import { CalendarDays, X } from 'lucide-react';
 import { format, subDays, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter } from 'date-fns';
+import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd');
@@ -40,23 +41,11 @@ export const DateRangeFilter = ({ from, to = '', onChange, singleDate, className
     <div className={cn('flex flex-wrap items-center gap-2', className)}>
       <div className="inline-flex items-center gap-2 rounded-lg border border-input bg-card h-10 px-2.5">
         <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => onChange(e.target.value, to)}
-          aria-label={singleDate ? 'Date' : 'From date'}
-          className="bg-transparent text-sm text-foreground outline-none w-[118px] [color-scheme:light] dark:[color-scheme:dark]"
-        />
+        <DatePicker bare value={from} onChange={(v) => onChange(v, to)} placeholder={singleDate ? 'Date' : 'From'} className="w-[110px]" />
         {!singleDate && (
           <>
             <span className="text-xs text-muted-foreground">to</span>
-            <input
-              type="date"
-              value={to}
-              onChange={(e) => onChange(from, e.target.value)}
-              aria-label="To date"
-              className="bg-transparent text-sm text-foreground outline-none w-[118px] [color-scheme:light] dark:[color-scheme:dark]"
-            />
+            <DatePicker bare value={to} onChange={(v) => onChange(from, v)} placeholder="To" className="w-[110px]" />
           </>
         )}
       </div>

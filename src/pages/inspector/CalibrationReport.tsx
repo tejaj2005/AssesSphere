@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 
@@ -104,7 +105,7 @@ export const CalibrationReport = () => {
             </div>
           </div>
 
-          <div className="space-y-1.5"><Label>Next Calibration Due</Label><Input type="date" value={form.nextDue} onChange={(e) => setForm({ ...form, nextDue: e.target.value })} /></div>
+          <div className="space-y-1.5"><Label>Next Calibration Due</Label><DatePicker value={form.nextDue} onChange={(v) => setForm({ ...form, nextDue: v })} /></div>
 
           <div className="space-y-1.5"><Label>Inspector Remarks <span className="text-destructive">*</span></Label><Textarea value={form.remarks} error={!!errs.remarks} onChange={(e) => { setForm({ ...form, remarks: e.target.value }); setErrs({ ...errs, remarks: '' }); }} rows={3} placeholder="Summary of calibration result, any adjustments made…" />{errs.remarks && <p className="text-xs text-destructive">{errs.remarks}</p>}</div>
 

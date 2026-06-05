@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DatePicker } from '@/components/ui/date-picker';
 import { cn, isValidEmail } from '@/lib/utils';
 
 export type FieldType =
@@ -106,7 +107,10 @@ const FieldRenderer = ({ field, value, onChange, error, readOnly }: { field: Fie
     case 'readonly':
       return <div className="text-sm text-foreground px-3 py-2 rounded-lg bg-secondary border border-border/40">{value || '—'}</div>;
 
-    case 'text': case 'email': case 'url': case 'tel': case 'number': case 'date':
+    case 'date':
+      return <DatePicker id={field.name} value={value ?? ''} disabled={disabled} error={!!error} placeholder={field.placeholder || 'Select date'} onChange={onChange} />;
+
+    case 'text': case 'email': case 'url': case 'tel': case 'number':
       return <Input id={field.name} type={field.type} value={value ?? ''} disabled={disabled} placeholder={field.placeholder} error={!!error}
         onChange={(e) => onChange(field.type === 'number' ? (e.target.value === '' ? '' : parseFloat(e.target.value)) : e.target.value)} />;
 
@@ -171,12 +175,26 @@ const MultiChipSelect = ({ options, values, onChange, disabled }: { options: Fie
   );
 };
 
+const readAsDataURL = (file: File) => new Promise<string>((resolve) => {
+  const r = new FileReader();
+  r.onload = () => resolve(typeof r.result === 'string' ? r.result : file.name);
+  r.onerror = () => resolve(file.name);
+  r.readAsDataURL(file);
+});
+
+const isImageEntry = (s: string) => s.startsWith('data:image');
+
 const FileInput = ({ value, onChange, disabled }: { value?: string | string[]; onChange: (v: string[]) => void; disabled?: boolean }) => {
   const ref = useRef<HTMLInputElement>(null);
   const files = Array.isArray(value) ? value : value ? [value] : [];
-  const handle = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-    onChange([...files, ...Array.from(e.target.files).map((f) => f.name)]);
+    // Read images as data URLs so they can be previewed and persisted; keep
+    // other file types as their name (no real storage in this mock backend).
+    const added = await Promise.all(
+      Array.from(e.target.files).map((f) => (f.type.startsWith('image/') ? readAsDataURL(f) : Promise.resolve(f.name))),
+    );
+    onChange([...files, ...added]);
     if (ref.current) ref.current.value = '';
   };
   return (
@@ -190,8 +208,10 @@ const FileInput = ({ value, onChange, disabled }: { value?: string | string[]; o
         <div className="space-y-1">
           {files.map((f, i) => (
             <div key={i} className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-secondary text-xs">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="flex-1 truncate">{f}</span>
+              {isImageEntry(f)
+                ? <img src={f} alt="upload preview" className="h-8 w-8 rounded object-cover border border-border/60 shrink-0" />
+                : <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+              <span className="flex-1 truncate">{isImageEntry(f) ? 'Uploaded image' : f}</span>
               <button onClick={() => onChange(files.filter((_, ix) => ix !== i))} disabled={disabled} className="text-destructive"><X className="h-3 w-3" /></button>
             </div>
           ))}

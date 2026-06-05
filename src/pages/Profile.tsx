@@ -22,9 +22,9 @@ export const ProfilePage = () => {
   const [profile, setProfile] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    phone: '+91 98765 43210',
-    address: 'Bangalore, Karnataka, India',
-    bio: 'Quality assurance professional with 8+ years of experience in precision engineering and ISO compliance.',
+    phone: user?.phone || '',
+    address: user?.address || '',
+    bio: user?.bio || '',
   });
   const [pwd, setPwd] = useState({ current: '', next: '', confirm: '' });
   const [pwdErr, setPwdErr] = useState<Record<string, string>>({});
@@ -37,7 +37,7 @@ export const ProfilePage = () => {
   const saveProfile = () => {
     if (!profile.name.trim()) { toast.error('Name is required'); return; }
     if (!isValidEmail(profile.email)) { toast.error('Invalid email'); return; }
-    updateProfile({ name: profile.name, email: profile.email });
+    updateProfile({ name: profile.name, email: profile.email, phone: profile.phone, address: profile.address, bio: profile.bio });
     toast.success('Profile updated');
   };
 
@@ -58,7 +58,15 @@ export const ProfilePage = () => {
     if (!f) return;
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
     if (f.size > 2 * 1024 * 1024) { toast.error('Image must be under 2MB'); return; }
-    toast.success(`Avatar "${f.name}" uploaded`);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        updateProfile({ avatar: reader.result });
+        toast.success('Profile photo updated');
+      }
+    };
+    reader.onerror = () => toast.error('Could not read image');
+    reader.readAsDataURL(f);
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -78,7 +86,7 @@ export const ProfilePage = () => {
             <Card className="p-6 lg:col-span-1">
               <div className="text-center">
                 <div className="relative inline-block">
-                  <Avatar name={user?.name || 'U'} size="lg" className="!h-24 !w-24 !text-3xl mx-auto" />
+                  <Avatar name={user?.name || 'U'} src={user?.avatar} size="lg" className="!h-24 !w-24 !text-3xl mx-auto" />
                   <button
                     onClick={() => fileRef.current?.click()}
                     className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-md hover:scale-110 transition-transform"
@@ -91,9 +99,10 @@ export const ProfilePage = () => {
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
                 <Badge variant="accent" className="mt-3"><Shield className="h-3 w-3 mr-1" />{user?.role}</Badge>
                 <div className="mt-6 pt-6 border-t space-y-3 text-left text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground"><Building className="h-4 w-4" /> Engineering Department</div>
-                  <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-4 w-4" /> {user?.email}</div>
-                  <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4" /> Bangalore, India</div>
+                  <div className="flex items-center gap-2 text-muted-foreground"><Building className="h-4 w-4 shrink-0" /> Engineering Department</div>
+                  <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-4 w-4 shrink-0" /> <span className="truncate">{user?.email}</span></div>
+                  {profile.phone && <div className="flex items-center gap-2 text-muted-foreground"><Phone className="h-4 w-4 shrink-0" /> {profile.phone}</div>}
+                  <div className="flex items-center gap-2 text-muted-foreground"><MapPin className="h-4 w-4 shrink-0" /> {profile.address || 'No address set'}</div>
                 </div>
                 <Button variant="outline" size="sm" className="mt-4 w-full" onClick={() => fileRef.current?.click()}>
                   <UploadIcon className="h-4 w-4" /> Upload Photo
