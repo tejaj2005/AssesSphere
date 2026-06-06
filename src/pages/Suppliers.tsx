@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Pencil, Trash2, MoreHorizontal, Eye } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, Pencil, Trash2, Eye, Star, Mail, Phone, MapPin, Building2, Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -8,22 +8,30 @@ import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { TagChip } from '@/components/shared/MultiSelectChips';
 import { ConfigForm } from '@/components/shared/ConfigForm';
+import { ActionMenu } from '@/components/shared/ActionMenu';
 import { supplierFields } from '@/lib/entityFields';
 import { InlineEdit } from '@/components/shared/InlineEdit';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/components/ui/sheet';
 import { RAGBadge } from '@/components/dashboard/RAGBadge';
 import { formatDate } from '@/lib/utils';
-import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
 import { DataToolbar } from '@/components/shared/DataToolbar';
 import { useData } from '@/context/DataContext';
 import { nextId } from '@/lib/utils';
 import type { Supplier, SupplierEvalMethod } from '@/types';
+
+const APPROVAL_VARIANT: Record<string, any> = { APPROVED: 'success', SUSPENDED: 'warning', REMOVED: 'danger', NOT_APPROVED: 'slate' };
+const COUNTRY_LABEL: Record<string, string> = { IN: 'India', US: 'United States', DE: 'Germany', JP: 'Japan', CN: 'China', SG: 'Singapore' };
+// Maps a supplier's latest evaluation RAG status to a method-application verdict.
+const EVAL_VERDICT: Record<string, { label: string; variant: string }> = {
+  GREEN: { label: 'Passed', variant: 'success' }, AMBER: { label: 'Watch', variant: 'warning' }, RED: { label: 'Failed', variant: 'danger' },
+};
 
 export const SuppliersPage = () => {
   const { suppliers, materials, evalMethods, approvedVendors, supplierEvaluations, addSupplier, updateSupplier, deleteSupplier, addEvalMethod, deleteEvalMethod, updateEvalMethod } = useData();
@@ -40,6 +48,7 @@ export const SuppliersPage = () => {
   const [evalForm, setEvalForm] = useState({ name: '', description: '' });
   const [evalErr, setEvalErr] = useState('');
   const [confirmEval, setConfirmEval] = useState<SupplierEvalMethod | null>(null);
+  const [approvalFilter, setApprovalFilter] = useState('all');
 
   const openAddSup = () => { setEditingSup(null); setSupForm({ ...initialSup, code: nextId('SUP', suppliers) }); setSupErrs({}); setSupDrawer(true); };
   const openEditSup = (s: Supplier) => { setEditingSup(s); setSupForm({ ...initialSup, ...s }); setSupErrs({}); setSupDrawer(true); };
@@ -72,6 +81,16 @@ export const SuppliersPage = () => {
   };
   const getLatestEval = (s: Supplier) => supplierEvaluations.filter((e) => e.supplierId === s.id).sort((a, b) => b.evaluationDate.localeCompare(a.evaluationDate))[0];
 
+  const filteredSuppliers = useMemo(
+    () => (approvalFilter === 'all' ? suppliers : suppliers.filter((s) => getApproval(s) === approvalFilter)),
+    [suppliers, approvalFilter, approvedVendors],
+  );
+  const approvalCounts = useMemo(() => {
+    const c: Record<string, number> = { APPROVED: 0, NOT_APPROVED: 0, SUSPENDED: 0, REMOVED: 0 };
+    suppliers.forEach((s) => { const k = getApproval(s); c[k] = (c[k] || 0) + 1; });
+    return c;
+  }, [suppliers, approvedVendors]);
+
   const supColumns: Column<Supplier>[] = [
     { key: 'name', header: 'Supplier', sortable: true, sortValue: (s) => s.name, cell: (s) => <span className="font-medium">{s.name}</span> },
     { key: 'code', header: 'Code', cell: (s) => <span className="text-xs font-mono text-muted-foreground">{s.code}</span> },
@@ -97,11 +116,11 @@ export const SuppliersPage = () => {
       return <Badge variant={cls}>{e.overallStatus}</Badge>;
     } },
     { key: 'actions', header: '', width: 'w-12', cell: (s) => (
-      <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
-        <DropdownItem onClick={() => openEditSup(s)}><Pencil className="h-4 w-4" /> Edit</DropdownItem>
-        <DropdownItem onClick={() => setDetailSup(s)}><Eye className="h-4 w-4" /> View Details</DropdownItem>
-        <DropdownItem danger onClick={() => setConfirmSup(s)}><Trash2 className="h-4 w-4" /> Delete</DropdownItem>
-      </Dropdown>
+      <ActionMenu actions={[
+        { label: 'View Details', icon: Eye, onClick: () => setDetailSup(s) },
+        { label: 'Edit Supplier', icon: Pencil, onClick: () => openEditSup(s), separatorBefore: true },
+        { label: 'Delete Supplier', icon: Trash2, onClick: () => setConfirmSup(s), danger: true, separatorBefore: true },
+      ]} />
     ) },
   ];
 
@@ -120,10 +139,22 @@ export const SuppliersPage = () => {
         </TabsList>
 
         <TabsContent value="suppliers">
-          <div className="flex justify-end mb-3">
-            <Button variant="accent" onClick={openAddSup}><Plus className="h-4 w-4" /> Add Supplier</Button>
+          <div className="flex flex-wrap items-center gap-3 mb-3">
+            <Select
+              value={approvalFilter}
+              onChange={setApprovalFilter}
+              className="sm:w-56"
+              options={[
+                { label: `All Suppliers (${suppliers.length})`, value: 'all' },
+                { label: `Approved (${approvalCounts.APPROVED})`, value: 'APPROVED' },
+                { label: `Not Approved (${approvalCounts.NOT_APPROVED})`, value: 'NOT_APPROVED' },
+                { label: `Suspended (${approvalCounts.SUSPENDED})`, value: 'SUSPENDED' },
+                { label: `Removed (${approvalCounts.REMOVED})`, value: 'REMOVED' },
+              ]}
+            />
+            <Button variant="accent" className="ml-auto" onClick={openAddSup}><Plus className="h-4 w-4" /> Add Supplier</Button>
           </div>
-          <DataTable columns={supColumns} data={suppliers} emptyTitle="No suppliers" />
+          <DataTable columns={supColumns} data={filteredSuppliers} onRowClick={(s) => setDetailSup(s)} emptyTitle="No suppliers" emptyDescription={approvalFilter !== 'all' ? 'No suppliers with this status.' : 'Add a supplier to get started.'} />
         </TabsContent>
 
         <TabsContent value="eval">
@@ -164,14 +195,53 @@ export const SuppliersPage = () => {
           const av = approvedVendors.find((v) => v.supplierId === detailSup.id);
           const sevs = supplierEvaluations.filter((e) => e.supplierId === detailSup.id).sort((a, b) => b.evaluationDate.localeCompare(a.evaluationDate));
           const supMaterials = materials.filter((m) => detailSup.materialIds.includes(m.id));
+          const approval = getApproval(detailSup);
+          const isApproved = approval === 'APPROVED';
+          const latest = sevs[0];
+          const contactRows: [string, any, any][] = [
+            ['Contact Person', detailSup.contactPerson, Building2],
+            ['Email', detailSup.email, Mail],
+            ['Phone', detailSup.phone, Phone],
+            ['Country', detailSup.country ? (COUNTRY_LABEL[detailSup.country] || detailSup.country) : '', MapPin],
+          ];
           return (
             <>
               <SheetHeader>
                 <SheetTitle>{detailSup.name}</SheetTitle>
-                <SheetDescription>{detailSup.code}</SheetDescription>
+                <SheetDescription>{detailSup.code}{detailSup.certification ? ` · ${detailSup.certification}` : ''}</SheetDescription>
               </SheetHeader>
               <SheetBody>
                 <div className="space-y-5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={APPROVAL_VARIANT[approval]}>{approval.replace('_', ' ')}</Badge>
+                    {typeof detailSup.rating === 'number' && (
+                      <span className="inline-flex items-center gap-1 text-sm"><Star className="h-3.5 w-3.5 fill-[#f5af12] text-[#f5af12]" />{detailSup.rating}/5</span>
+                    )}
+                    {detailSup.leadTime !== undefined && detailSup.leadTime !== '' && <Badge variant="outline">Lead time {detailSup.leadTime} days</Badge>}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Supplier Information</p>
+                    <dl className="grid grid-cols-2 gap-3 text-sm">
+                      {contactRows.map(([label, val, Icon]) => (
+                        <div key={label} className="flex items-start gap-2">
+                          <Icon className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                          <div className="min-w-0"><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</dt><dd className="truncate">{val || '—'}</dd></div>
+                        </div>
+                      ))}
+                    </dl>
+                    {(detailSup.paymentTerms || detailSup.address) && (
+                      <dl className="grid grid-cols-1 gap-2 text-sm mt-3">
+                        {detailSup.paymentTerms && <div><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Payment Terms</dt><dd>{detailSup.paymentTerms}</dd></div>}
+                        {detailSup.address && <div><dt className="text-[10px] uppercase tracking-wider text-muted-foreground">Address</dt><dd>{detailSup.address}</dd></div>}
+                      </dl>
+                    )}
+                    <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-xs text-muted-foreground">
+                      {detailSup.createdAt && <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Added {formatDate(detailSup.createdAt)}</span>}
+                      {detailSup.updatedAt && <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Updated {formatDate(detailSup.updatedAt)}</span>}
+                    </div>
+                  </div>
+
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-3">Approval Status</p>
                     {av ? (
@@ -215,18 +285,38 @@ export const SuppliersPage = () => {
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Linked Evaluation Methods</p>
-                    <div className="space-y-1">
-                      {evalMethods.map((m) => (
-                        <div key={m.id} className="p-2 rounded-md border text-xs flex items-center justify-between">
-                          <div>
-                            <p className="font-medium">{m.name}</p>
-                            <p className="text-muted-foreground text-[10px] line-clamp-1">{m.description}</p>
-                          </div>
-                          {m.isSystem && <Badge variant="slate" className="text-[10px]">System</Badge>}
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Evaluation Methods</p>
+                      {isApproved
+                        ? <Badge variant={latest ? (EVAL_VERDICT[latest.overallStatus]?.variant as any) : 'slate'}>{latest ? `${EVAL_VERDICT[latest.overallStatus]?.label} · ${formatDate(latest.evaluationDate)}` : 'Awaiting evaluation'}</Badge>
+                        : <Badge variant="slate">Not applicable until approved</Badge>}
                     </div>
+                    <div className="space-y-1">
+                      {evalMethods.map((m) => {
+                        // Methods apply to approved suppliers; the per-method verdict mirrors the
+                        // supplier's latest overall evaluation status (or "Pending" if none yet).
+                        const verdict = !isApproved ? null : latest ? EVAL_VERDICT[latest.overallStatus] : { label: 'Pending', variant: 'warning' };
+                        return (
+                          <div key={m.id} className="p-2.5 rounded-md border text-xs flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="font-medium">{m.name}</p>
+                              <p className="text-muted-foreground text-[10px] line-clamp-1">{m.description}</p>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {m.isSystem && <Badge variant="slate" className="text-[10px]">System</Badge>}
+                              {verdict
+                                ? <Badge variant={verdict.variant as any} className="text-[10px]">{verdict.label}</Badge>
+                                : <Badge variant="outline" className="text-[10px]">N/A</Badge>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {evalMethods.length === 0 && <p className="text-sm text-muted-foreground italic">No evaluation methods defined</p>}
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => { const s = detailSup; setDetailSup(null); openEditSup(s); }}><Pencil className="h-4 w-4" /> Edit Supplier</Button>
                   </div>
                 </div>
               </SheetBody>
