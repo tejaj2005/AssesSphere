@@ -50,7 +50,7 @@ export const ProductsPage = () => {
   const filtered = useMemo(() => products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || p.code.toLowerCase().includes(search.toLowerCase())), [products, search]);
 
   const openAdd = () => { setEditing(null); setForm({ ...PRODUCT_INITIAL_FORM, code: nextId('PROD', products) }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (p: Product) => { setEditing(p); setForm({ ...PRODUCT_INITIAL_FORM, ...p, status: true }); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (p: Product) => { setEditing(p); setForm({ ...PRODUCT_INITIAL_FORM, ...p, status: p.status !== false && p.status !== 'Inactive' }); setErrs({}); setDrawerOpen(true); };
 
   const submit = async () => {
     const v = validateConfigForm(PRODUCT_FIELDS, form);
@@ -80,26 +80,30 @@ export const ProductsPage = () => {
     setConfirmDel(null);
   };
 
+  const actionsFor = (p: Product) => [
+    { label: 'View Details',     icon: Eye,       onClick: () => navigate(`/admin/products/${p.id}`) },
+    { label: 'Quick Look',       icon: Package,   onClick: () => setDetail(p) },
+    { label: 'Edit Product',     icon: Pencil,    onClick: () => openEdit(p), show: canEdit, separatorBefore: true },
+    { label: 'Clone Product',    icon: Copy,      onClick: () => cloneProduct(p), show: canCreate },
+    { label: 'Manage Components',icon: Puzzle,    onClick: () => navigate(`/admin/components?product=${p.id}`), separatorBefore: true },
+    { label: 'View MFG Stages',  icon: SettingsIcon, onClick: () => navigate(`/admin/products/${p.id}#mfg`) },
+    { label: 'View ASM Stages',  icon: Wrench,    onClick: () => navigate(`/admin/products/${p.id}#asm`) },
+    { label: 'Export to JSON',   icon: FileDown,  onClick: () => { downloadJSON(p.code, p); toast.success('Exported'); }, separatorBefore: true },
+    { label: 'View History',     icon: History,   onClick: () => setHistory(p) },
+    { label: 'Archive Product',  icon: Archive,   onClick: () => setConfirmDel(p), show: canEdit },
+    { label: 'Delete Forever',   icon: Trash2,    onClick: () => setTypedDel(p), danger: true, show: canDelete, separatorBefore: true },
+  ];
+
   const columns: Column<Product>[] = [
     { key: 'name', header: 'Product', sortable: true, sortValue: (p) => p.name, cell: (p) => <Link to={`/admin/products/${p.id}`} className="font-medium hover:text-accent">{p.name}</Link> },
     { key: 'code', header: 'Code', sortable: true, sortValue: (p) => p.code, cell: (p) => <span className="text-xs font-mono text-muted-foreground">{p.code}</span> },
     { key: 'comps', header: 'Components', cell: (p) => <Badge variant="outline">{components.filter((c) => c.productId === p.id).length}</Badge> },
     { key: 'mfg', header: 'Mfg Stages', cell: (p) => <Badge variant="accent">{p.manufacturingStageIds.length}</Badge> },
     { key: 'asm', header: 'Asm Stages', cell: (p) => <Badge variant="purple">{p.assemblingStageIds.length}</Badge> },
-    { key: 'actions', header: '', width: 'w-12', cell: (p) => (
-      <ActionMenu actions={[
-        { label: 'View Details',     icon: Eye,       onClick: () => setDetail(p) },
-        { label: 'Edit Product',     icon: Pencil,    onClick: () => openEdit(p), show: canEdit },
-        { label: 'Clone Product',    icon: Copy,      onClick: () => cloneProduct(p), show: canCreate, separatorBefore: true },
-        { label: 'Manage Components',icon: Puzzle,    onClick: () => navigate(`/admin/components?product=${p.id}`) },
-        { label: 'View MFG Stages',  icon: SettingsIcon, onClick: () => navigate(`/admin/products/${p.id}#mfg`) },
-        { label: 'View ASM Stages',  icon: Wrench,    onClick: () => navigate(`/admin/products/${p.id}#asm`) },
-        { label: 'Export to JSON',   icon: FileDown,  onClick: () => { downloadJSON(p.code, p); toast.success('Exported'); }, separatorBefore: true },
-        { label: 'Archive Product',  icon: Archive,   onClick: () => setConfirmDel(p), show: canEdit },
-        { label: 'View History',     icon: History,   onClick: () => setHistory(p) },
-        { label: 'Delete Forever',   icon: Trash2,    onClick: () => setTypedDel(p), danger: true, show: canDelete, separatorBefore: true },
-      ]} />
+    { key: 'status', header: 'Status', cell: (p) => (
+      <Badge variant={p.status === false || p.status === 'Inactive' ? 'slate' : 'success'}>{p.status === false || p.status === 'Inactive' ? 'Inactive' : 'Active'}</Badge>
     ) },
+    { key: 'actions', header: '', width: 'w-12', cell: (p) => <ActionMenu actions={actionsFor(p)} /> },
   ];
 
   return (
@@ -145,7 +149,10 @@ export const ProductsPage = () => {
                   <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent/10 text-accent">
                     <Package className="h-5 w-5" />
                   </div>
-                  <Badge variant="accent" className="font-mono text-xs">{p.id}</Badge>
+                  <div className="flex items-center gap-1.5">
+                    <Badge variant="accent" className="font-mono text-xs">{p.id}</Badge>
+                    <ActionMenu actions={actionsFor(p)} />
+                  </div>
                 </div>
                 <h3 className="font-semibold mb-1">{p.name}</h3>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3 text-xs text-muted-foreground">
@@ -186,16 +193,25 @@ export const ProductsPage = () => {
               <SheetDescription>{detail.code}</SheetDescription>
             </SheetHeader>
             <SheetBody>
+              {detail.description && <p className="text-sm text-muted-foreground mb-5">{detail.description}</p>}
               <dl className="grid grid-cols-2 gap-4 text-sm">
-                {[
-                  ['Code', detail.code], ['Created', formatDate(detail.createdAt)],
-                  ['Category', (detail as any).category || '—'], ['UoM', (detail as any).uom || '—'],
-                  ['Batch Size', (detail as any).batchSize || '—'], ['Shelf Life', (detail as any).shelfLife ? `${(detail as any).shelfLife} days` : '—'],
-                  ['Regulatory Class', (detail as any).regulatoryClass || '—'], ['Drawing Ref', (detail as any).drawingRef || '—'],
-                ].map(([l, v]) => (
-                  <div key={l as string}><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">{l}</dt><dd className="mt-1">{v}</dd></div>
+                {([
+                  ['Code', detail.code],
+                  ['Status', detail.status === false || detail.status === 'Inactive' ? 'Inactive' : 'Active'],
+                  ['Category', detail.category || '—'], ['UoM', detail.uom || '—'],
+                  ['Batch Size', detail.batchSize || '—'], ['Shelf Life', detail.shelfLife ? `${detail.shelfLife} days` : '—'],
+                  ['Storage', detail.storageConditions || '—'], ['Regulatory Class', detail.regulatoryClass || '—'],
+                  ['Drawing Ref', detail.drawingRef || '—'], ['Components', String(components.filter((c) => c.productId === detail.id).length)],
+                  ['Created', formatDate(detail.createdAt)], ['Updated', detail.updatedAt ? formatDate(detail.updatedAt) : '—'],
+                ] as [string, any][]).map(([l, v]) => (
+                  <div key={l}><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">{l}</dt><dd className="mt-1">{v}</dd></div>
                 ))}
               </dl>
+              {detail.notes && <div className="mt-4 pt-4 border-t"><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-1">Notes</dt><dd className="text-sm">{detail.notes}</dd></div>}
+              <div className="mt-5 flex gap-2">
+                <Button variant="accent" size="sm" onClick={() => { const d = detail; setDetail(null); navigate(`/admin/products/${d.id}`); }}>Open full view</Button>
+                {canEdit && <Button variant="outline" size="sm" onClick={() => { const d = detail; setDetail(null); openEdit(d); }}><Pencil className="h-4 w-4" /> Edit</Button>}
+              </div>
               <div className="mt-6 pt-6 border-t">
                 <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">Mfg Stages</p>
                 <div className="flex flex-wrap gap-1.5">

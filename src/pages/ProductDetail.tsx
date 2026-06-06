@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { ArrowLeft, Pencil, Plus, Trash2, Package, Calendar } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Pencil, Plus, Trash2, Package, Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { BackButton } from '@/components/shared/BackButton';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,7 +21,7 @@ import { formatDate, nextId } from '@/lib/utils';
 import { buildProductFields, PRODUCT_INITIAL_FORM } from '@/lib/productFields';
 import type { ProductComponent } from '@/types';
 
-const HASH_TO_TAB: Record<string, string> = { '#mfg': 'mfg', '#asm': 'asm', '#components': 'components' };
+const HASH_TO_TAB: Record<string, string> = { '#mfg': 'mfg', '#asm': 'asm', '#components': 'components', '#overview': 'overview' };
 
 export const ProductDetailPage = () => {
   const { id } = useParams();
@@ -29,7 +30,7 @@ export const ProductDetailPage = () => {
   const { products, components, manufacturingStages, assemblingStages, addComponent, updateComponent, deleteComponent, updateProduct } = useData();
   const product = products.find((p) => p.id === id);
 
-  const [tab, setTab] = useState('components');
+  const [tab, setTab] = useState('overview');
   const [compDrawer, setCompDrawer] = useState(false);
   const [editingComp, setEditingComp] = useState<ProductComponent | null>(null);
   const [compName, setCompName] = useState('');
@@ -107,9 +108,7 @@ export const ProductDetailPage = () => {
 
   return (
     <PageWrapper>
-      <Link to="/admin/products" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-4">
-        <ArrowLeft className="h-4 w-4" /> Back to Products
-      </Link>
+      <BackButton to="/admin/products" label="Back to Products" className="mb-4" />
 
       <Card className="p-6 mb-6">
         <div className="flex items-start gap-4">
@@ -123,7 +122,9 @@ export const ProductDetailPage = () => {
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
                   <Badge variant="accent" className="font-mono">ID {product.id}</Badge>
                   <Badge variant="outline" className="font-mono">Code {product.code}</Badge>
+                  <Badge variant={product.status === false || product.status === 'Inactive' ? 'slate' : 'success'}>{product.status === false || product.status === 'Inactive' ? 'Inactive' : 'Active'}</Badge>
                   <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Created {formatDate(product.createdAt)}</span>
+                  {product.updatedAt && <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Updated {formatDate(product.updatedAt)}</span>}
                 </div>
               </div>
               <Button variant="outline" onClick={openEditProduct}><Pencil className="h-4 w-4" /> Edit Product</Button>
@@ -134,10 +135,63 @@ export const ProductDetailPage = () => {
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="components">Components ({prodComps.length})</TabsTrigger>
           <TabsTrigger value="mfg">Mfg Stages ({mfgStages.length})</TabsTrigger>
           <TabsTrigger value="asm">Asm Stages ({asmStages.length})</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="p-6 lg:col-span-2">
+              <h3 className="font-semibold mb-4">Specifications</h3>
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-5 text-sm">
+                {([
+                  ['Category', product.category || '—'],
+                  ['Unit of Measure', product.uom || '—'],
+                  ['Standard Batch Size', product.batchSize || '—'],
+                  ['Shelf Life', product.shelfLife ? `${product.shelfLife} days` : '—'],
+                  ['Storage Conditions', product.storageConditions || '—'],
+                  ['Regulatory Class', product.regulatoryClass || '—'],
+                  ['Drawing / Spec Ref', product.drawingRef || '—'],
+                  ['Components', String(prodComps.length)],
+                  ['Status', product.status === false || product.status === 'Inactive' ? 'Inactive' : 'Active'],
+                ] as [string, any][]).map(([l, v]) => (
+                  <div key={l}><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">{l}</dt><dd className="mt-1 font-medium">{v}</dd></div>
+                ))}
+              </dl>
+              {product.description && (
+                <div className="mt-6 pt-6 border-t">
+                  <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-1.5">Description</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">{product.description}</p>
+                </div>
+              )}
+              {product.notes && (
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-1.5">Notes</p>
+                  <p className="text-sm text-foreground/90 leading-relaxed">{product.notes}</p>
+                </div>
+              )}
+            </Card>
+            <Card className="p-6">
+              <h3 className="font-semibold mb-4">Traceability</h3>
+              <div className="space-y-4 text-sm">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent shrink-0"><Calendar className="h-4 w-4" /></div>
+                  <div><p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">Created</p><p className="mt-0.5 font-medium">{formatDate(product.createdAt)}</p></div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent shrink-0"><Clock className="h-4 w-4" /></div>
+                  <div><p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">Last Updated</p><p className="mt-0.5 font-medium">{product.updatedAt ? formatDate(product.updatedAt) : 'Never modified'}</p></div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent/10 text-accent shrink-0"><Package className="h-4 w-4" /></div>
+                  <div><p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">Process Coverage</p><p className="mt-0.5 font-medium">{mfgStages.length} mfg · {asmStages.length} asm stages</p></div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="components">
           <div className="flex justify-end mb-3">
