@@ -56,6 +56,18 @@ export interface Product {
   manufacturingStageIds: string[];
   assemblingStageIds: string[];
   createdAt: string;
+  updatedAt?: string;
+  category?: string;
+  description?: string;
+  uom?: string;
+  batchSize?: number | string;
+  shelfLife?: number | string;
+  storageConditions?: string;
+  regulatoryClass?: string;
+  drawingRef?: string;
+  status?: boolean | string;
+  notes?: string;
+  attachments?: string[];
 }
 
 export interface ProductComponent {
@@ -73,6 +85,7 @@ export interface ProductComponent {
   storage?: string;
   qualityStandard?: string;
   notes?: string;
+  updatedAt?: string;
 }
 
 export type StageStatus = 'ACTIVE' | 'INACTIVE';
@@ -166,6 +179,21 @@ export interface Supplier {
   name: string;
   code: string;
   materialIds: string[];
+  supplierCategory?: 'APPROVED' | 'CONDITIONAL' | 'BLACKLISTED' | string;
+  country?: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  paymentTerms?: string;
+  address?: string;
+  certification?: string;
+  leadTime?: number | string;
+  rating?: number;
+  status?: boolean | string;
+  notes?: string;
+  attachments?: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SupplierEvalMethod {

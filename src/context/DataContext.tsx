@@ -306,7 +306,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
   const updateProduct: DataContextType['updateProduct'] = (id, data) => {
     let name = '';
-    setProducts((p) => p.map((x) => { if (x.id === id) { name = data.name || x.name; return { ...x, ...data }; } return x; }));
+    setProducts((p) => p.map((x) => { if (x.id === id) { name = data.name || x.name; return { ...x, ...data, updatedAt: new Date().toISOString() }; } return x; }));
     pushAudit(newAudit('Updated', 'Product', name));
     return { success: true };
   };
@@ -328,7 +328,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   };
   const updateComponent: DataContextType['updateComponent'] = (id, data) => {
     let name = '';
-    setComponents((p) => p.map((c) => { if (c.id === id) { name = data.name || c.name; return { ...c, ...data }; } return c; }));
+    setComponents((p) => p.map((c) => { if (c.id === id) { name = data.name || c.name; return { ...c, ...data, updatedAt: new Date().toISOString() }; } return c; }));
     pushAudit(newAudit('Updated', 'Component', name));
     return { success: true };
   };
@@ -533,14 +533,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   // Suppliers
   const addSupplier: DataContextType['addSupplier'] = (data) => {
     if (suppliers.some((s) => s.name.toLowerCase() === data.name.toLowerCase())) return { success: false, error: 'Supplier name already exists' };
-    const s: Supplier = { ...data, id: nextId('SUP', suppliers) };
+    const now = new Date().toISOString();
+    const s: Supplier = { ...data, id: nextId('SUP', suppliers), createdAt: now, updatedAt: now };
     setSuppliers((p) => [...p, s]);
     pushAudit(newAudit('Created', 'Supplier', s.name));
     return { success: true };
   };
   const updateSupplier: DataContextType['updateSupplier'] = (id, data) => {
     let name = '';
-    setSuppliers((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data }; } return s; }));
+    setSuppliers((p) => p.map((s) => { if (s.id === id) { name = data.name || s.name; return { ...s, ...data, updatedAt: new Date().toISOString() }; } return s; }));
     pushAudit(newAudit('Updated', 'Supplier', name));
     return { success: true };
   };
