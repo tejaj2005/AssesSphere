@@ -1,7 +1,7 @@
 import type {
   MaterialReceivedPlan, ApprovedVendor, MaterialStockStatement,
   ProductQualityPlan, InspectorAssignment, InspectionChecklist, CalibrationApproval,
-  InspectionReport, InspectorTask, ChecklistItem, ReportParameter,
+  InspectionReport, InspectorTask, ChecklistItem, ReportParameter, ProductionPlan,
 } from '@/types';
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
@@ -189,4 +189,52 @@ export const initialInspectorTasks: InspectorTask[] = [
   { id: 'IT-004', planId: 'IP-008', planCode: 'COMP-PLAN-001', type: 'COMPONENT', productName: 'GearBox Assembly GX-200', stageName: 'Bearing Assembly', dueDate: daysAhead(2), equipment: 'Dial Gauge DG-04', status: 'ASSIGNED' },
   { id: 'IT-005', planId: 'MP-004', planCode: 'MRI-PLAN-004', type: 'MATERIAL',  productName: 'GearBox Assembly GX-200', stageName: 'Bearing Grease',  dueDate: daysAhead(-10), equipment: 'Spectrophotometer SP-02', status: 'REJECTED', reportId: 'IR-MAT-002', rejectionComment: 'Retest with fresh sample' },
   { id: 'IT-006', planId: 'CA-001', planCode: 'CAL-001',     type: 'CALIBRATION', productName: 'Micrometer MC-11', stageName: 'Calibration',     dueDate: daysAhead(4), equipment: 'Micrometer MC-11', status: 'SUBMITTED', reportId: 'IR-CAL-001' },
+];
+
+// ─── Production Manager: Production Plans ───
+// Each plan schedules a product build and assigns a shop-floor operator to
+// every machining (manufacturing) and assembling stage.
+export const initialProductionPlans: ProductionPlan[] = [
+  {
+    id: 'PP-001', planCode: 'PRD-PLAN-001', productId: 'PROD-001', productName: 'GearBox Assembly GX-200', productCode: 'GX-200',
+    targetQuantity: 120, plannedStartDate: daysAhead(-6), plannedEndDate: daysAhead(8), status: 'IN_PROGRESS',
+    notes: 'Priority batch for Q3 dispatch.', createdBy: 'Suresh Kumar', createdAt: daysAgo(8),
+    manufacturingStages: [
+      { stageId: 'MFG-001', stageName: 'Machining',      stageType: 'MANUFACTURING', order: 1, workCenter: 'Machine Shop', standardTimeMin: 18, operatorId: 'U-021', operatorName: 'Rakesh Gupta', status: 'COMPLETED' },
+      { stageId: 'MFG-002', stageName: 'Heat Treatment', stageType: 'MANUFACTURING', order: 2, workCenter: 'Furnace Bay',  standardTimeMin: 45, operatorId: 'U-023', operatorName: 'Manoj Tiwari', status: 'IN_PROGRESS' },
+      { stageId: 'MFG-003', stageName: 'Grinding',       stageType: 'MANUFACTURING', order: 3, workCenter: 'Finishing',    standardTimeMin: 12, operatorId: 'U-027', operatorName: 'Naveen Reddy', status: 'NOT_STARTED' },
+    ],
+    assemblingStages: [
+      { stageId: 'ASM-001', stageName: 'Sub-Assembly',   stageType: 'ASSEMBLING', order: 1, workCenter: 'Assembly Line A', standardTimeMin: 24, operatorId: 'U-024', operatorName: 'Farhan Ali',  status: 'NOT_STARTED' },
+      { stageId: 'ASM-002', stageName: 'Final Assembly', stageType: 'ASSEMBLING', order: 2, workCenter: 'Assembly Line A', standardTimeMin: 40, operatorId: 'U-025', operatorName: 'Geeta Kumari', status: 'NOT_STARTED' },
+    ],
+  },
+  {
+    id: 'PP-002', planCode: 'PRD-PLAN-002', productId: 'PROD-003', productName: 'Control Panel CP-100', productCode: 'CP-100',
+    targetQuantity: 60, plannedStartDate: daysAhead(2), plannedEndDate: daysAhead(16), status: 'SCHEDULED',
+    notes: '', createdBy: 'Divya Kapoor', createdAt: daysAgo(3),
+    manufacturingStages: [
+      { stageId: 'MFG-006', stageName: 'PCB Assembly', stageType: 'MANUFACTURING', order: 1, workCenter: 'Electronics', standardTimeMin: 30, operatorId: 'U-022', operatorName: 'Sunita Devi', status: 'NOT_STARTED' },
+      { stageId: 'MFG-007', stageName: 'Wiring',       stageType: 'MANUFACTURING', order: 2, workCenter: 'Electronics', standardTimeMin: 16, operatorId: 'U-027', operatorName: 'Naveen Reddy', status: 'NOT_STARTED' },
+    ],
+    assemblingStages: [
+      { stageId: 'ASM-003', stageName: 'Enclosure Assembly', stageType: 'ASSEMBLING', order: 1, workCenter: 'Assembly Line B', standardTimeMin: 18, operatorId: 'U-026', operatorName: 'Imran Khan', status: 'NOT_STARTED' },
+      { stageId: 'ASM-004', stageName: 'Testing',            stageType: 'ASSEMBLING', order: 2, workCenter: 'Test Bench',      standardTimeMin: 35, operatorId: 'U-024', operatorName: 'Farhan Ali', status: 'NOT_STARTED' },
+    ],
+  },
+  {
+    id: 'PP-003', planCode: 'PRD-PLAN-003', productId: 'PROD-006', productName: 'Drive Assembly DA-700', productCode: 'DA-700',
+    targetQuantity: 200, plannedStartDate: daysAhead(-20), plannedEndDate: daysAhead(-2), status: 'COMPLETED',
+    notes: 'Closed out; all stages signed off.', createdBy: 'Suresh Kumar', createdAt: daysAgo(24),
+    manufacturingStages: [
+      { stageId: 'MFG-004', stageName: 'CNC Turning', stageType: 'MANUFACTURING', order: 1, workCenter: 'CNC Cell',  standardTimeMin: 22, operatorId: 'U-022', operatorName: 'Sunita Devi',  status: 'COMPLETED' },
+      { stageId: 'MFG-003', stageName: 'Grinding',    stageType: 'MANUFACTURING', order: 2, workCenter: 'Finishing', standardTimeMin: 12, operatorId: 'U-021', operatorName: 'Rakesh Gupta', status: 'COMPLETED' },
+      { stageId: 'MFG-009', stageName: 'Welding',     stageType: 'MANUFACTURING', order: 3, workCenter: 'Weld Bay',  standardTimeMin: 28, operatorId: 'U-023', operatorName: 'Manoj Tiwari', status: 'COMPLETED' },
+    ],
+    assemblingStages: [
+      { stageId: 'ASM-001', stageName: 'Sub-Assembly',   stageType: 'ASSEMBLING', order: 1, workCenter: 'Assembly Line A', standardTimeMin: 24, operatorId: 'U-025', operatorName: 'Geeta Kumari', status: 'COMPLETED' },
+      { stageId: 'ASM-002', stageName: 'Final Assembly', stageType: 'ASSEMBLING', order: 2, workCenter: 'Assembly Line A', standardTimeMin: 40, operatorId: 'U-026', operatorName: 'Imran Khan',   status: 'COMPLETED' },
+      { stageId: 'ASM-006', stageName: 'Labeling',       stageType: 'ASSEMBLING', order: 3, workCenter: 'Pack Station',    standardTimeMin: 4,  operatorId: 'U-024', operatorName: 'Farhan Ali',   status: 'COMPLETED' },
+    ],
+  },
 ];
