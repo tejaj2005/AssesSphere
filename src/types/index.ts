@@ -1,6 +1,6 @@
 export type Status = 'Active' | 'Inactive';
 export type CalibrationStatus = 'COMPLETED' | 'PENDING';
-export type RoleName = 'Admin' | 'Management' | 'Production Manager' | 'Stores Manager' | 'Quality Manager' | 'Inspector';
+export type RoleName = 'Admin' | 'Management' | 'Production Manager' | 'Stores Manager' | 'Quality Manager' | 'Inspector' | 'Operator';
 
 export interface Organization {
   id: string;
@@ -563,4 +563,40 @@ export interface InspectorTask {
   equipment: string;
   status: 'ASSIGNED' | 'IN_PROGRESS' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   rejectionComment?: string;
+}
+
+// ─── PRODUCTION MANAGER ────────────────────────────────
+export type ProductionPlanStatus = 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED';
+export type ProductionStageType = 'MANUFACTURING' | 'ASSEMBLING';
+export type ProductionStageStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+// One machining or assembling stage within a production plan, with the
+// production operator responsible for executing it.
+export interface ProductionStageAssignment {
+  stageId: string;
+  stageName: string;
+  stageType: ProductionStageType;
+  order: number;
+  workCenter?: string;
+  standardTimeMin?: number;
+  operatorId?: string;
+  operatorName?: string;
+  status: ProductionStageStatus;
+}
+
+export interface ProductionPlan {
+  id: string;
+  planCode: string;
+  productId: string;
+  productName: string;
+  productCode: string;
+  targetQuantity: number;
+  plannedStartDate: string;
+  plannedEndDate: string;
+  manufacturingStages: ProductionStageAssignment[];
+  assemblingStages: ProductionStageAssignment[];
+  status: ProductionPlanStatus;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
 }
