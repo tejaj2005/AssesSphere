@@ -9,7 +9,7 @@ import type {
 import type {
   MaterialReceivedPlan, ApprovedVendor, MaterialStockStatement,
   ProductQualityPlan, InspectorAssignment, InspectionChecklist, CalibrationApproval,
-  InspectionReport, InspectorTask,
+  InspectionReport, InspectorTask, ProductionPlan,
 } from '@/types';
 import * as mock from '@/data/mockData';
 import * as inspect from '@/data/inspectionData';
@@ -108,6 +108,11 @@ interface DataContextType {
   inspectionPlans: InspectionPlan[];
   resourceAssignments: ResourceAssignment[];
   supplierEvaluations: SupplierEvaluation[];
+  productionPlans: ProductionPlan[];
+
+  addProductionPlan: (data: Omit<ProductionPlan, 'id' | 'createdAt' | 'planCode'>) => Result;
+  updateProductionPlan: (id: string, data: Partial<ProductionPlan>) => Result;
+  deleteProductionPlan: (id: string) => Result;
 
   addInspectionRecord: (data: Omit<InspectionRecord, 'id'>) => Result;
   updateInspectionRecord: (id: string, data: Partial<InspectionRecord>) => Result;
@@ -200,6 +205,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
   const [inspectionPlans, setInspectionPlans] = useState<InspectionPlan[]>(inspect.initialInspectionPlans);
   const [resourceAssignments, setResourceAssignments] = useState<ResourceAssignment[]>(inspect.initialResourceAssignments);
   const [supplierEvaluations, setSupplierEvaluations] = useState<SupplierEvaluation[]>(inspect.initialSupplierEvaluations);
+  const [productionPlans, setProductionPlans] = useState<ProductionPlan[]>(moduleData.initialProductionPlans);
   const [materialPlans, setMaterialPlans] = useState<MaterialReceivedPlan[]>(moduleData.initialMaterialPlans);
   const [approvedVendors, setApprovedVendors] = useState<ApprovedVendor[]>(moduleData.initialApprovedVendors);
   const [stockStatements, setStockStatements] = useState<MaterialStockStatement[]>(moduleData.initialStockStatements);
@@ -628,6 +634,29 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     return { success: true };
   };
 
+  // ─── Production Plans ───
+  const addProductionPlan: DataContextType['addProductionPlan'] = (data) => {
+    const code = `PRD-PLAN-${String(productionPlans.length + 1).padStart(3, '0')}`;
+    const plan: ProductionPlan = { ...data, id: nextId('PP', productionPlans), planCode: code, createdAt: new Date().toISOString() };
+    setProductionPlans((p) => [plan, ...p]);
+    pushAudit(newAudit('Created', 'Production Plan', code));
+    return { success: true };
+  };
+  const updateProductionPlan: DataContextType['updateProductionPlan'] = (id, data) => {
+    let code = '';
+    setProductionPlans((p) => p.map((x) => { if (x.id === id) { code = data.planCode || x.planCode; return { ...x, ...data }; } return x; }));
+    pushAudit(newAudit('Updated', 'Production Plan', code));
+    return { success: true };
+  };
+  const deleteProductionPlan: DataContextType['deleteProductionPlan'] = (id) => {
+    const plan = productionPlans.find((x) => x.id === id);
+    if (!plan) return { success: false, error: 'Not found' };
+    if (plan.status !== 'DRAFT') return { success: false, error: 'Only DRAFT plans can be deleted' };
+    setProductionPlans((p) => p.filter((x) => x.id !== id));
+    pushAudit(newAudit('Deleted', 'Production Plan', plan.planCode));
+    return { success: true };
+  };
+
   // ─── Supplier Evaluations ───
   const addSupplierEvaluation: DataContextType['addSupplierEvaluation'] = (data) => {
     const e: SupplierEvaluation = { ...data, id: nextId('SE', supplierEvaluations) };
@@ -820,10 +849,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     addMaterialType, updateMaterialType, deleteMaterialType,
     addSupplier, updateSupplier, deleteSupplier,
     addEvalMethod, updateEvalMethod, deleteEvalMethod,
-    inspectionRecords, inspectionPlans, resourceAssignments, supplierEvaluations,
+    inspectionRecords, inspectionPlans, resourceAssignments, supplierEvaluations, productionPlans,
     addInspectionRecord, updateInspectionRecord, reviewInspectionRecord,
     addInspectionPlan, updateInspectionPlan, deleteInspectionPlan,
     addResourceAssignment, updateResourceAssignment,
+    addProductionPlan, updateProductionPlan, deleteProductionPlan,
     addSupplierEvaluation, updateSupplierEvaluation,
     materialPlans, approvedVendors, stockStatements, qualityPlans, inspectorAssignments,
     checklists, calibrationApprovals, inspectionReports, inspectorTasks,
