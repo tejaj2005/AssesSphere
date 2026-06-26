@@ -57,6 +57,7 @@ export const initialRoles: Role[] = [
   { id: 'ROLE-004', name: 'Stores Manager', description: 'Manages materials and supplier relationships', isSystem: true, permissions: { ...viewOnly(), Materials: { view: true, create: true, edit: true, delete: false }, 'Material Types': { view: true, create: true, edit: true, delete: false }, Suppliers: { view: true, create: true, edit: true, delete: false } } },
   { id: 'ROLE-005', name: 'Quality Manager', description: 'Manages quality inspection workflows', isSystem: true, permissions: { ...viewOnly(), 'Inspection Types': { view: true, create: true, edit: true, delete: false }, Equipment: { view: true, create: true, edit: true, delete: false }, 'Inspection Methods': { view: true, create: true, edit: true, delete: false }, Documents: { view: true, create: true, edit: true, delete: false } } },
   { id: 'ROLE-006', name: 'Inspector', description: 'Performs inspections and equipment monitoring', isSystem: true, permissions: inspectorPerm() },
+  { id: 'ROLE-007', name: 'Operator', description: 'Shop-floor operator executing machining and assembling stages', isSystem: true, permissions: viewOnly() },
 ];
 
 export const initialUsers: User[] = [
@@ -80,6 +81,14 @@ export const initialUsers: User[] = [
   { id: 'U-018', employeeId: 'EMP-018', name: 'Sandeep Roy',    email: 'sandeep@pqas.com',  roleId: 'ROLE-006', departmentId: 'DEPT-007', status: 'Active', createdAt: daysAgo(100) },
   { id: 'U-019', employeeId: 'EMP-019', name: 'Meera Pillai',   email: 'meera@pqas.com',    roleId: 'ROLE-005', departmentId: 'DEPT-002', status: 'Active', createdAt: daysAgo(80) },
   { id: 'U-020', employeeId: 'EMP-020', name: 'Aditya Shah',    email: 'aditya@pqas.com',   roleId: 'ROLE-001', departmentId: 'DEPT-005', status: 'Active', createdAt: daysAgo(60) },
+  // Shop-floor production operators (machining & assembly) assignable to production plans
+  { id: 'U-021', employeeId: 'EMP-021', name: 'Rakesh Gupta',   email: 'rakesh@pqas.com',   roleId: 'ROLE-007', departmentId: 'DEPT-001', status: 'Active', createdAt: daysAgo(210), designation: 'Machine Operator' },
+  { id: 'U-022', employeeId: 'EMP-022', name: 'Sunita Devi',    email: 'sunita@pqas.com',   roleId: 'ROLE-007', departmentId: 'DEPT-001', status: 'Active', createdAt: daysAgo(195), designation: 'CNC Operator' },
+  { id: 'U-023', employeeId: 'EMP-023', name: 'Manoj Tiwari',   email: 'manoj@pqas.com',    roleId: 'ROLE-007', departmentId: 'DEPT-001', status: 'Active', createdAt: daysAgo(180), designation: 'Machine Operator' },
+  { id: 'U-024', employeeId: 'EMP-024', name: 'Farhan Ali',     email: 'farhan@pqas.com',   roleId: 'ROLE-007', departmentId: 'DEPT-004', status: 'Active', createdAt: daysAgo(170), designation: 'Assembly Operator' },
+  { id: 'U-025', employeeId: 'EMP-025', name: 'Geeta Kumari',   email: 'geeta@pqas.com',    roleId: 'ROLE-007', departmentId: 'DEPT-004', status: 'Active', createdAt: daysAgo(150), designation: 'Assembly Operator' },
+  { id: 'U-026', employeeId: 'EMP-026', name: 'Imran Khan',     email: 'imran@pqas.com',    roleId: 'ROLE-007', departmentId: 'DEPT-004', status: 'Active', createdAt: daysAgo(130), designation: 'Assembly Operator' },
+  { id: 'U-027', employeeId: 'EMP-027', name: 'Naveen Reddy',   email: 'naveen@pqas.com',   roleId: 'ROLE-007', departmentId: 'DEPT-001', status: 'Active', createdAt: daysAgo(110), designation: 'Machine Operator' },
 ];
 
 const stageTs = (d: number) => ({ createdAt: daysAgo(d), updatedAt: daysAgo(Math.max(0, d - 30)) });
