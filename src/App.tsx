@@ -49,7 +49,7 @@ import { MfgInspectionPlans } from '@/pages/production-manager/MfgInspectionPlan
 import { AsmInspectionPlans } from '@/pages/production-manager/AsmInspectionPlans';
 import { MatInspectionPlans } from '@/pages/production-manager/MatInspectionPlans';
 import { CompInspectionPlans } from '@/pages/production-manager/CompInspectionPlans';
-import { ResourceAssignment } from '@/pages/production-manager/ResourceAssignment';
+import { ProductionPlans } from '@/pages/production-manager/ProductionPlans';
 import { ReviewReports } from '@/pages/production-manager/ReviewReports';
 import { QualityPlanReview } from '@/pages/production-manager/QualityPlanReview';
 
@@ -129,7 +129,7 @@ const App = () => (
                 <Route path="asm-plans" element={<AsmInspectionPlans />} />
                 <Route path="mat-plans" element={<MatInspectionPlans />} />
                 <Route path="comp-plans" element={<CompInspectionPlans />} />
-                <Route path="resources" element={<ResourceAssignment />} />
+                <Route path="production-plans" element={<ProductionPlans />} />
                 <Route path="review-reports" element={<ReviewReports />} />
                 <Route path="quality-plan-review" element={<QualityPlanReview />} />
               </Route>
