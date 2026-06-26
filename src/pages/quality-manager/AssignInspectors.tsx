@@ -17,10 +17,22 @@ import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
 
+import type { InspectorReportType } from '@/types';
+
 type AssignTab = 'MATERIAL_RECEIVED' | 'MANUFACTURING' | 'ASSEMBLING' | 'COMPONENT';
 
+// Map an assignment tab to the inspector report queue that handles it.
+// Manufacturing stage inspections are filed under the Component queue
+// (see ReportListPage scaffolding), assembling under Assembly.
+const TAB_TO_REPORT_TYPE: Record<AssignTab, InspectorReportType> = {
+  MATERIAL_RECEIVED: 'MATERIAL',
+  MANUFACTURING: 'COMPONENT',
+  ASSEMBLING: 'ASSEMBLY',
+  COMPONENT: 'COMPONENT',
+};
+
 export const AssignInspectors = () => {
-  const { inspectionPlans, materialPlans, users, roles, products, updateInspectionPlan, updateMaterialPlan, resourceAssignments } = useData();
+  const { inspectionPlans, materialPlans, users, roles, products, updateInspectionPlan, updateMaterialPlan, resourceAssignments, inspectorTasks, addInspectorTask } = useData();
   const { user } = useAuth();
   const [tab, setTab] = useState<AssignTab>('MANUFACTURING');
   const [productFilter, setProductFilter] = useState('all');
@@ -49,12 +61,26 @@ export const AssignInspectors = () => {
     return true;
   }), [allRows, productFilter, statusFilter]);
 
+  // Push a task onto the inspector's queue so the assignment shows on their
+  // dashboard. Reuses an existing task for the same plan instead of duplicating.
+  const pushTask = (row: typeof allRows[number]) => {
+    if (inspectorTasks.some((t) => t.planId === row.id)) return;
+    const due = (row.date || new Date().toISOString()).slice(0, 10);
+    addInspectorTask({
+      planId: row.id, planCode: row.code, type: TAB_TO_REPORT_TYPE[tab],
+      productName: row.productName, stageName: row.stage,
+      dueDate: due, equipment: 'As per plan', status: 'ASSIGNED',
+    });
+  };
+
   const assign = (rowId: string, inspectorId: string, isMaterial: boolean) => {
     const insp = inspectors.find((u) => u.id === inspectorId);
     if (!insp) return;
     if (isMaterial) updateMaterialPlan(rowId, { inspectorId: insp.id, inspectorName: insp.name });
     else updateInspectionPlan(rowId, { inspectorId: insp.id, inspectorName: insp.name, status: 'ACTIVE' as any });
-    toast.success(`Assigned to ${insp.name}. Task notification sent.`);
+    const row = allRows.find((r) => r.id === rowId);
+    if (row) pushTask(row);
+    toast.success(`Assigned to ${insp.name}. Task sent to inspector dashboard.`);
   };
 
   const bulkAssign = async () => {
@@ -67,8 +93,9 @@ export const AssignInspectors = () => {
       if (!row) return;
       if (row.isMaterial) updateMaterialPlan(id, { inspectorId: insp.id, inspectorName: insp.name });
       else updateInspectionPlan(id, { inspectorId: insp.id, inspectorName: insp.name, status: 'ACTIVE' as any });
+      pushTask(row);
     });
-    toast.success(`Assigned ${selected.length} plans to ${insp.name}`);
+    toast.success(`Assigned ${selected.length} plans to ${insp.name}. Tasks sent to inspector dashboard.`);
     setSelected([]); setBulkInspector(''); setBusy(false);
   };
 
