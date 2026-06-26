@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Package, ClipboardList, ClockIcon, CheckCircle2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Package, ClipboardList, ClockIcon, CheckCircle2, Factory, Users } from 'lucide-react';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatsCard } from '@/components/shared/StatsCard';
@@ -16,8 +17,12 @@ import { formatDate } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { InspectionRecord } from '@/types';
 
+const planCompletion = (stages: { status: string }[]) =>
+  stages.length ? Math.round((stages.filter((s) => s.status === 'COMPLETED').length / stages.length) * 100) : 0;
+
 export const PMDashboard = () => {
-  const { inspectionRecords, inspectionPlans, products } = useData();
+  const { inspectionRecords, inspectionPlans, products, productionPlans } = useData();
+  const navigate = useNavigate();
   const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords);
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
@@ -60,6 +65,38 @@ export const PMDashboard = () => {
         </motion.div>
 
         <div className="mb-6"><StageTimeline title="Production Timeline — Manufacturing & Assembly" /></div>
+
+        <Card className="mb-6">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2"><Factory className="h-4 w-4 text-muted-foreground" /> Production Plans</CardTitle>
+            <Button size="sm" variant="outline" onClick={() => navigate('/pm/production-plans')}>Manage Plans</Button>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {productionPlans.length === 0 && <p className="text-sm text-muted-foreground">No production plans yet.</p>}
+            {productionPlans.map((p) => {
+              const stages = [...p.manufacturingStages, ...p.assemblingStages];
+              const percent = planCompletion(stages);
+              const operators = new Set(stages.map((s) => s.operatorId).filter(Boolean)).size;
+              return (
+                <div key={p.id} className="p-4 rounded-lg border cursor-pointer hover:shadow-sm" onClick={() => navigate('/pm/production-plans')}>
+                  <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+                    <div>
+                      <p className="font-semibold">{p.productName} <span className="font-mono text-[10px] text-muted-foreground">{p.planCode}</span></p>
+                      <p className="text-xs text-muted-foreground flex items-center gap-2">
+                        {p.targetQuantity} units · {p.manufacturingStages.length} machining · {p.assemblingStages.length} assembling
+                        <span className="inline-flex items-center gap-1"><Users className="h-3 w-3" /> {operators} operator{operators !== 1 ? 's' : ''}</span>
+                      </p>
+                    </div>
+                    <Badge variant={p.status === 'COMPLETED' ? 'success' : p.status === 'IN_PROGRESS' ? 'accent' : p.status === 'SCHEDULED' ? 'warning' : 'slate'}>{p.status.replace('_', ' ')}</Badge>
+                  </div>
+                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                    <motion.div initial={{ width: 0 }} animate={{ width: `${percent}%` }} transition={{ duration: 0.8, ease: 'easeOut' }} className={`h-full rounded-full ${percent === 100 ? 'bg-emerald-500' : 'bg-accent'}`} />
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
 
         <Card className="mb-6">
           <CardHeader><CardTitle>Product Quality Plans</CardTitle></CardHeader>
