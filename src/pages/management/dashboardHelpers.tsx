@@ -2,8 +2,121 @@ import { useState, useMemo } from 'react';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/components/ui/sheet';
 import { RAGBadge, ReviewBadge } from '@/components/dashboard/RAGBadge';
 import { formatDate, cn } from '@/lib/utils';
-import type { InspectionRecord } from '@/types';
+import type { InspectionRecord, InspectionRecordType, RAGStatus, ReviewStatus } from '@/types';
 import { Column } from '@/components/shared/DataTable';
+
+/** Backend InspectionPlan.planType -> mock InspectionRecord.type. */
+export const PLAN_TYPE_TO_RECORD_TYPE: Record<string, InspectionRecordType> = {
+  R1_MATERIAL: 'MATERIAL',
+  R2_COMPONENT: 'COMPONENT',
+  R3_MANUFACTURING: 'MANUFACTURING',
+  R4_ASSEMBLY: 'ASSEMBLING',
+  R5_FINAL: 'FINAL_PRODUCT',
+};
+
+/** Backend InspectionReport.status -> mock InspectionRecord.reviewStatus. */
+export function mapReviewStatus(status?: string): ReviewStatus {
+  if (status === 'APPROVED') return 'APPROVED';
+  if (status === 'REJECTED') return 'REJECTED';
+  if (status === 'ON_HOLD') return 'INFO_REQUESTED';
+  return 'PENDING';
+}
+
+/** Backend checklistResult.result (or report.overallResult as a fallback) -> mock RAGStatus. */
+function ragFromResult(result?: string): RAGStatus {
+  if (result === 'FAIL') return 'RED';
+  if (result === 'MARGINAL' || result === 'CONDITIONAL') return 'AMBER';
+  return 'GREEN';
+}
+
+interface ReportsToRecordsOpts {
+  /** Restrict to these InspectionPlan.planType values; omit to include every type (used by the product-wide overview). */
+  planTypes?: string[];
+  /** Which plan field holds the stage ref (not populated by GET /inspection-plans, so it arrives as a raw id string). */
+  stageKey?: 'manufacturingStage' | 'assemblyStage';
+  /** id -> name lookup for the stage referenced by `stageKey` (build from the full stage list used for filter dropdowns). */
+  stageMap?: Record<string, string>;
+  /** id -> name lookup for `plan.supplier` (not populated by GET /inspection-plans). */
+  supplierMap?: Record<string, string>;
+}
+
+/**
+ * Flattens live InspectionReport documents (as returned by GET /inspection-reports, where `plan` is
+ * populated with only `planId title planType`) into InspectionRecord-shaped rows the existing
+ * dashboards/columns/detail-sheet already know how to render. `plans` should be the matching
+ * InspectionPlan list (GET /inspection-plans, which populates `product`/`material`) so we can recover
+ * product/material names and join back to each report via `report.plan._id`.
+ * One row is emitted per `checklistResults` entry (one row per inspected parameter); reports with no
+ * checklist results yet fall back to a single placeholder row so counts still reflect them.
+ */
+export function reportsToRecords(reports: any[], plans: any[], opts: ReportsToRecordsOpts = {}): InspectionRecord[] {
+  const plansById = new Map(plans.map((p: any) => [String(p._id ?? p.id), p]));
+  const records: InspectionRecord[] = [];
+
+  reports.forEach((r: any) => {
+    const planRef = r.plan;
+    const planType: string | undefined = typeof planRef === 'string' ? undefined : planRef?.planType;
+    if (opts.planTypes && (!planType || !opts.planTypes.includes(planType))) return;
+
+    const planIdRaw = typeof planRef === 'string' ? planRef : planRef?._id;
+    const plan = planIdRaw ? plansById.get(String(planIdRaw)) : undefined;
+    const product = plan?.product;
+    const material = plan?.material;
+
+    const stageIdRaw = opts.stageKey ? plan?.[opts.stageKey] : undefined;
+    const stageId = stageIdRaw ? String(stageIdRaw) : undefined;
+    const stageName = stageId ? opts.stageMap?.[stageId] : undefined;
+
+    const supplierIdRaw = plan?.supplier;
+    const supplierName = supplierIdRaw ? opts.supplierMap?.[String(supplierIdRaw)] : undefined;
+
+    const type = (planType && PLAN_TYPE_TO_RECORD_TYPE[planType]) || 'MANUFACTURING';
+    const reviewStatus = mapReviewStatus(r.status);
+    const reviewedBy = r.approvedBy?.name || r.reviewedBy?.name;
+    const reviewedDate = r.approvedAt || r.reviewedAt;
+
+    const items = Array.isArray(r.checklistResults) && r.checklistResults.length
+      ? r.checklistResults
+      : [{ parameter: plan?.title || 'Inspection', specificationValue: '', actualValue: '', result: r.overallResult }];
+
+    items.forEach((c: any, idx: number) => {
+      const target = parseFloat(c.specificationValue);
+      const actual = parseFloat(c.actualValue);
+      const variance = typeof c.variancePercent === 'number'
+        ? c.variancePercent
+        : (Number.isFinite(target) && target !== 0 && Number.isFinite(actual)) ? ((actual - target) / target) * 100 : 0;
+
+      records.push({
+        id: `${r._id ?? r.id}-${idx}`,
+        date: r.inspectionDate,
+        productId: product?._id ?? product?.id ?? '',
+        productName: product?.name ?? plan?.title ?? 'Unknown',
+        productCode: product?.productId ?? '',
+        type,
+        stageId,
+        stageName,
+        materialId: material?._id ?? material?.id,
+        materialName: material?.name,
+        supplierName,
+        inspectionDetails: r.observations || r.nonConformities || plan?.title || '',
+        parameterName: c.parameter || '—',
+        unit: c.unit || plan?.checklistTemplate?.[idx]?.unit || '',
+        targetValue: Number.isFinite(target) ? target : 0,
+        actualValue: Number.isFinite(actual) ? actual : 0,
+        variance,
+        status: ragFromResult(c.result === 'NA' ? r.overallResult : c.result),
+        inspectorName: r.inspector?.name || '—',
+        inspectorId: r.inspector?._id ?? (typeof r.inspector === 'string' ? r.inspector : ''),
+        reviewedBy,
+        reviewedDate,
+        reviewStatus,
+        observations: r.observations,
+      });
+    });
+  });
+
+  return records;
+}
 
 export function useDashboardFilters(records: InspectionRecord[], filterType?: InspectionRecord['type']) {
   const [search, setSearch] = useState('');

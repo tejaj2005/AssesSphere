@@ -1,13 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { QualityDashboardPage } from '@/components/dashboard/QualityDashboardPage';
-import { useData } from '@/context/DataContext';
-import { useDashboardFilters, standardColumns, InspectionDetailSheet } from './dashboardHelpers';
+import { useAuth } from '@/context/AuthContext';
+import { useApiResource } from '@/hooks/useApi';
+import { useDashboardFilters, standardColumns, InspectionDetailSheet, reportsToRecords } from './dashboardHelpers';
 import { formatDate } from '@/lib/utils';
 import type { InspectionRecord } from '@/types';
 
 export const AssemblingQualityDashboard = () => {
-  const { inspectionRecords, products, assemblingStages } = useData();
-  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords, 'ASSEMBLING');
+  const { user } = useAuth();
+  const organization = user?.organization ?? '';
+
+  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' });
+  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, planType: 'R4_ASSEMBLY', limit: '200' });
+  const { items: products } = useApiResource<any>('/admin/products', { organization });
+  const { items: assemblingStages } = useApiResource<any>('/admin/assembly-stages', { organization });
+
+  const stageMap = useMemo(() => Object.fromEntries(assemblingStages.map((s: any) => [s.id, s.name])), [assemblingStages]);
+  const records = useMemo(
+    () => reportsToRecords(reports, plans, { planTypes: ['R4_ASSEMBLY'], stageKey: 'assemblyStage', stageMap }),
+    [reports, plans, stageMap]
+  );
+
+  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(records, 'ASSEMBLING');
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
 
   const exportRows = filtered.map((r) => ({
@@ -30,8 +44,8 @@ export const AssemblingQualityDashboard = () => {
         search={search} onSearchChange={setSearch}
         fromDate={from} toDate={to} onDateChange={(f, t) => { setFrom(f); setTo(t); }}
         filters={[
-          { key: 'productId', label: 'Products', options: products.map((p) => ({ label: p.name, value: p.id })) },
-          { key: 'stageId', label: 'Stages', options: assemblingStages.map((s) => ({ label: s.name, value: s.id })) },
+          { key: 'productId', label: 'Products', options: products.map((p: any) => ({ label: p.name, value: p.id })) },
+          { key: 'stageId', label: 'Stages', options: assemblingStages.map((s: any) => ({ label: s.name, value: s.id })) },
           { key: 'status', label: 'Status', options: [{ label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }] },
         ]}
         filterState={filterState}

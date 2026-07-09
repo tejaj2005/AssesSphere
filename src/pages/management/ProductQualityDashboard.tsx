@@ -1,16 +1,27 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { QualityDashboardPage } from '@/components/dashboard/QualityDashboardPage';
 import { StageTimeline } from '@/components/shared/StageTimeline';
-import { useData } from '@/context/DataContext';
-import { useDashboardFilters, standardColumns, InspectionDetailSheet } from './dashboardHelpers';
+import { useAuth } from '@/context/AuthContext';
+import { useApiResource } from '@/hooks/useApi';
+import { useDashboardFilters, standardColumns, InspectionDetailSheet, reportsToRecords } from './dashboardHelpers';
 import { formatDate } from '@/lib/utils';
 import type { InspectionRecord } from '@/types';
 
 export const ProductQualityDashboard = () => {
-  const { inspectionRecords, products } = useData();
+  const { user } = useAuth();
+  const organization = user?.organization ?? '';
   const navigate = useNavigate();
-  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords);
+
+  // Product-wide overview: every InspectionReport regardless of plan type (mfg/asm/material/component/final),
+  // joined against the matching InspectionPlan list so product/material names can be recovered.
+  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' });
+  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, limit: '200' });
+  const { items: products } = useApiResource<any>('/admin/products', { organization });
+
+  const records = useMemo(() => reportsToRecords(reports, plans), [reports, plans]);
+
+  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(records);
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
 
   const exportRows = filtered.map((r) => ({
@@ -32,7 +43,7 @@ export const ProductQualityDashboard = () => {
         search={search} onSearchChange={setSearch}
         fromDate={from} toDate={to} onDateChange={(f, t) => { setFrom(f); setTo(t); }}
         filters={[
-          { key: 'productId', label: 'Products', options: products.map((p) => ({ label: p.name, value: p.id })) },
+          { key: 'productId', label: 'Products', options: products.map((p: any) => ({ label: p.name, value: p.id })) },
           { key: 'status', label: 'Status', options: [{ label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }] },
         ]}
         filterState={filterState}

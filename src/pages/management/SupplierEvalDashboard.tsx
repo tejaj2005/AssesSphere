@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Truck, CheckCircle2, AlertTriangle, XCircle, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RTip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartTooltip, BarGradient, chartGrid, chartAxisTick, chartAxisLine, chartLegendStyle, barCursor } from '@/components/dashboard/ChartTooltip';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -15,15 +14,50 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
-import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
+import { useApiResource } from '@/hooks/useApi';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { useChartColors } from '@/lib/chartColors';
 import { formatDate, cn } from '@/lib/utils';
-import type { SupplierEvaluation } from '@/types';
+import type { SupplierEvaluation, RAGStatus } from '@/types';
+
+// Backend stores 0-10 evaluation scores rather than a GREEN/AMBER/RED enum — derive RAG client-side
+// (same thresholds used elsewhere in the app, e.g. src/pages/Suppliers.tsx).
+const ragFromScore = (score: number): RAGStatus => (score >= 7 ? 'GREEN' : score >= 4 ? 'AMBER' : 'RED');
+
+/** Backend SupplierEvaluation doc (populated supplier/evaluatedBy/reviewedBy) -> mock SupplierEvaluation shape. */
+function toSupplierEvaluation(e: any): SupplierEvaluation {
+  const supplier = e.supplier;
+  const supplierId = typeof supplier === 'string' ? supplier : (supplier?._id ?? supplier?.id ?? '');
+  return {
+    id: e.id,
+    supplierId,
+    supplierName: supplier?.name ?? 'Unknown Supplier',
+    evaluationDate: e.evaluationDate,
+    qualityRating: e.qualityScore ?? 0,
+    deliveryRating: e.deliveryScore ?? 0,
+    quantityRating: e.quantityScore ?? 0,
+    qualityStatus: ragFromScore(e.qualityScore ?? 0),
+    deliveryStatus: ragFromScore(e.deliveryScore ?? 0),
+    quantityStatus: ragFromScore(e.quantityScore ?? 0),
+    overallStatus: ragFromScore(e.overallScore ?? 0),
+    evaluatedBy: e.evaluatedBy?.name ?? '—',
+    approvedBy: e.reviewedBy?.name,
+    approvalStatus: e.reviewStatus ?? 'PENDING',
+    comments: e.remarks,
+  };
+}
 
 export const SupplierEvalDashboard = () => {
-  const { supplierEvaluations, suppliers } = useData();
+  const { user } = useAuth();
+  const organization = user?.organization ?? '';
   const chart = useChartColors();
+
+  const { items: rawEvaluations } = useApiResource<any>('/supplier-evaluations', { organization });
+  const { items: suppliers } = useApiResource<any>('/admin/suppliers', { organization });
+
+  const supplierEvaluations = useMemo(() => rawEvaluations.map(toSupplierEvaluation), [rawEvaluations]);
+
   const [search, setSearch] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -114,7 +148,7 @@ export const SupplierEvalDashboard = () => {
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search supplier…" className="sm:w-72" />
         <DateRangeFilter from={from} to={to} onChange={(f, t) => { setFrom(f); setTo(t); }} />
-        <Select value={supplierFilter} onChange={setSupplierFilter} options={[{ label: 'All Suppliers', value: 'all' }, ...suppliers.map((s) => ({ label: s.name, value: s.id }))]} className="w-48" />
+        <Select value={supplierFilter} onChange={setSupplierFilter} options={[{ label: 'All Suppliers', value: 'all' }, ...suppliers.map((s: any) => ({ label: s.name, value: s.id }))]} className="w-48" />
         <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Good', value: 'GREEN' }, { label: 'Warning', value: 'AMBER' }, { label: 'Critical', value: 'RED' }]} className="w-40" />
       </div>
 
