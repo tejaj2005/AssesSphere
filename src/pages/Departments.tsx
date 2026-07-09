@@ -13,103 +13,161 @@ import { DataToolbar } from '@/components/shared/DataToolbar';
 import { ActionMenu } from '@/components/shared/ActionMenu';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription, SheetFooter } from '@/components/ui/sheet';
-import { useData } from '@/context/DataContext';
+import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
-import { formatDate, nextId } from '@/lib/utils';
-import type { Department } from '@/types';
+import { formatDate } from '@/lib/utils';
+
+/** Backend Department (server/models/Department.ts) — much leaner than the old mock shape.
+ * `head` comes back populated (a User object) on list/detail fetches. */
+interface IDepartmentUser {
+  _id: string;
+  name: string;
+  [key: string]: any;
+}
+
+interface IDepartment {
+  _id: string;
+  name: string;
+  departmentId: string;
+  organization: string;
+  head?: IDepartmentUser | string;
+  description?: string;
+  isActive: boolean;
+  createdAt: string;
+  [key: string]: any;
+}
+
+type Dept = IDepartment & { id: string };
 
 export const DepartmentsPage = () => {
-  const { departments, users, addDepartment, updateDepartment, deleteDepartment } = useData();
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const { items: departments, loading, create: addDepartment, update: updateDepartment, remove: deleteDepartment } =
+    useApiResource<IDepartment>('/admin/departments');
+  // Real Users, used for the "Department Head" picker and the per-department user count.
+  // Note: User.department is a free-text string on the backend (not a Department ref), so the
+  // count below is a best-effort match on department name rather than a real foreign key.
+  const { items: users } = useApiResource<IDepartmentUser>(
+    '/admin/users',
+    user?.organization ? { organization: user.organization, limit: '1000' } : { limit: '1000' }
+  );
+
   const [search, setSearch] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<Department | null>(null);
-  const [detail, setDetail] = useState<Department | null>(null);
+  const [editing, setEditing] = useState<Dept | null>(null);
+  const [detail, setDetail] = useState<Dept | null>(null);
   const [form, setForm] = useState<Record<string, any>>({});
   const [errs, setErrs] = useState<Record<string, string>>({});
-  const [confirmDel, setConfirmDel] = useState<Department | null>(null);
-  const [history, setHistory] = useState<Department | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Dept | null>(null);
+  const [history, setHistory] = useState<Dept | null>(null);
 
   const canEdit = hasPermission('Departments', 'edit');
   const canDelete = hasPermission('Departments', 'delete');
   const canCreate = hasPermission('Departments', 'create');
 
+  const headId = (d: Dept) => (typeof d.head === 'string' ? d.head : d.head?._id) || '';
+  const headName = (d: Dept) => (typeof d.head === 'string' ? users.find((u) => u.id === d.head)?.name : d.head?.name) || null;
+  const userCount = (d: Dept) => users.filter((u) => u.department === d.name).length;
+
   const DEPT_FIELDS: FieldDef[] = [
     { section: 'Identity', name: 'name', label: 'Department Name', type: 'text', required: true, col: 'half' },
-    {                      name: 'code', label: 'Department Code', type: 'text', col: 'half', placeholder: 'e.g. DEPT-001' },
-    {                      name: 'parentId', label: 'Parent Department', type: 'select', col: 'half',
-                           options: [{ label: 'None (Top-level)', value: '' }, ...departments.filter((d) => d.id !== editing?.id).map((d) => ({ label: d.name, value: d.id }))] },
-    {                      name: 'headId', label: 'Department Head', type: 'select', col: 'half', options: users.map((u) => ({ label: u.name, value: u.id })) },
+    {                      name: 'code', label: 'Department Code', type: 'text', col: 'half', placeholder: 'e.g. DEPT-001 (auto if left blank)' },
+    {                      name: 'headId', label: 'Department Head', type: 'select', col: 'half',
+                           options: [{ label: 'None', value: '' }, ...users.map((u) => ({ label: u.name, value: u.id }))] },
+    {                      name: 'status', label: 'Active', type: 'toggle', col: 'half' },
 
-    { section: 'Location & Contact', name: 'location', label: 'Location / Floor', type: 'text', col: 'half', placeholder: 'e.g. Floor 2, Building A' },
-    {                                name: 'contactEmail', label: 'Contact Email', type: 'email', col: 'half' },
-    {                                name: 'contactPhone', label: 'Contact Phone', type: 'tel', col: 'half' },
-    {                                name: 'costCenter',  label: 'Cost Center Code', type: 'text', col: 'half', placeholder: 'e.g. CC-100' },
-
-    { section: 'Budget & Description', name: 'budget', label: 'Budget Allocation (₹)', type: 'number', col: 'half' },
-    {                                  name: 'status', label: 'Active', type: 'toggle', col: 'half' },
-    {                                  name: 'description', label: 'Description', type: 'textarea' },
+    { section: 'Description', name: 'description', label: 'Description', type: 'textarea' },
   ];
 
   const filtered = useMemo(() => departments.filter((d) => d.name.toLowerCase().includes(search.toLowerCase())), [departments, search]);
 
   const openAdd = () => {
     setEditing(null);
-    setForm({ name: '', code: nextId('DEPT', departments), parentId: '', headId: '', location: '', contactEmail: '', contactPhone: '', costCenter: '', budget: '', status: true, description: '' });
+    setForm({ name: '', code: '', headId: '', status: true, description: '' });
     setErrs({}); setDrawerOpen(true);
   };
-  const openEdit = (d: Department) => {
+  const openEdit = (d: Dept) => {
     setEditing(d);
-    setForm({ ...d, status: d.status === 'Active' });
+    setForm({ name: d.name, code: d.departmentId, headId: headId(d), status: d.isActive, description: d.description || '' });
     setErrs({}); setDrawerOpen(true);
   };
 
-  const submit = () => {
+  const submit = async () => {
     const v = validateConfigForm(DEPT_FIELDS, form);
     if (!v.valid) { setErrs(v.errors); toast.error('Please fix the errors'); return; }
-    const payload: any = { ...form, status: form.status ? 'Active' : 'Inactive' };
-    const res = editing ? updateDepartment(editing.id, payload) : addDepartment(payload);
-    if (!res.success) { toast.error(res.error || 'Failed'); return; }
-    toast.success(editing ? 'Department updated' : 'Department created');
-    setDrawerOpen(false);
+    const payload: Record<string, any> = {
+      name: form.name,
+      departmentId: form.code || undefined,
+      head: form.headId || undefined,
+      description: form.description || undefined,
+      isActive: !!form.status,
+    };
+    try {
+      if (editing) {
+        await updateDepartment(editing.id, payload);
+        toast.success('Department updated');
+      } else {
+        await addDepartment({ ...payload, organization: user?.organization } as Partial<IDepartment>);
+        toast.success('Department created');
+      }
+      setDrawerOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
   };
 
-  const toggleStatus = (d: Department) => {
-    const next = d.status === 'Active' ? 'Inactive' : 'Active';
-    updateDepartment(d.id, { status: next });
-    toast.success(`${d.name} marked ${next}`);
+  const toggleStatus = async (d: Dept) => {
+    try {
+      await updateDepartment(d.id, { isActive: !d.isActive });
+      toast.success(`${d.name} marked ${d.isActive ? 'Inactive' : 'Active'}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirmDel) return;
-    const res = deleteDepartment(confirmDel.id);
-    if (!res.success) { toast.error(res.error || 'Failed'); return; }
-    toast.success(`${confirmDel.name} deleted`);
-    setConfirmDel(null);
+    try {
+      await deleteDepartment(confirmDel.id);
+      toast.success(`${confirmDel.name} deleted`);
+      setConfirmDel(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
   };
 
-  const handleImport = (rows: Record<string, string>[]) => {
+  const handleImport = async (rows: Record<string, string>[]) => {
     let ok = 0;
-    rows.forEach((r) => { const n = r.Department || r.Name || r.name; if (n) { const res = addDepartment({ name: n, status: 'Active' } as any); if (res.success) ok++; } });
+    for (const r of rows) {
+      const n = r.Department || r.Name || r.name;
+      if (!n) continue;
+      try {
+        await addDepartment({ name: n, isActive: true, organization: user?.organization } as Partial<IDepartment>);
+        ok++;
+      } catch { /* skip failed rows */ }
+    }
     toast.success(`${ok} departments imported`);
   };
 
-  const exportData = departments.map((d) => ({ Department: d.name, ID: d.id, Code: (d as any).code, Users: users.filter((u) => u.departmentId === d.id).length, Status: d.status, Created: d.createdAt }));
+  const exportData = departments.map((d) => ({
+    Department: d.name, ID: d.id, Code: d.departmentId, Users: userCount(d),
+    Status: d.isActive ? 'Active' : 'Inactive', Created: d.createdAt,
+  }));
 
-  const columns: Column<Department>[] = [
+  const columns: Column<Dept>[] = [
     { key: 'name',   header: 'Department', sortable: true, sortValue: (d) => d.name, cell: (d) => (
-      <div><p className="font-medium text-sm text-[#0e5467] dark:text-foreground">{d.name}</p><p className="text-[10px] font-mono text-muted-foreground">{(d as any).code || d.id}</p></div>
+      <div><p className="font-medium text-sm text-[#0e5467] dark:text-foreground">{d.name}</p><p className="text-[10px] font-mono text-muted-foreground">{d.departmentId || d.id}</p></div>
     ) },
-    { key: 'parent', header: 'Parent', cell: (d) => departments.find((x) => x.id === (d as any).parentId)?.name || <span className="text-xs text-muted-foreground italic">Top-level</span> },
-    { key: 'head',   header: 'Head', cell: (d) => users.find((u) => u.id === (d as any).headId)?.name || <span className="text-xs text-muted-foreground italic">—</span> },
-    { key: 'users',  header: 'Users', sortable: true, sortValue: (d) => users.filter((u) => u.departmentId === d.id).length, cell: (d) => { const c = users.filter((u) => u.departmentId === d.id).length; return <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-secondary text-xs font-medium tabular-nums">{c}</span>; } },
-    { key: 'location', header: 'Location', cell: (d) => <span className="text-xs">{(d as any).location || '—'}</span> },
-    { key: 'status', header: 'Status', cell: (d) => <button onClick={() => toggleStatus(d)}><StatusBadge status={d.status} /></button> },
+    { key: 'head',   header: 'Head', cell: (d) => headName(d) || <span className="text-xs text-muted-foreground italic">—</span> },
+    { key: 'users',  header: 'Users', sortable: true, sortValue: (d) => userCount(d), cell: (d) => { const c = userCount(d); return <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-secondary text-xs font-medium tabular-nums">{c}</span>; } },
+    { key: 'status', header: 'Status', cell: (d) => <button onClick={() => toggleStatus(d)}><StatusBadge status={d.isActive ? 'Active' : 'Inactive'} /></button> },
     { key: 'actions', header: '', width: 'w-12', cell: (d) => (
       <ActionMenu actions={[
         { label: 'View Details', icon: Eye, onClick: () => setDetail(d) },
         { label: 'Edit', icon: Pencil, onClick: () => openEdit(d), show: canEdit },
-        { label: 'Duplicate', icon: Copy, onClick: () => { const r = addDepartment({ name: `${d.name} (Copy)`, status: 'Active' } as any); if (r.success) toast.success('Duplicated'); }, show: canCreate },
+        { label: 'Duplicate', icon: Copy, onClick: async () => {
+            try { await addDepartment({ name: `${d.name} (Copy)`, isActive: true, organization: user?.organization } as Partial<IDepartment>); toast.success('Duplicated'); }
+            catch (e) { toast.error(e instanceof Error ? e.message : 'Something went wrong'); }
+          }, show: canCreate },
         { label: 'Toggle Status', icon: ToggleLeft, onClick: () => toggleStatus(d), show: canEdit },
         { label: 'Copy ID', icon: Copy, onClick: () => { navigator.clipboard.writeText(d.id); toast.success('ID copied'); }, separatorBefore: true },
         { label: 'View History', icon: History, onClick: () => setHistory(d) },
@@ -132,7 +190,7 @@ export const DepartmentsPage = () => {
         <SearchInput value={search} onChange={setSearch} placeholder="Search departments…" className="sm:w-72" />
       </div>
 
-      <DataTable columns={columns} data={filtered} emptyTitle="No departments"
+      <DataTable columns={columns} data={filtered} loading={loading} emptyTitle="No departments"
         emptyDescription={search ? `No results for "${search}"` : 'Add your first department.'}
         emptyAction={canCreate && !search && <Button variant="accent" onClick={openAdd}><Plus className="h-4 w-4" /> Add Department</Button>} />
 
@@ -155,20 +213,14 @@ export const DepartmentsPage = () => {
           <>
             <SheetHeader>
               <SheetTitle>{detail.name}</SheetTitle>
-              <SheetDescription>{(detail as any).code || detail.id}</SheetDescription>
+              <SheetDescription>{detail.departmentId || detail.id}</SheetDescription>
             </SheetHeader>
             <SheetBody>
               <dl className="grid grid-cols-2 gap-4 text-sm">
                 {[
-                  ['Status', detail.status],
-                  ['Parent', departments.find((x) => x.id === (detail as any).parentId)?.name || '—'],
-                  ['Head', users.find((u) => u.id === (detail as any).headId)?.name || '—'],
-                  ['Users', users.filter((u) => u.departmentId === detail.id).length],
-                  ['Location', (detail as any).location || '—'],
-                  ['Contact Email', (detail as any).contactEmail || '—'],
-                  ['Contact Phone', (detail as any).contactPhone || '—'],
-                  ['Cost Center', (detail as any).costCenter || '—'],
-                  ['Budget', (detail as any).budget ? `₹ ${(detail as any).budget.toLocaleString()}` : '—'],
+                  ['Status', detail.isActive ? 'Active' : 'Inactive'],
+                  ['Head', headName(detail) || '—'],
+                  ['Users', userCount(detail)],
                   ['Created', formatDate(detail.createdAt)],
                 ].map(([label, value]) => (
                   <div key={label as string}>
@@ -177,10 +229,10 @@ export const DepartmentsPage = () => {
                   </div>
                 ))}
               </dl>
-              {(detail as any).description && (
+              {detail.description && (
                 <div className="mt-4 pt-4 border-t">
                   <dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-1">Description</dt>
-                  <dd className="text-sm">{(detail as any).description}</dd>
+                  <dd className="text-sm">{detail.description}</dd>
                 </div>
               )}
             </SheetBody>

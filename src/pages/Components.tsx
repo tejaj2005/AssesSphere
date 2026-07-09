@@ -1,5 +1,4 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Pencil, Trash2, MoreHorizontal, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -8,59 +7,160 @@ import { DataTable, Column } from '@/components/shared/DataTable';
 import { SearchInput } from '@/components/shared/SearchInput';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { ConfigForm } from '@/components/shared/ConfigForm';
-import { componentFields } from '@/lib/entityFields';
+import { ConfigForm, FieldDef, FieldOption } from '@/components/shared/ConfigForm';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
 import { Sheet, SheetHeader, SheetTitle, SheetBody } from '@/components/ui/sheet';
-import { useData } from '@/context/DataContext';
-import { nextId } from '@/lib/utils';
-import type { ProductComponent } from '@/types';
+import { useApiResource } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 
 const TYPE_LABEL: Record<string, string> = { RAW: 'Raw Material', SUB_ASSEMBLY: 'Sub-assembly', CONSUMABLE: 'Consumable' };
 
-const emptyForm = { name: '', code: '', productId: '', componentType: 'RAW', uom: 'pcs', supplierId: '', minimumStock: '', leadTime: '', certificate: false, storage: '', qualityStandard: '', notes: '' };
+const UOM_OPTS: FieldOption[] = [
+  { label: 'kilograms (kg)', value: 'kg' },
+  { label: 'pieces (pcs)',   value: 'pcs' },
+  { label: 'liters (L)',     value: 'L' },
+  { label: 'meters (m)',     value: 'm' },
+  { label: 'grams (g)',      value: 'g' },
+];
+
+/** Backend Component shape (server/models/Component.ts). `specifications` is a free-form bag
+ * used here to hold mock-only fields that have no dedicated backend column. */
+interface ApiComponent {
+  _id: string;
+  name: string;
+  componentId: string;
+  description?: string;
+  specifications?: Record<string, any>;
+  material?: string | { _id: string; name: string };
+  primarySupplier?: string | { _id: string; name: string };
+  inspectionRequired?: boolean;
+  organization: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const emptyForm = {
+  name: '', componentId: '', componentType: 'RAW', uom: 'pcs', primarySupplier: '',
+  minimumStock: '', leadTime: '', inspectionRequired: false, storage: '', qualityStandard: '', description: '',
+};
+
+/** id of a possibly-populated ref field */
+const refId = (v: any): string => (v ? (typeof v === 'string' ? v : v._id || v.id || '') : '');
+const refName = (v: any): string => (v && typeof v === 'object' ? v.name : '');
 
 export const ComponentsPage = () => {
-  const { components, products, suppliers, addComponent, updateComponent, deleteComponent } = useData();
+  const { user } = useAuth();
+  const { items: components, loading, create, update, remove } = useApiResource<ApiComponent>('/admin/components');
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    api.getList<{ _id: string; name: string }>('/admin/suppliers')
+      .then(({ data }) => setSuppliers(data.map((s) => ({ id: s._id, name: s.name }))))
+      .catch(() => {});
+  }, []);
+
   const [search, setSearch] = useState('');
-  const [productFilter, setProductFilter] = useState('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<ProductComponent | null>(null);
-  const [detail, setDetail] = useState<ProductComponent | null>(null);
+  const [editing, setEditing] = useState<ApiComponent | null>(null);
+  const [detail, setDetail] = useState<ApiComponent | null>(null);
   const [form, setForm] = useState<any>(emptyForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
-  const [confirmDel, setConfirmDel] = useState<ProductComponent | null>(null);
+  const [confirmDel, setConfirmDel] = useState<ApiComponent | null>(null);
 
   const filtered = useMemo(() => components.filter((c) => {
-    if (search && !(c.name.toLowerCase().includes(search.toLowerCase()) || c.code.toLowerCase().includes(search.toLowerCase()))) return false;
-    if (productFilter !== 'all' && c.productId !== productFilter) return false;
+    if (search && !(c.name.toLowerCase().includes(search.toLowerCase()) || c.componentId?.toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
-  }), [components, search, productFilter]);
+  }), [components, search]);
 
-  const openAdd = () => { setEditing(null); setForm({ ...emptyForm, code: nextId('COMP', components), productId: products[0]?.id || '' }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (c: ProductComponent) => { setEditing(c); setForm({ ...emptyForm, ...c }); setErrs({}); setDrawerOpen(true); };
+  const fields: FieldDef[] = [
+    { section: 'Basic',       name: 'name',          label: 'Component Name', type: 'text', required: true, col: 'half' },
+    {                         name: 'componentId',   label: 'Component Code', type: 'text', col: 'half', help: 'Leave blank to auto-generate' },
+    {                         name: 'componentType', label: 'Component Type', type: 'select', col: 'half',
+                              options: [{ label: 'Raw Material', value: 'RAW' }, { label: 'Sub-assembly', value: 'SUB_ASSEMBLY' }, { label: 'Consumable', value: 'CONSUMABLE' }] },
+    {                         name: 'uom',           label: 'Unit of Measure', type: 'select', col: 'half', options: UOM_OPTS },
+    {                         name: 'primarySupplier', label: 'Default Supplier', type: 'select', col: 'half',
+                              options: [{ label: '— None —', value: '' }, ...suppliers.map((s) => ({ label: s.name, value: s.id }))] },
+
+    { section: 'Inventory',   name: 'minimumStock',  label: 'Minimum Stock',    type: 'number', col: 'third' },
+    {                         name: 'leadTime',      label: 'Lead Time (days)', type: 'number', col: 'third' },
+    {                         name: 'inspectionRequired', label: 'Inspection Required', type: 'toggle', col: 'third' },
+    {                         name: 'storage',       label: 'Storage Requirements', type: 'text' },
+    {                         name: 'qualityStandard', label: 'Quality Standard', type: 'text', placeholder: 'e.g. ISO 9001 §8.4' },
+    {                         name: 'description',  label: 'Notes', type: 'textarea' },
+  ];
+
+  const openAdd = () => { setEditing(null); setForm(emptyForm); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (c: ApiComponent) => {
+    setEditing(c);
+    setForm({
+      name: c.name,
+      componentId: c.componentId,
+      componentType: c.specifications?.componentType || 'RAW',
+      uom: c.specifications?.uom || 'pcs',
+      primarySupplier: refId(c.primarySupplier),
+      minimumStock: c.specifications?.minimumStock ?? '',
+      leadTime: c.specifications?.leadTime ?? '',
+      inspectionRequired: !!c.inspectionRequired,
+      storage: c.specifications?.storage || '',
+      qualityStandard: c.specifications?.qualityStandard || '',
+      description: c.description || '',
+    });
+    setErrs({});
+    setDrawerOpen(true);
+  };
 
   const submit = async () => {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Required';
-    if (!form.code.trim()) e.code = 'Required';
-    if (!form.productId) e.productId = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
-    const res = editing ? updateComponent(editing.id, form) : addComponent(form);
-    if (!res.success) { toast.error(res.error); return; }
-    toast.success(editing ? 'Component updated' : 'Component created');
-    setDrawerOpen(false);
+
+    const payload: Partial<ApiComponent> = {
+      name: form.name,
+      componentId: form.componentId || undefined,
+      description: form.description || undefined,
+      inspectionRequired: !!form.inspectionRequired,
+      primarySupplier: form.primarySupplier || undefined,
+      specifications: {
+        componentType: form.componentType,
+        uom: form.uom,
+        minimumStock: form.minimumStock,
+        leadTime: form.leadTime,
+        storage: form.storage,
+        qualityStandard: form.qualityStandard,
+      },
+      ...(editing ? {} : { organization: user?.organization }),
+    };
+
+    try {
+      if (editing) await update(editing._id, payload);
+      else await create(payload);
+      toast.success(editing ? 'Component updated' : 'Component created');
+      setDrawerOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
-  const columns: Column<ProductComponent>[] = [
+  const handleDelete = async () => {
+    if (!confirmDel) return;
+    try {
+      await remove(confirmDel._id);
+      toast.success('Component deleted');
+      setConfirmDel(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
+  };
+
+  const columns: Column<ApiComponent>[] = [
     { key: 'name', header: 'Component', sortable: true, sortValue: (c) => c.name, cell: (c) => <span className="font-medium">{c.name}</span> },
-    { key: 'code', header: 'Code', cell: (c) => <span className="text-xs font-mono text-muted-foreground">{c.code}</span> },
-    { key: 'type', header: 'Type', cell: (c) => c.componentType ? <Badge variant="outline">{TYPE_LABEL[c.componentType] || c.componentType}</Badge> : '—' },
-    { key: 'product', header: 'Parent Product', cell: (c) => { const p = products.find((x) => x.id === c.productId); return p ? <Link to={`/admin/products/${p.id}`} onClick={(e) => e.stopPropagation()}><Badge variant="accent" className="hover:bg-accent/25">{p.name}</Badge></Link> : '—'; } },
+    { key: 'code', header: 'Code', cell: (c) => <span className="text-xs font-mono text-muted-foreground">{c.componentId}</span> },
+    { key: 'type', header: 'Type', cell: (c) => c.specifications?.componentType ? <Badge variant="outline">{TYPE_LABEL[c.specifications.componentType] || c.specifications.componentType}</Badge> : '—' },
+    { key: 'supplier', header: 'Default Supplier', cell: (c) => refName(c.primarySupplier) ? <Badge variant="accent">{refName(c.primarySupplier)}</Badge> : '—' },
     { key: 'actions', header: '', width: 'w-12', cell: (c) => (
       <div onClick={(e) => e.stopPropagation()}>
         <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
@@ -81,25 +181,21 @@ export const ComponentsPage = () => {
       />
       <div className="mb-4 flex flex-col sm:flex-row gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Search components…" className="sm:w-72" />
-        <Select value={productFilter} onChange={setProductFilter} options={[{ label: 'All Products', value: 'all' }, ...products.map((p) => ({ label: p.name, value: p.id }))]} className="sm:w-56" />
       </div>
-      <DataTable columns={columns} data={filtered} onRowClick={(c) => setDetail(c)} emptyTitle="No components" />
+      <DataTable columns={columns} data={filtered} loading={loading} onRowClick={(c) => setDetail(c)} emptyTitle="No components" />
 
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         {detail && (() => {
-          const product = products.find((p) => p.id === detail.productId);
-          const supplier = suppliers.find((s) => s.id === detail.supplierId);
           const rows: [string, any][] = [
-            ['Code', detail.code],
-            ['Type', detail.componentType ? (TYPE_LABEL[detail.componentType] || detail.componentType) : '—'],
-            ['Parent Product', product?.name || '—'],
-            ['Default Supplier', supplier?.name || '—'],
-            ['Unit of Measure', detail.uom || '—'],
-            ['Minimum Stock', detail.minimumStock ?? '—'],
-            ['Lead Time (days)', detail.leadTime ?? '—'],
-            ['Certificate Required', detail.certificate ? 'Yes' : 'No'],
-            ['Storage', detail.storage || '—'],
-            ['Quality Standard', detail.qualityStandard || '—'],
+            ['Code', detail.componentId],
+            ['Type', detail.specifications?.componentType ? (TYPE_LABEL[detail.specifications.componentType] || detail.specifications.componentType) : '—'],
+            ['Default Supplier', refName(detail.primarySupplier) || '—'],
+            ['Unit of Measure', detail.specifications?.uom || '—'],
+            ['Minimum Stock', detail.specifications?.minimumStock ?? '—'],
+            ['Lead Time (days)', detail.specifications?.leadTime ?? '—'],
+            ['Inspection Required', detail.inspectionRequired ? 'Yes' : 'No'],
+            ['Storage', detail.specifications?.storage || '—'],
+            ['Quality Standard', detail.specifications?.qualityStandard || '—'],
           ];
           return (
             <>
@@ -110,10 +206,9 @@ export const ComponentsPage = () => {
                     <div key={k}><dt className="text-xs text-muted-foreground uppercase tracking-wider">{k}</dt><dd className="mt-1">{v}</dd></div>
                   ))}
                 </dl>
-                {detail.notes && <div className="mt-4 pt-4 border-t"><dt className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</dt><dd className="text-sm">{detail.notes}</dd></div>}
+                {detail.description && <div className="mt-4 pt-4 border-t"><dt className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Notes</dt><dd className="text-sm">{detail.description}</dd></div>}
                 <div className="mt-6 pt-6 border-t flex gap-2 flex-wrap">
                   <Button variant="outline" onClick={() => { setDetail(null); openEdit(detail); }}><Pencil className="h-4 w-4" /> Edit</Button>
-                  {product && <Link to={`/admin/products/${product.id}`}><Button variant="outline"><Eye className="h-4 w-4" /> View Product</Button></Link>}
                 </div>
               </SheetBody>
             </>
@@ -127,14 +222,14 @@ export const ComponentsPage = () => {
         onSubmit={submit}
         submitLabel={editing ? 'Update' : 'Create'}
       >
-        <ConfigForm fields={componentFields(products, suppliers)} value={form} onChange={setForm} errors={errs} />
+        <ConfigForm fields={fields} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog
         open={!!confirmDel}
         onOpenChange={(o) => !o && setConfirmDel(null)}
         entityName={confirmDel?.name}
-        onConfirm={() => { if (confirmDel) { deleteComponent(confirmDel.id); toast.success('Component deleted'); setConfirmDel(null); } }}
+        onConfirm={handleDelete}
       />
     </PageWrapper>
   );

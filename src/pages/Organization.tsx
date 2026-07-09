@@ -1,15 +1,32 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, Pencil, Calendar, Phone, Mail, Globe, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
-import { Card, CardContent } from '@/components/ui/card';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription, SheetFooter } from '@/components/ui/sheet';
 import { ConfigForm, FieldDef, validateConfigForm } from '@/components/shared/ConfigForm';
-import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
+
+interface IOrganization {
+  _id: string;
+  id: string;
+  name: string;
+  orgId: string;
+  industry: string;
+  address?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  isActive: boolean;
+  settings: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
 
 const INDUSTRY_OPTS = [
   { label: 'Engineering', value: 'ENGINEERING' },
@@ -37,9 +54,10 @@ const COUNTRY_OPTS = [
 
 const ORG_FIELDS: FieldDef[] = [
   { section: 'Identity', name: 'name',      label: 'Organization Name', type: 'text', required: true, col: 'half' },
-  {                       name: 'code',     label: 'Organization Code', type: 'text', col: 'half', placeholder: 'e.g. ORG-001' },
-  {                       name: 'type',     label: 'Industry / Sector', type: 'select', required: true, options: INDUSTRY_OPTS, col: 'half' },
+  {                       name: 'orgId',    label: 'Organization Code', type: 'readonly', col: 'half' },
+  {                       name: 'industry', label: 'Industry / Sector', type: 'select', required: true, options: INDUSTRY_OPTS, col: 'half' },
   {                       name: 'established', label: 'Date Established', type: 'date', col: 'half' },
+  {                       name: 'isActive', label: 'Active',            type: 'toggle', col: 'half' },
 
   { section: 'Address',   name: 'address1', label: 'Address Line 1',    type: 'text' },
   {                       name: 'address2', label: 'Address Line 2',    type: 'text' },
@@ -59,27 +77,119 @@ const ORG_FIELDS: FieldDef[] = [
   {                       name: 'notes',    label: 'Notes / Description', type: 'textarea' },
 ];
 
+/** Merge the backend record's flat fields + settings bag into the flat shape ConfigForm/the view expect. */
+const toFormValue = (org: IOrganization): Record<string, any> => {
+  const settings = org.settings || {};
+  return {
+    name: org.name,
+    orgId: org.orgId,
+    industry: org.industry,
+    isActive: org.isActive,
+    address: org.address || '',
+    email: org.contactEmail || '',
+    phone: org.contactPhone || '',
+    address1: settings.address1 ?? org.address ?? '',
+    address2: settings.address2 ?? '',
+    city: settings.city ?? '',
+    state: settings.state ?? '',
+    postal: settings.postal ?? '',
+    country: settings.country ?? '',
+    website: settings.website ?? '',
+    logo: settings.logo ?? [],
+    accreditation: settings.accreditation ?? '',
+    isoStandards: settings.isoStandards ?? [],
+    notes: settings.notes ?? '',
+    established: settings.established ?? '',
+  };
+};
+
 export const OrganizationPage = () => {
-  const { organization, updateOrganization } = useData();
+  const { user } = useAuth();
+  const [org, setOrg] = useState<IOrganization | null>(null);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Record<string, any>>(organization);
+  const [form, setForm] = useState<Record<string, any>>({});
   const [errs, setErrs] = useState<Record<string, string>>({});
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.getList<IOrganization>('/admin/organizations');
+        const mine = data.find((o) => (o as any)._id === user?.organization) || data[0] || null;
+        if (!cancelled) setOrg(mine ? { ...mine, id: (mine as any)._id } : null);
+      } catch (e) {
+        if (!cancelled) toast.error(e instanceof Error ? e.message : 'Failed to load organization');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.organization]);
+
   const openEdit = () => {
-    setForm({ ...organization, isoStandards: (organization as any).isoStandards || [] });
+    if (!org) return;
+    setForm(toFormValue(org));
     setErrs({});
     setEditing(true);
   };
 
-  const save = () => {
+  const save = async () => {
+    if (!org) return;
     const v = validateConfigForm(ORG_FIELDS, form);
     if (!v.valid) { setErrs(v.errors); toast.error('Please fix form errors'); return; }
-    updateOrganization(form as any);
-    toast.success('Organization updated');
-    setEditing(false);
+
+    const payload = {
+      name: form.name,
+      industry: form.industry,
+      address: [form.address1, form.address2, form.city, form.state, form.postal].filter(Boolean).join(', '),
+      contactEmail: form.email,
+      contactPhone: form.phone,
+      isActive: !!form.isActive,
+      settings: {
+        ...(org.settings || {}),
+        address1: form.address1,
+        address2: form.address2,
+        city: form.city,
+        state: form.state,
+        postal: form.postal,
+        country: form.country,
+        website: form.website,
+        logo: form.logo,
+        accreditation: form.accreditation,
+        isoStandards: form.isoStandards,
+        notes: form.notes,
+        established: form.established,
+      },
+    };
+
+    try {
+      const updated = await api.put<IOrganization>(`/admin/organizations/${org.id}`, payload);
+      setOrg({ ...updated, id: (updated as any)._id });
+      toast.success('Organization updated');
+      setEditing(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update organization');
+    }
   };
 
-  const industryLabel = INDUSTRY_OPTS.find((i) => i.value === organization.type)?.label || organization.type;
+  if (loading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
+
+  if (!org) {
+    return (
+      <PageWrapper>
+        <PageHeader title="Organization" description="Your organization's profile, contact information and compliance standards." />
+        <Card className="p-8 max-w-4xl">
+          <p className="text-sm text-muted-foreground">No organization record found.</p>
+        </Card>
+      </PageWrapper>
+    );
+  }
+
+  const settings = org.settings || {};
+  const industryLabel = INDUSTRY_OPTS.find((i) => i.value === org.industry)?.label || org.industry;
+  const addressLine = [settings.address1 ?? org.address, settings.address2, settings.city, settings.state, settings.postal].filter(Boolean).join(', ');
 
   return (
     <PageWrapper>
@@ -92,23 +202,26 @@ export const OrganizationPage = () => {
             <Building2 className="h-8 w-8" />
           </div>
           <div className="flex-1 min-w-0">
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">{organization.name}</h2>
+            <h2 className="text-2xl font-semibold tracking-tight text-foreground">{org.name}</h2>
             <div className="flex items-center gap-3 mt-2 flex-wrap">
               <Badge className="bg-accent/15 text-accent-foreground dark:text-accent border-accent/30">{industryLabel}</Badge>
-              <span className="text-xs font-mono text-muted-foreground">{(organization as any).code || organization.id}</span>
-              <span className="text-xs text-muted-foreground inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> Established {formatDate(organization.createdAt)}</span>
+              <span className="text-xs font-mono text-muted-foreground">{org.orgId}</span>
+              <span className="text-xs text-muted-foreground inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> Established {formatDate(org.createdAt)}</span>
+              <Badge className={org.isActive ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30' : 'bg-secondary text-muted-foreground'}>
+                {org.isActive ? 'Active' : 'Inactive'}
+              </Badge>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
           {[
-            { icon: MapPin, label: 'Address', value: [(organization as any).address1, (organization as any).address2, (organization as any).city, (organization as any).state, (organization as any).postal].filter(Boolean).join(', ') || '—' },
-            { icon: Globe, label: 'Country', value: COUNTRY_OPTS.find((c) => c.value === (organization as any).country)?.label || '—' },
-            { icon: Phone, label: 'Phone', value: (organization as any).phone || '—' },
-            { icon: Mail, label: 'Email', value: (organization as any).email || '—' },
-            { icon: Globe, label: 'Website', value: (organization as any).website || '—' },
-            { icon: Building2, label: 'Accreditation', value: (organization as any).accreditation || '—' },
+            { icon: MapPin, label: 'Address', value: addressLine || '—' },
+            { icon: Globe, label: 'Country', value: COUNTRY_OPTS.find((c) => c.value === settings.country)?.label || '—' },
+            { icon: Phone, label: 'Phone', value: org.contactPhone || '—' },
+            { icon: Mail, label: 'Email', value: org.contactEmail || '—' },
+            { icon: Globe, label: 'Website', value: settings.website || '—' },
+            { icon: Building2, label: 'Accreditation', value: settings.accreditation || '—' },
           ].map((item) => (
             <div key={item.label} className="flex items-start gap-3">
               <item.icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
@@ -120,21 +233,21 @@ export const OrganizationPage = () => {
           ))}
         </div>
 
-        {((organization as any).isoStandards?.length > 0) && (
+        {(settings.isoStandards?.length > 0) && (
           <div className="mt-6 pt-6 border-t">
             <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">ISO Standards</p>
             <div className="flex flex-wrap gap-1.5">
-              {((organization as any).isoStandards || []).map((s: string) => (
+              {(settings.isoStandards || []).map((s: string) => (
                 <Badge key={s} className="bg-primary/10 text-primary border-primary/20">{ISO_OPTS.find((i) => i.value === s)?.label || s}</Badge>
               ))}
             </div>
           </div>
         )}
 
-        {(organization as any).notes && (
+        {settings.notes && (
           <div className="mt-6 pt-6 border-t">
             <p className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold mb-2">Notes</p>
-            <p className="text-sm">{(organization as any).notes}</p>
+            <p className="text-sm">{settings.notes}</p>
           </div>
         )}
       </Card>

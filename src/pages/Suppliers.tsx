@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Eye, Star, Mail, Phone, MapPin, Building2, Calendar, Clock } from 'lucide-react';
+import { Plus, Pencil, Trash2, Eye, Star, Mail, Phone, Building2, Calendar, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { TagChip } from '@/components/shared/MultiSelectChips';
 import { ConfigForm } from '@/components/shared/ConfigForm';
 import { ActionMenu } from '@/components/shared/ActionMenu';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { supplierFields } from '@/lib/entityFields';
 import { InlineEdit } from '@/components/shared/InlineEdit';
 import { Button } from '@/components/ui/button';
@@ -22,36 +23,71 @@ import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetDescription } from '@/c
 import { RAGBadge } from '@/components/dashboard/RAGBadge';
 import { formatDate } from '@/lib/utils';
 import { DataToolbar } from '@/components/shared/DataToolbar';
-import { useData } from '@/context/DataContext';
+import { useApiResource } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
 import { nextId } from '@/lib/utils';
-import type { Supplier, SupplierEvalMethod } from '@/types';
+import type { RAGStatus } from '@/types';
 
-const APPROVAL_VARIANT: Record<string, any> = { APPROVED: 'success', SUSPENDED: 'warning', REMOVED: 'danger', NOT_APPROVED: 'slate' };
-const COUNTRY_LABEL: Record<string, string> = { IN: 'India', US: 'United States', DE: 'Germany', JP: 'Japan', CN: 'China', SG: 'Singapore' };
+// Backend Supplier.approvalStatus enum. NOTE: the shared supplierFields() config
+// (src/lib/entityFields.ts, not owned by this page) only exposes APPROVED /
+// CONDITIONAL / BLACKLISTED as select options, so PENDING/SUSPENDED suppliers
+// created elsewhere will show a blank select when edited here.
+const APPROVAL_VARIANT: Record<string, any> = { APPROVED: 'success', CONDITIONAL: 'warning', PENDING: 'slate', SUSPENDED: 'warning', BLACKLISTED: 'danger' };
+// Backend stores 0-10 evaluation scores, not a GREEN/AMBER/RED enum — derive RAG client-side.
+const scoreToRag = (score: number): RAGStatus => (score >= 7 ? 'GREEN' : score >= 4 ? 'AMBER' : 'RED');
 // Maps a supplier's latest evaluation RAG status to a method-application verdict.
 const EVAL_VERDICT: Record<string, { label: string; variant: string }> = {
   GREEN: { label: 'Passed', variant: 'success' }, AMBER: { label: 'Watch', variant: 'warning' }, RED: { label: 'Failed', variant: 'danger' },
 };
 
+/** Backend Supplier doc -> the field names the shared ConfigForm (supplierFields) expects. */
+const toSupForm = (s: any) => ({
+  name: s.name ?? '',
+  code: s.supplierId ?? '',
+  supplierCategory: s.approvalStatus ?? 'APPROVED',
+  country: '',
+  contactPerson: s.contactPerson ?? '',
+  email: s.email ?? '',
+  phone: s.phone ?? '',
+  paymentTerms: s.paymentTerms ?? '',
+  address: s.address ?? '',
+  certification: s.certification ?? '',
+  leadTime: s.leadTimeDays ?? '',
+  rating: s.overallRating ?? 0,
+  status: true,
+  materialIds: (s.materials || []).map((m: any) => (typeof m === 'string' ? m : m._id)),
+  attachments: s.attachments || [],
+  notes: s.notes || '',
+});
+
 export const SuppliersPage = () => {
-  const { suppliers, materials, evalMethods, approvedVendors, supplierEvaluations, addSupplier, updateSupplier, deleteSupplier, addEvalMethod, deleteEvalMethod, updateEvalMethod } = useData();
+  const { user } = useAuth();
+  const orgQuery: Record<string, string> = user?.organization ? { organization: user.organization } : {};
+  const { items: suppliers, loading: suppliersLoading, create: createSupplier, update: updateSupplierApi, remove: removeSupplier } =
+    useApiResource<any>('/admin/suppliers', { ...orgQuery, limit: '1000' });
+  const { items: materials } = useApiResource<any>('/admin/materials', orgQuery);
+  const { items: evalMethods, create: createEvalMethod, update: updateEvalMethodApi, remove: removeEvalMethod } =
+    useApiResource<any>('/admin/supplier-eval-methods', orgQuery);
+  const { items: supplierEvaluations } = useApiResource<any>('/supplier-evaluations', orgQuery);
+
   // Suppliers drawer
   const [supDrawer, setSupDrawer] = useState(false);
-  const [editingSup, setEditingSup] = useState<Supplier | null>(null);
+  const [editingSup, setEditingSup] = useState<any | null>(null);
   const initialSup: any = { name: '', code: '', materialIds: [], supplierCategory: 'APPROVED', country: 'IN', contactPerson: '', email: '', phone: '', paymentTerms: '', address: '', certification: '', leadTime: '', rating: 4, status: true, attachments: [], notes: '' };
   const [supForm, setSupForm] = useState<any>(initialSup);
   const [supErrs, setSupErrs] = useState<Record<string, string>>({});
-  const [confirmSup, setConfirmSup] = useState<Supplier | null>(null);
-  const [detailSup, setDetailSup] = useState<Supplier | null>(null);
+  const [confirmSup, setConfirmSup] = useState<any | null>(null);
+  const [detailSup, setDetailSup] = useState<any | null>(null);
   // Eval drawer
   const [evalDrawer, setEvalDrawer] = useState(false);
   const [evalForm, setEvalForm] = useState({ name: '', description: '' });
   const [evalErr, setEvalErr] = useState('');
-  const [confirmEval, setConfirmEval] = useState<SupplierEvalMethod | null>(null);
+  const [confirmEval, setConfirmEval] = useState<any | null>(null);
   const [approvalFilter, setApprovalFilter] = useState('all');
 
-  const openAddSup = () => { setEditingSup(null); setSupForm({ ...initialSup, code: nextId('SUP', suppliers) }); setSupErrs({}); setSupDrawer(true); };
-  const openEditSup = (s: Supplier) => { setEditingSup(s); setSupForm({ ...initialSup, ...s }); setSupErrs({}); setSupDrawer(true); };
+  // nextId parses the numeric suffix off `id`; items now carry Mongo _id there, so feed it supplierId codes instead.
+  const openAddSup = () => { setEditingSup(null); setSupForm({ ...initialSup, code: nextId('SUP', suppliers.map((s: any) => ({ id: s.supplierId || '' }))) }); setSupErrs({}); setSupDrawer(true); };
+  const openEditSup = (s: any) => { setEditingSup(s); setSupForm(toSupForm(s)); setSupErrs({}); setSupDrawer(true); };
 
   const submitSup = async () => {
     const e: Record<string, string> = {};
@@ -59,52 +95,76 @@ export const SuppliersPage = () => {
     if (!supForm.code.trim()) e.code = 'Required';
     setSupErrs(e);
     if (Object.keys(e).length) return;
-    const res = editingSup ? updateSupplier(editingSup.id, supForm) : addSupplier(supForm);
-    if (!res.success) { toast.error(res.error); return; }
-    toast.success(editingSup ? 'Supplier updated' : 'Supplier added');
-    setSupDrawer(false);
+    const payload: any = {
+      name: supForm.name,
+      supplierId: supForm.code,
+      approvalStatus: supForm.supplierCategory,
+      contactPerson: supForm.contactPerson,
+      email: supForm.email,
+      phone: supForm.phone,
+      paymentTerms: supForm.paymentTerms,
+      address: supForm.address,
+      certification: supForm.certification,
+      leadTimeDays: supForm.leadTime === '' ? undefined : Number(supForm.leadTime),
+      overallRating: supForm.rating,
+      materials: supForm.materialIds,
+      attachments: supForm.attachments,
+      notes: supForm.notes,
+      organization: user?.organization,
+    };
+    try {
+      if (editingSup) await updateSupplierApi(editingSup.id, payload);
+      else await createSupplier(payload);
+      toast.success(editingSup ? 'Supplier updated' : 'Supplier added');
+      setSupDrawer(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
   const submitEval = async () => {
     if (!evalForm.name.trim()) { setEvalErr('Required'); return; }
-    const res = addEvalMethod(evalForm);
-    if (!res.success) { setEvalErr(res.error || 'Failed'); toast.error(res.error); return; }
-    toast.success('Method added');
-    setEvalForm({ name: '', description: '' });
-    setEvalDrawer(false);
+    try {
+      await createEvalMethod({ ...evalForm, organization: user?.organization });
+      toast.success('Method added');
+      setEvalForm({ name: '', description: '' });
+      setEvalDrawer(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed';
+      setEvalErr(msg);
+      toast.error(msg);
+    }
   };
 
-  const getApproval = (s: Supplier) => {
-    const av = approvedVendors.find((v) => v.supplierId === s.id);
-    if (av) return av.status === 'APPROVED' ? 'APPROVED' : av.status === 'SUSPENDED' ? 'SUSPENDED' : 'REMOVED';
-    return 'NOT_APPROVED';
-  };
-  const getLatestEval = (s: Supplier) => supplierEvaluations.filter((e) => e.supplierId === s.id).sort((a, b) => b.evaluationDate.localeCompare(a.evaluationDate))[0];
+  const getApproval = (s: any) => s.approvalStatus || 'PENDING';
+  const getLatestEval = (s: any) =>
+    supplierEvaluations
+      .filter((e: any) => (e.supplier?._id || e.supplier) === s.id)
+      .sort((a: any, b: any) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime())[0];
 
   const filteredSuppliers = useMemo(
-    () => (approvalFilter === 'all' ? suppliers : suppliers.filter((s) => getApproval(s) === approvalFilter)),
-    [suppliers, approvalFilter, approvedVendors],
+    () => (approvalFilter === 'all' ? suppliers : suppliers.filter((s: any) => getApproval(s) === approvalFilter)),
+    [suppliers, approvalFilter],
   );
   const approvalCounts = useMemo(() => {
-    const c: Record<string, number> = { APPROVED: 0, NOT_APPROVED: 0, SUSPENDED: 0, REMOVED: 0 };
-    suppliers.forEach((s) => { const k = getApproval(s); c[k] = (c[k] || 0) + 1; });
+    const c: Record<string, number> = { APPROVED: 0, PENDING: 0, CONDITIONAL: 0, SUSPENDED: 0, BLACKLISTED: 0 };
+    suppliers.forEach((s: any) => { const k = getApproval(s); c[k] = (c[k] || 0) + 1; });
     return c;
-  }, [suppliers, approvedVendors]);
+  }, [suppliers]);
 
-  const supColumns: Column<Supplier>[] = [
+  const supColumns: Column<any>[] = [
     { key: 'name', header: 'Supplier', sortable: true, sortValue: (s) => s.name, cell: (s) => <span className="font-medium">{s.name}</span> },
-    { key: 'code', header: 'Code', cell: (s) => <span className="text-xs font-mono text-muted-foreground">{s.code}</span> },
+    { key: 'code', header: 'Code', cell: (s) => <span className="text-xs font-mono text-muted-foreground">{s.supplierId}</span> },
     { key: 'approval', header: 'Status', cell: (s) => {
       const st = getApproval(s);
-      const variant = st === 'APPROVED' ? 'success' : st === 'SUSPENDED' ? 'warning' : st === 'REMOVED' ? 'danger' : 'slate';
-      return <Badge variant={variant}>{st.replace('_', ' ')}</Badge>;
+      return <Badge variant={APPROVAL_VARIANT[st] || 'slate'}>{st}</Badge>;
     } },
     { key: 'mats', header: 'Materials', cell: (s) => (
       <div className="flex flex-wrap gap-1 max-w-md">
-        {s.materialIds.length === 0 ? <span className="text-xs text-muted-foreground italic">None</span> :
+        {(s.materials || []).length === 0 ? <span className="text-xs text-muted-foreground italic">None</span> :
           <>
-            {s.materialIds.slice(0, 2).map((id) => { const m = materials.find((x) => x.id === id); return m && <TagChip key={id}>{m.name}</TagChip>; })}
-            {s.materialIds.length > 2 && <Badge variant="outline" className="text-[10px]">+{s.materialIds.length - 2}</Badge>}
+            {(s.materials || []).slice(0, 2).map((id: string) => { const m = materials.find((x: any) => x.id === id); return m && <TagChip key={id}>{m.name}</TagChip>; })}
+            {s.materials.length > 2 && <Badge variant="outline" className="text-[10px]">+{s.materials.length - 2}</Badge>}
           </>
         }
       </div>
@@ -112,8 +172,9 @@ export const SuppliersPage = () => {
     { key: 'eval', header: 'Latest Eval', cell: (s) => {
       const e = getLatestEval(s);
       if (!e) return <span className="text-xs text-muted-foreground italic">No eval</span>;
-      const cls = e.overallStatus === 'GREEN' ? 'success' : e.overallStatus === 'AMBER' ? 'warning' : 'danger';
-      return <Badge variant={cls}>{e.overallStatus}</Badge>;
+      const st = scoreToRag(e.overallScore);
+      const cls = st === 'GREEN' ? 'success' : st === 'AMBER' ? 'warning' : 'danger';
+      return <Badge variant={cls}>{st}</Badge>;
     } },
     { key: 'actions', header: '', width: 'w-12', cell: (s) => (
       <ActionMenu actions={[
@@ -124,12 +185,14 @@ export const SuppliersPage = () => {
     ) },
   ];
 
+  if (suppliersLoading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
+
   return (
     <PageWrapper>
       <PageHeader
         title="Suppliers & Evaluation"
         description="Manage supplier directory and evaluation methods."
-        action={<DataToolbar data={suppliers.map((s) => ({ Name: s.name, Code: s.code, Materials: s.materialIds.map((id) => materials.find((m) => m.id === id)?.name).filter(Boolean).join('; ') }))} filename="pqas-suppliers" />}
+        action={<DataToolbar data={suppliers.map((s: any) => ({ Name: s.name, Code: s.supplierId, Materials: (s.materials || []).map((id: string) => materials.find((m: any) => m.id === id)?.name).filter(Boolean).join('; ') }))} filename="pqas-suppliers" />}
       />
 
       <Tabs defaultValue="suppliers">
@@ -147,9 +210,10 @@ export const SuppliersPage = () => {
               options={[
                 { label: `All Suppliers (${suppliers.length})`, value: 'all' },
                 { label: `Approved (${approvalCounts.APPROVED})`, value: 'APPROVED' },
-                { label: `Not Approved (${approvalCounts.NOT_APPROVED})`, value: 'NOT_APPROVED' },
+                { label: `Conditional (${approvalCounts.CONDITIONAL})`, value: 'CONDITIONAL' },
+                { label: `Pending (${approvalCounts.PENDING})`, value: 'PENDING' },
                 { label: `Suspended (${approvalCounts.SUSPENDED})`, value: 'SUSPENDED' },
-                { label: `Removed (${approvalCounts.REMOVED})`, value: 'REMOVED' },
+                { label: `Blacklisted (${approvalCounts.BLACKLISTED})`, value: 'BLACKLISTED' },
               ]}
             />
             <Button variant="accent" className="ml-auto" onClick={openAddSup}><Plus className="h-4 w-4" /> Add Supplier</Button>
@@ -162,11 +226,11 @@ export const SuppliersPage = () => {
             <Button variant="accent" onClick={() => { setEvalForm({ name: '', description: '' }); setEvalErr(''); setEvalDrawer(true); }}><Plus className="h-4 w-4" /> Add Method</Button>
           </div>
           <div className="rounded-xl border bg-card divide-y divide-border">
-            {evalMethods.map((m) => (
+            {evalMethods.map((m: any) => (
               <div key={m.id} className="flex items-start justify-between p-4 gap-4">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    {m.isSystem ? <p className="font-medium">{m.name}</p> : <InlineEdit value={m.name} onSave={(v) => { updateEvalMethod(m.id, { name: v }); toast.success('Updated'); }} className="font-medium" />}
+                    {m.isSystem ? <p className="font-medium">{m.name}</p> : <InlineEdit value={m.name} onSave={(v) => { updateEvalMethodApi(m.id, { name: v }).then(() => toast.success('Updated')).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed')); }} className="font-medium" />}
                     {m.isSystem && <Badge variant="slate">System</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground">{m.description}</p>
@@ -192,9 +256,10 @@ export const SuppliersPage = () => {
 
       <Sheet open={!!detailSup} onOpenChange={(o) => !o && setDetailSup(null)} className="!w-[600px]">
         {detailSup && (() => {
-          const av = approvedVendors.find((v) => v.supplierId === detailSup.id);
-          const sevs = supplierEvaluations.filter((e) => e.supplierId === detailSup.id).sort((a, b) => b.evaluationDate.localeCompare(a.evaluationDate));
-          const supMaterials = materials.filter((m) => detailSup.materialIds.includes(m.id));
+          const sevs = supplierEvaluations
+            .filter((e: any) => (e.supplier?._id || e.supplier) === detailSup.id)
+            .sort((a: any, b: any) => new Date(b.evaluationDate).getTime() - new Date(a.evaluationDate).getTime());
+          const supMaterials = materials.filter((m: any) => (detailSup.materials || []).includes(m.id));
           const approval = getApproval(detailSup);
           const isApproved = approval === 'APPROVED';
           const latest = sevs[0];
@@ -202,22 +267,21 @@ export const SuppliersPage = () => {
             ['Contact Person', detailSup.contactPerson, Building2],
             ['Email', detailSup.email, Mail],
             ['Phone', detailSup.phone, Phone],
-            ['Country', detailSup.country ? (COUNTRY_LABEL[detailSup.country] || detailSup.country) : '', MapPin],
           ];
           return (
             <>
               <SheetHeader>
                 <SheetTitle>{detailSup.name}</SheetTitle>
-                <SheetDescription>{detailSup.code}{detailSup.certification ? ` · ${detailSup.certification}` : ''}</SheetDescription>
+                <SheetDescription>{detailSup.supplierId}{detailSup.certification ? ` · ${detailSup.certification}` : ''}</SheetDescription>
               </SheetHeader>
               <SheetBody>
                 <div className="space-y-5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant={APPROVAL_VARIANT[approval]}>{approval.replace('_', ' ')}</Badge>
-                    {typeof detailSup.rating === 'number' && (
-                      <span className="inline-flex items-center gap-1 text-sm"><Star className="h-3.5 w-3.5 fill-[#f5af12] text-[#f5af12]" />{detailSup.rating}/5</span>
+                    <Badge variant={APPROVAL_VARIANT[approval] || 'slate'}>{approval}</Badge>
+                    {typeof detailSup.overallRating === 'number' && (
+                      <span className="inline-flex items-center gap-1 text-sm"><Star className="h-3.5 w-3.5 fill-[#f5af12] text-[#f5af12]" />{detailSup.overallRating}/10</span>
                     )}
-                    {detailSup.leadTime !== undefined && detailSup.leadTime !== '' && <Badge variant="outline">Lead time {detailSup.leadTime} days</Badge>}
+                    {detailSup.leadTimeDays !== undefined && detailSup.leadTimeDays !== '' && <Badge variant="outline">Lead time {detailSup.leadTimeDays} days</Badge>}
                   </div>
 
                   <div>
@@ -244,21 +308,23 @@ export const SuppliersPage = () => {
 
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-3">Approval Status</p>
-                    {av ? (
-                      <div className="space-y-2">
-                        <Badge variant={av.status === 'APPROVED' ? 'success' : av.status === 'SUSPENDED' ? 'warning' : 'danger'}>{av.status}</Badge>
-                        <p className="text-sm">{av.servicesDetails}</p>
-                        <p className="text-xs text-muted-foreground">Approved by <span className="font-medium">{av.approvedBy}</span> on {formatDate(av.approvedDate)}</p>
-                      </div>
-                    ) : (
-                      <Badge variant="slate">Not on Approved Vendors list</Badge>
-                    )}
+                    <div className="space-y-2">
+                      <Badge variant={APPROVAL_VARIANT[approval] || 'slate'}>{approval}</Badge>
+                      {detailSup.evaluationCount ? (
+                        <p className="text-sm text-muted-foreground">
+                          Based on {detailSup.evaluationCount} approved evaluation{detailSup.evaluationCount === 1 ? '' : 's'}
+                          {detailSup.lastEvaluationDate ? ` · last on ${formatDate(detailSup.lastEvaluationDate)}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No approved evaluations yet</p>
+                      )}
+                    </div>
                   </div>
 
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Materials Supplied ({supMaterials.length})</p>
                     <div className="flex flex-wrap gap-1.5">
-                      {supMaterials.map((m) => <Badge key={m.id} variant="accent">{m.name}</Badge>)}
+                      {supMaterials.map((m: any) => <Badge key={m.id} variant="accent">{m.name}</Badge>)}
                       {supMaterials.length === 0 && <p className="text-sm text-muted-foreground italic">None</p>}
                     </div>
                   </div>
@@ -267,17 +333,17 @@ export const SuppliersPage = () => {
                     <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground mb-2">Evaluation History ({sevs.length})</p>
                     {sevs.length === 0 ? <p className="text-sm text-muted-foreground italic">No evaluations recorded</p> : (
                       <div className="space-y-2">
-                        {sevs.map((e) => (
+                        {sevs.map((e: any) => (
                           <div key={e.id} className="p-3 rounded-lg border flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-xs text-muted-foreground">{formatDate(e.evaluationDate)} · by {e.evaluatedBy}</p>
+                              <p className="text-xs text-muted-foreground">{formatDate(e.evaluationDate)} · by {e.evaluatedBy?.name || 'Unknown'}</p>
                               <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                                <RAGBadge status={e.qualityStatus} label={`Q ${e.qualityRating}`} />
-                                <RAGBadge status={e.deliveryStatus} label={`D ${e.deliveryRating}`} />
-                                <RAGBadge status={e.quantityStatus} label={`Qty ${e.quantityRating}`} />
+                                <RAGBadge status={scoreToRag(e.qualityScore)} label={`Q ${e.qualityScore}`} />
+                                <RAGBadge status={scoreToRag(e.deliveryScore)} label={`D ${e.deliveryScore}`} />
+                                <RAGBadge status={scoreToRag(e.quantityScore)} label={`Qty ${e.quantityScore}`} />
                               </div>
                             </div>
-                            <RAGBadge status={e.overallStatus} label="Overall" />
+                            <RAGBadge status={scoreToRag(e.overallScore)} label="Overall" />
                           </div>
                         ))}
                       </div>
@@ -288,14 +354,14 @@ export const SuppliersPage = () => {
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Evaluation Methods</p>
                       {isApproved
-                        ? <Badge variant={latest ? (EVAL_VERDICT[latest.overallStatus]?.variant as any) : 'slate'}>{latest ? `${EVAL_VERDICT[latest.overallStatus]?.label} · ${formatDate(latest.evaluationDate)}` : 'Awaiting evaluation'}</Badge>
+                        ? <Badge variant={latest ? (EVAL_VERDICT[scoreToRag(latest.overallScore)]?.variant as any) : 'slate'}>{latest ? `${EVAL_VERDICT[scoreToRag(latest.overallScore)]?.label} · ${formatDate(latest.evaluationDate)}` : 'Awaiting evaluation'}</Badge>
                         : <Badge variant="slate">Not applicable until approved</Badge>}
                     </div>
                     <div className="space-y-1">
-                      {evalMethods.map((m) => {
+                      {evalMethods.map((m: any) => {
                         // Methods apply to approved suppliers; the per-method verdict mirrors the
                         // supplier's latest overall evaluation status (or "Pending" if none yet).
-                        const verdict = !isApproved ? null : latest ? EVAL_VERDICT[latest.overallStatus] : { label: 'Pending', variant: 'warning' };
+                        const verdict = !isApproved ? null : latest ? EVAL_VERDICT[scoreToRag(latest.overallScore)] : { label: 'Pending', variant: 'warning' };
                         return (
                           <div key={m.id} className="p-2.5 rounded-md border text-xs flex items-center justify-between gap-3">
                             <div className="min-w-0">
@@ -326,9 +392,9 @@ export const SuppliersPage = () => {
       </Sheet>
 
       <ConfirmDialog open={!!confirmSup} onOpenChange={(o) => !o && setConfirmSup(null)} entityName={confirmSup?.name}
-        onConfirm={() => { if (confirmSup) { deleteSupplier(confirmSup.id); toast.success('Deleted'); setConfirmSup(null); } }} />
+        onConfirm={() => { if (confirmSup) { removeSupplier(confirmSup.id).then(() => { toast.success('Deleted'); setConfirmSup(null); }).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete')); } }} />
       <ConfirmDialog open={!!confirmEval} onOpenChange={(o) => !o && setConfirmEval(null)} entityName={confirmEval?.name}
-        onConfirm={() => { if (confirmEval) { const r = deleteEvalMethod(confirmEval.id); if (r.success) { toast.success('Deleted'); setConfirmEval(null); } else toast.error(r.error); } }} />
+        onConfirm={() => { if (confirmEval) { removeEvalMethod(confirmEval.id).then(() => { toast.success('Deleted'); setConfirmEval(null); }).catch((err) => toast.error(err instanceof Error ? err.message : 'Failed to delete')); } }} />
     </PageWrapper>
   );
 };

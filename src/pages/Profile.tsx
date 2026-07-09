@@ -13,7 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/context/AuthContext';
-import { isValidEmail } from '@/lib/utils';
+import { isValidEmail, formatRole } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 export const ProfilePage = () => {
   const { user, updateProfile } = useAuth();
@@ -31,6 +32,7 @@ export const ProfilePage = () => {
   const [showPwd, setShowPwd] = useState(false);
   const [pwdSaved, setPwdSaved] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [prefs, setPrefs] = useState({
     emailNotifications: true,
     desktopNotifications: false,
@@ -56,11 +58,23 @@ export const ProfilePage = () => {
     { label: 'Strong', color: 'bg-emerald-500', text: 'text-emerald-500' },
   ];
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (!profile.name.trim()) { toast.error('Name is required'); return; }
     if (!isValidEmail(profile.email)) { toast.error('Invalid email'); return; }
-    updateProfile({ name: profile.name, email: profile.email, phone: profile.phone, address: profile.address, bio: profile.bio });
-    toast.success('Profile updated');
+    if (!user) return;
+    setSavingProfile(true);
+    try {
+      // Backend User model only persists `name`/`email` (plus `department`/`employeeId`,
+      // which this page doesn't collect) — phone/address/bio have no backend column yet,
+      // so they stay local-only via updateProfile below to avoid regressing the UI.
+      await api.put(`/admin/users/${user.id}`, { name: profile.name, email: profile.email });
+      updateProfile({ name: profile.name, email: profile.email, phone: profile.phone, address: profile.address, bio: profile.bio });
+      toast.success('Profile updated');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setSavingProfile(false);
+    }
   };
 
   const changePassword = () => {
@@ -121,7 +135,7 @@ export const ProfilePage = () => {
                 </div>
                 <h2 className="mt-4 text-lg font-semibold">{user?.name}</h2>
                 <p className="text-sm text-muted-foreground">{user?.email}</p>
-                <Badge variant="accent" className="mt-3"><Shield className="h-3 w-3 mr-1" />{user?.role}</Badge>
+                <Badge variant="accent" className="mt-3"><Shield className="h-3 w-3 mr-1" />{formatRole(user?.role)}</Badge>
                 <div className="mt-6 pt-6 border-t space-y-3 text-left text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground"><Building className="h-4 w-4 shrink-0" /> Engineering Department</div>
                   <div className="flex items-center gap-2 text-muted-foreground"><Mail className="h-4 w-4 shrink-0" /> <span className="truncate">{user?.email}</span></div>
@@ -173,7 +187,7 @@ export const ProfilePage = () => {
                   <Textarea value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} rows={3} />
                 </div>
                 <div className="flex justify-end pt-2">
-                  <Button variant="accent" onClick={saveProfile}><Save className="h-4 w-4" /> Save Changes</Button>
+                  <Button variant="accent" onClick={saveProfile} disabled={savingProfile}><Save className="h-4 w-4" /> {savingProfile ? 'Saving...' : 'Save Changes'}</Button>
                 </div>
               </div>
             </Card>

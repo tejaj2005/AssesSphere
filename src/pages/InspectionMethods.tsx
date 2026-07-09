@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Pencil, Trash2, MoreHorizontal, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -13,8 +13,27 @@ import { Dropdown, DropdownItem } from '@/components/ui/dropdown';
 import { Sheet, SheetHeader, SheetTitle, SheetBody } from '@/components/ui/sheet';
 import { ConfigForm } from '@/components/shared/ConfigForm';
 import { inspectionMethodFields } from '@/lib/entityFields';
-import { useData } from '@/context/DataContext';
-import type { InspectionMethod } from '@/types';
+import { useApiResource } from '@/hooks/useApi';
+import { api } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
+
+/** Backend shape (server/models/InspectionMethod.ts) — no `isSystem` flag, and
+ * `equipmentRequired` is a free-text string[] (not a ref array), unlike the old mock. */
+interface IInspectionMethod {
+  _id: string;
+  name: string;
+  methodId?: string;
+  description?: string;
+  equipmentRequired?: string[];
+  organization?: string;
+  methodType?: string;
+  referenceStandard?: string;
+  sampleSize?: string;
+  acceptanceCriteria?: string;
+  approvalStatus?: string;
+  sopFile?: string;
+  [key: string]: any;
+}
 
 const METHOD_TYPE_LABEL: Record<string, string> = {
   CHEMICAL: 'Chemical / Analytical', PHYSICAL: 'Physical', MICROBIO: 'Microbiological',
@@ -26,44 +45,93 @@ const APPROVAL_VARIANT: Record<string, any> = { DRAFT: 'slate', REVIEW: 'warning
 const initForm: any = { name: '', code: '', methodType: 'PHYSICAL', referenceStandard: '', description: '', equipmentIds: [], sampleSize: '', acceptanceCriteria: '', approvalStatus: 'DRAFT', approvedById: '', effectiveDate: '', sopFile: '' };
 
 export const InspectionMethodsPage = () => {
-  const { inspectionMethods, equipment, users, addInspectionMethod, updateInspectionMethod, deleteInspectionMethod } = useData();
+  const { user } = useAuth();
+  const { items: inspectionMethods, loading, create, update, remove } = useApiResource<IInspectionMethod>('/admin/inspection-methods');
+  const [equipment, setEquipment] = useState<{ id: string; name: string }[]>([]);
+  const [users, setUsers] = useState<{ id: string; name: string }[]>([]);
   const [drawer, setDrawer] = useState(false);
-  const [editing, setEditing] = useState<InspectionMethod | null>(null);
-  const [detail, setDetail] = useState<InspectionMethod | null>(null);
+  const [editing, setEditing] = useState<IInspectionMethod | null>(null);
+  const [detail, setDetail] = useState<IInspectionMethod | null>(null);
   const [form, setForm] = useState<any>(initForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
-  const [confirmDel, setConfirmDel] = useState<InspectionMethod | null>(null);
+  const [confirmDel, setConfirmDel] = useState<IInspectionMethod | null>(null);
+
+  useEffect(() => {
+    api.getList<any>('/admin/equipment').then(({ data }) => setEquipment(data.map((e: any) => ({ id: e._id, name: e.name })))).catch(() => setEquipment([]));
+    api.getList<any>('/admin/users').then(({ data }) => setUsers(data.map((u: any) => ({ id: u._id, name: u.name })))).catch(() => setUsers([]));
+  }, []);
 
   const openAdd = () => { setEditing(null); setForm(initForm); setErrs({}); setDrawer(true); };
-  const openEdit = (m: InspectionMethod) => { setEditing(m); setForm({ ...initForm, ...m }); setErrs({}); setDrawer(true); };
+  const openEdit = (m: IInspectionMethod) => {
+    setEditing(m);
+    setForm({
+      ...initForm,
+      name: m.name,
+      code: m.methodId || '',
+      methodType: m.methodType || 'PHYSICAL',
+      referenceStandard: m.referenceStandard || '',
+      description: m.description || '',
+      // Equipment is stored server-side as free-text names; map back to ids for the multi-select.
+      equipmentIds: (m.equipmentRequired || []).map((name) => equipment.find((e) => e.name === name)?.id).filter(Boolean),
+      sampleSize: m.sampleSize || '',
+      acceptanceCriteria: m.acceptanceCriteria || '',
+      approvalStatus: m.approvalStatus || 'DRAFT',
+      sopFile: m.sopFile || '',
+    });
+    setErrs({});
+    setDrawer(true);
+  };
 
   const submit = async () => {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
-    const { id, isSystem, ...payload } = form;
-    const res = editing ? updateInspectionMethod(editing.id, payload) : addInspectionMethod(payload);
-    if (!res.success) { toast.error(res.error); return; }
-    toast.success(editing ? 'Method updated' : 'Method added');
-    setDrawer(false);
+    const payload: any = {
+      name: form.name,
+      methodId: form.code || undefined,
+      description: form.description,
+      methodType: form.methodType,
+      referenceStandard: form.referenceStandard,
+      equipmentRequired: (form.equipmentIds || []).map((id: string) => equipment.find((e) => e.id === id)?.name).filter(Boolean),
+      sampleSize: form.sampleSize,
+      acceptanceCriteria: form.acceptanceCriteria,
+      approvalStatus: form.approvalStatus,
+      sopFile: form.sopFile,
+      organization: user?.organization,
+    };
+    try {
+      if (editing) await update(editing._id, payload);
+      else await create(payload);
+      toast.success(editing ? 'Method updated' : 'Method added');
+      setDrawer(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
+  };
+
+  const inlineUpdate = async (id: string, patch: Partial<IInspectionMethod>) => {
+    try {
+      await update(id, patch);
+      toast.success('Updated');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
   const stop = (node: React.ReactNode) => <span onClick={(e) => e.stopPropagation()}>{node}</span>;
 
-  const columns: Column<InspectionMethod>[] = [
-    { key: 'name', header: 'Method', cell: (m) => m.isSystem ? <span className="font-medium">{m.name}</span> : stop(<InlineEdit value={m.name} onSave={(v) => { updateInspectionMethod(m.id, { name: v }); toast.success('Updated'); }} className="font-medium" />) },
+  const columns: Column<IInspectionMethod>[] = [
+    { key: 'name', header: 'Method', cell: (m) => stop(<InlineEdit value={m.name} onSave={(v) => inlineUpdate(m._id, { name: v })} className="font-medium" />) },
     { key: 'type', header: 'Method Type', cell: (m) => m.methodType ? <Badge variant="outline">{METHOD_TYPE_LABEL[m.methodType] || m.methodType}</Badge> : <span className="text-muted-foreground">—</span> },
-    { key: 'desc', header: 'Description', cell: (m) => m.isSystem ? <span className="text-muted-foreground text-sm line-clamp-1">{m.description}</span> : stop(<InlineEdit value={m.description} onSave={(v) => { updateInspectionMethod(m.id, { description: v }); toast.success('Updated'); }} className="text-muted-foreground" />) },
+    { key: 'desc', header: 'Description', cell: (m) => stop(<InlineEdit value={m.description || ''} onSave={(v) => inlineUpdate(m._id, { description: v })} className="text-muted-foreground" />) },
     { key: 'approval', header: 'Approval', cell: (m) => m.approvalStatus ? <Badge variant={APPROVAL_VARIANT[m.approvalStatus] || 'slate'}>{APPROVAL_LABEL[m.approvalStatus] || m.approvalStatus}</Badge> : <span className="text-muted-foreground">—</span> },
-    { key: 'origin', header: 'Origin', cell: (m) => m.isSystem ? <Badge variant="slate">System</Badge> : <Badge variant="accent">Custom</Badge> },
     { key: 'actions', header: '', width: 'w-12', cell: (m) => (
       <div onClick={(e) => e.stopPropagation()}>
         <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
           <DropdownItem onClick={() => setDetail(m)}><Eye className="h-4 w-4" /> View Details</DropdownItem>
-          {!m.isSystem && <DropdownItem onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /> Edit</DropdownItem>}
-          {!m.isSystem && <DropdownItem danger onClick={() => setConfirmDel(m)}><Trash2 className="h-4 w-4" /> Delete</DropdownItem>}
-          {m.isSystem && <DropdownItem disabled>System method</DropdownItem>}
+          <DropdownItem onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /> Edit</DropdownItem>
+          <DropdownItem danger onClick={() => setConfirmDel(m)}><Trash2 className="h-4 w-4" /> Delete</DropdownItem>
         </Dropdown>
       </div>
     ) },
@@ -73,24 +141,19 @@ export const InspectionMethodsPage = () => {
     <PageWrapper>
       <PageHeader
         title="Inspection Methods"
-        description="System and custom inspection methodologies."
-        action={<Button variant="accent" onClick={openAdd}><Plus className="h-4 w-4" /> Add Custom Method</Button>}
+        description="Inspection methodologies used across the organization."
+        action={<Button variant="accent" onClick={openAdd}><Plus className="h-4 w-4" /> Add Method</Button>}
       />
-      <DataTable columns={columns} data={inspectionMethods} onRowClick={(m) => setDetail(m)} emptyTitle="No methods" />
+      <DataTable columns={columns} data={inspectionMethods} loading={loading} onRowClick={(m) => setDetail(m)} emptyTitle="No methods" />
 
       <Sheet open={!!detail} onOpenChange={(o) => !o && setDetail(null)}>
         {detail && (() => {
-          const equip = (detail.equipmentIds || []).map((id) => equipment.find((e) => e.id === id)?.name).filter(Boolean);
-          const approver = users.find((u) => u.id === detail.approvedById)?.name;
           const rows: [string, any][] = [
-            ['Method Code', detail.code || '—'],
+            ['Method Code', detail.methodId || '—'],
             ['Method Type', detail.methodType ? (METHOD_TYPE_LABEL[detail.methodType] || detail.methodType) : '—'],
             ['Reference Standard', detail.referenceStandard || '—'],
             ['Sample Size', detail.sampleSize || '—'],
             ['Approval Status', detail.approvalStatus ? (APPROVAL_LABEL[detail.approvalStatus] || detail.approvalStatus) : '—'],
-            ['Approved By', approver || '—'],
-            ['Effective Date', detail.effectiveDate || '—'],
-            ['Origin', detail.isSystem ? 'System' : 'Custom'],
           ];
           return (
             <>
@@ -102,30 +165,37 @@ export const InspectionMethodsPage = () => {
                     <div key={k}><dt className="text-xs text-muted-foreground uppercase tracking-wider">{k}</dt><dd className="mt-1">{v}</dd></div>
                   ))}
                 </dl>
-                {equip.length > 0 && (
+                {(detail.equipmentRequired || []).length > 0 && (
                   <div className="mt-4 pt-4 border-t">
                     <dt className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Equipment Required</dt>
-                    <div className="flex flex-wrap gap-1.5">{equip.map((e) => <Badge key={e as string} variant="outline">{e}</Badge>)}</div>
+                    <div className="flex flex-wrap gap-1.5">{(detail.equipmentRequired || []).map((e) => <Badge key={e} variant="outline">{e}</Badge>)}</div>
                   </div>
                 )}
                 {detail.acceptanceCriteria && <div className="mt-4 pt-4 border-t"><dt className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Acceptance Criteria</dt><dd className="text-sm">{detail.acceptanceCriteria}</dd></div>}
-                {!detail.isSystem && (
-                  <div className="mt-6 pt-6 border-t flex gap-2">
-                    <Button variant="outline" onClick={() => { setDetail(null); openEdit(detail); }}><Pencil className="h-4 w-4" /> Edit Method</Button>
-                  </div>
-                )}
+                <div className="mt-6 pt-6 border-t flex gap-2">
+                  <Button variant="outline" onClick={() => { setDetail(null); openEdit(detail); }}><Pencil className="h-4 w-4" /> Edit Method</Button>
+                </div>
               </SheetBody>
             </>
           );
         })()}
       </Sheet>
 
-      <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Method' : 'Add Custom Method'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Add'}>
+      <FormDrawer open={drawer} onOpenChange={setDrawer} title={editing ? 'Edit Method' : 'Add Method'} onSubmit={submit} submitLabel={editing ? 'Update' : 'Add'}>
         <ConfigForm fields={inspectionMethodFields(equipment, users)} value={form} onChange={setForm} errors={errs} />
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}
-        onConfirm={() => { if (confirmDel) { const r = deleteInspectionMethod(confirmDel.id); if (r.success) { toast.success('Deleted'); setConfirmDel(null); } else toast.error(r.error); } }} />
+        onConfirm={async () => {
+          if (!confirmDel) return;
+          try {
+            await remove(confirmDel._id);
+            toast.success('Deleted');
+            setConfirmDel(null);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Something went wrong');
+          }
+        }} />
     </PageWrapper>
   );
 };

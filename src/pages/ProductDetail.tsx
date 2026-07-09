@@ -16,27 +16,97 @@ import { DataTable, Column } from '@/components/shared/DataTable';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfigForm, validateConfigForm } from '@/components/shared/ConfigForm';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { useData } from '@/context/DataContext';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { useApiItem, useApiResource } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 import { formatDate, nextId } from '@/lib/utils';
 import { buildProductFields, PRODUCT_INITIAL_FORM } from '@/lib/productFields';
-import type { ProductComponent } from '@/types';
 
 const HASH_TO_TAB: Record<string, string> = { '#mfg': 'mfg', '#asm': 'asm', '#components': 'components', '#overview': 'overview' };
+
+/** Client-side view of a backend Product doc, shaped like the old mock `Product`
+ * type so the existing JSX below (written against the mock shape) keeps working
+ * almost unchanged. See server/models/Product.ts for the raw shape. */
+interface ProductView {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  category?: string;
+  uom?: string;
+  batchSize?: number | string;
+  shelfLife?: number | string;
+  storageConditions?: string;
+  regulatoryClass?: string;
+  drawingRef?: string;
+  notes?: string;
+  attachments?: string[];
+  status: boolean;
+  manufacturingStageIds: string[];
+  assemblingStageIds: string[];
+  componentsCount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+const toView = (raw: any): ProductView => ({
+  id: raw.id,
+  name: raw.name,
+  code: raw.productId || '',
+  description: raw.description,
+  category: raw.category,
+  uom: raw.specifications?.uom,
+  batchSize: raw.specifications?.batchSize,
+  shelfLife: raw.specifications?.shelfLife,
+  storageConditions: raw.specifications?.storageConditions,
+  regulatoryClass: raw.specifications?.regulatoryClass,
+  drawingRef: raw.specifications?.drawingRef,
+  notes: raw.specifications?.notes,
+  attachments: raw.specifications?.attachments || [],
+  status: raw.status === 'ACTIVE',
+  manufacturingStageIds: (raw.manufacturingStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  assemblingStageIds: (raw.assemblyStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  componentsCount: Array.isArray(raw.components) ? raw.components.length : 0,
+  createdAt: raw.createdAt,
+  updatedAt: raw.updatedAt,
+});
+
+/** Builds the PUT /admin/products/:id payload from the ConfigForm's flat values. */
+const toPayload = (form: any) => ({
+  name: form.name,
+  productId: form.code || undefined,
+  description: form.description || undefined,
+  category: form.category || undefined,
+  specifications: {
+    uom: form.uom, batchSize: form.batchSize, shelfLife: form.shelfLife,
+    storageConditions: form.storageConditions, regulatoryClass: form.regulatoryClass,
+    drawingRef: form.drawingRef, notes: form.notes, attachments: form.attachments || [],
+  },
+  manufacturingStages: form.manufacturingStageIds || [],
+  assemblyStages: form.assemblingStageIds || [],
+  status: form.status === false ? 'DISCONTINUED' : 'ACTIVE',
+});
+
+interface ComponentView { id: string; name: string; code: string; }
+const toComponentView = (raw: any): ComponentView => ({ id: raw._id, name: raw.name, code: raw.componentId || '' });
 
 export const ProductDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { products, components, manufacturingStages, assemblingStages, addComponent, updateComponent, deleteComponent, updateProduct } = useData();
-  const product = products.find((p) => p.id === id);
+  const { user } = useAuth();
+  const { item: rawProduct, loading, refetch } = useApiItem<any>(id ? `/admin/products/${id}` : null);
+  const { items: manufacturingStages } = useApiResource<any>('/admin/manufacturing-stages');
+  const { items: assemblingStages } = useApiResource<any>('/admin/assembly-stages');
 
   const [tab, setTab] = useState('overview');
   const [compDrawer, setCompDrawer] = useState(false);
-  const [editingComp, setEditingComp] = useState<ProductComponent | null>(null);
+  const [editingComp, setEditingComp] = useState<ComponentView | null>(null);
   const [compName, setCompName] = useState('');
   const [compCode, setCompCode] = useState('');
   const [compErr, setCompErr] = useState<Record<string, string>>({});
-  const [confirmComp, setConfirmComp] = useState<ProductComponent | null>(null);
+  const [confirmComp, setConfirmComp] = useState<ComponentView | null>(null);
   const [prodDrawer, setProdDrawer] = useState(false);
   const [prodForm, setProdForm] = useState<any>(PRODUCT_INITIAL_FORM);
   const [prodErrs, setProdErrs] = useState<Record<string, string>>({});
@@ -47,7 +117,9 @@ export const ProductDetailPage = () => {
     if (mapped) setTab(mapped);
   }, [location.hash]);
 
-  if (!product) return (
+  if (loading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
+
+  if (!rawProduct) return (
     <PageWrapper>
       <div className="text-center py-12">
         <h2 className="text-lg font-semibold">Product not found</h2>
@@ -56,12 +128,13 @@ export const ProductDetailPage = () => {
     </PageWrapper>
   );
 
-  const prodComps = components.filter((c) => c.productId === product.id);
-  const mfgStages = manufacturingStages.filter((s) => product.manufacturingStageIds.includes(s.id)).sort((a, b) => a.order - b.order);
-  const asmStages = assemblingStages.filter((s) => product.assemblingStageIds.includes(s.id)).sort((a, b) => a.order - b.order);
+  const product = toView(rawProduct);
+  const prodComps: ComponentView[] = (rawProduct.components || []).map(toComponentView);
+  const mfgStages = manufacturingStages.filter((s: any) => product.manufacturingStageIds.includes(s.id)).sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
+  const asmStages = assemblingStages.filter((s: any) => product.assemblingStageIds.includes(s.id)).sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
-  const openAddComp = () => { setEditingComp(null); setCompName(''); setCompCode(nextId('COMP', components)); setCompErr({}); setCompDrawer(true); };
-  const openEditComp = (c: ProductComponent) => { setEditingComp(c); setCompName(c.name); setCompCode(c.code); setCompErr({}); setCompDrawer(true); };
+  const openAddComp = () => { setEditingComp(null); setCompName(''); setCompCode(nextId('COMP', prodComps.map((c) => ({ id: c.code })))); setCompErr({}); setCompDrawer(true); };
+  const openEditComp = (c: ComponentView) => { setEditingComp(c); setCompName(c.name); setCompCode(c.code); setCompErr({}); setCompDrawer(true); };
 
   const submitComp = async () => {
     const e: Record<string, string> = {};
@@ -69,33 +142,52 @@ export const ProductDetailPage = () => {
     if (!compCode.trim()) e.code = 'Required';
     setCompErr(e);
     if (Object.keys(e).length) return;
-    const res = editingComp ? updateComponent(editingComp.id, { name: compName.trim(), code: compCode.trim() }) : addComponent({ name: compName.trim(), code: compCode.trim(), productId: product.id });
-    if (!res.success) { toast.error(res.error); return; }
-    toast.success(editingComp ? 'Component updated' : 'Component added');
-    setCompDrawer(false);
+    try {
+      if (editingComp) {
+        // Renaming an existing component doesn't change product membership.
+        await api.put(`/admin/components/${editingComp.id}`, { name: compName.trim(), componentId: compCode.trim() });
+      } else {
+        // Components have no productId on the backend — the relationship is
+        // inverted (Product.components holds refs), so create the Component
+        // then append its _id to this product's components array.
+        const created: any = await api.post('/admin/components', {
+          name: compName.trim(),
+          componentId: compCode.trim(),
+          organization: user?.organization,
+        });
+        const existingIds = (rawProduct.components || []).map((c: any) => c._id);
+        await api.put(`/admin/products/${rawProduct.id}`, { components: [...existingIds, created._id] });
+      }
+      await refetch();
+      toast.success(editingComp ? 'Component updated' : 'Component added');
+      setCompDrawer(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
   const PRODUCT_FIELDS = buildProductFields(manufacturingStages, assemblingStages);
 
   const openEditProduct = () => {
-    if (!product) return;
     setProdForm({ ...PRODUCT_INITIAL_FORM, ...product, status: true });
     setProdErrs({});
     setProdDrawer(true);
   };
 
-  const submitProduct = () => {
-    if (!product) return;
+  const submitProduct = async () => {
     const v = validateConfigForm(PRODUCT_FIELDS, prodForm);
     if (!v.valid) { setProdErrs(v.errors); toast.error('Please fix form errors'); return; }
-    const payload: any = { ...prodForm, manufacturingStageIds: prodForm.manufacturingStageIds || [], assemblingStageIds: prodForm.assemblingStageIds || [] };
-    const res = updateProduct(product.id, payload);
-    if (!res.success) { toast.error(res.error || 'Failed'); return; }
-    toast.success('Product updated');
-    setProdDrawer(false);
+    try {
+      await api.put(`/admin/products/${rawProduct.id}`, toPayload(prodForm));
+      await refetch();
+      toast.success('Product updated');
+      setProdDrawer(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
   };
 
-  const compColumns: Column<ProductComponent>[] = [
+  const compColumns: Column<ComponentView>[] = [
     { key: 'name', header: 'Component', sortable: true, sortValue: (c) => c.name, cell: (c) => <span className="font-medium">{c.name}</span> },
     { key: 'code', header: 'Code', cell: (c) => <span className="text-xs font-mono text-muted-foreground">{c.code}</span> },
     { key: 'actions', header: '', width: 'w-24', cell: (c) => (
@@ -122,7 +214,7 @@ export const ProductDetailPage = () => {
                 <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-muted-foreground">
                   <Badge variant="accent" className="font-mono">ID {product.id}</Badge>
                   <Badge variant="outline" className="font-mono">Code {product.code}</Badge>
-                  <Badge variant={product.status === false || product.status === 'Inactive' ? 'slate' : 'success'}>{product.status === false || product.status === 'Inactive' ? 'Inactive' : 'Active'}</Badge>
+                  <Badge variant={product.status === false ? 'slate' : 'success'}>{product.status === false ? 'Inactive' : 'Active'}</Badge>
                   <span className="inline-flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> Created {formatDate(product.createdAt)}</span>
                   {product.updatedAt && <span className="inline-flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Updated {formatDate(product.updatedAt)}</span>}
                 </div>
@@ -155,7 +247,7 @@ export const ProductDetailPage = () => {
                   ['Regulatory Class', product.regulatoryClass || '—'],
                   ['Drawing / Spec Ref', product.drawingRef || '—'],
                   ['Components', String(prodComps.length)],
-                  ['Status', product.status === false || product.status === 'Inactive' ? 'Inactive' : 'Active'],
+                  ['Status', product.status === false ? 'Inactive' : 'Active'],
                 ] as [string, any][]).map(([l, v]) => (
                   <div key={l}><dt className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground font-semibold">{l}</dt><dd className="mt-1 font-medium">{v}</dd></div>
                 ))}
@@ -203,7 +295,7 @@ export const ProductDetailPage = () => {
         <TabsContent value="mfg">
           <Card className="p-6">
             <div className="flex flex-wrap items-center gap-2">
-              {mfgStages.map((s, i) => (
+              {mfgStages.map((s: any, i: number) => (
                 <div key={s.id} className="flex items-center gap-2">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-accent/5">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-accent text-accent-foreground text-xs font-semibold">{i + 1}</div>
@@ -220,7 +312,7 @@ export const ProductDetailPage = () => {
         <TabsContent value="asm">
           <Card className="p-6">
             <div className="flex flex-wrap items-center gap-2">
-              {asmStages.map((s, i) => (
+              {asmStages.map((s: any, i: number) => (
                 <div key={s.id} className="flex items-center gap-2">
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-purple-500/5">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-purple-500 text-white text-xs font-semibold">{i + 1}</div>
@@ -271,7 +363,20 @@ export const ProductDetailPage = () => {
         open={!!confirmComp}
         onOpenChange={(o) => !o && setConfirmComp(null)}
         entityName={confirmComp?.name}
-        onConfirm={() => { if (confirmComp) { deleteComponent(confirmComp.id); toast.success('Component deleted'); setConfirmComp(null); } }}
+        onConfirm={async () => {
+          if (!confirmComp) return;
+          try {
+            // Detach the component from this product (Component docs have no
+            // productId — membership lives only in Product.components).
+            const remainingIds = (rawProduct.components || []).map((c: any) => c._id).filter((cid: string) => cid !== confirmComp.id);
+            await api.put(`/admin/products/${rawProduct.id}`, { components: remainingIds });
+            await refetch();
+            toast.success('Component deleted');
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : 'Something went wrong');
+          }
+          setConfirmComp(null);
+        }}
       />
     </PageWrapper>
   );

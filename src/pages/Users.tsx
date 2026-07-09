@@ -11,16 +11,57 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { DataToolbar } from '@/components/shared/DataToolbar';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { Sheet, SheetHeader, SheetTitle, SheetBody } from '@/components/ui/sheet';
 import { ConfigForm, FieldDef } from '@/components/shared/ConfigForm';
+import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
+import { useApiResource } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
+import { isValidEmail, nextId } from '@/lib/utils';
 
-const UserConfigForm = ({ form, setForm, errs, editing, roles, departments }: any) => {
+/** Backend user shape (server/models/User.ts) — role is a plain enum string and
+ * department is free text, not FK refs like the old mock Role/Department entities. */
+interface ApiUser {
+  _id: string;
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  role: string;
+  department?: string;
+  organization: string;
+  employeeId?: string;
+  isActive: boolean;
+  lastLogin?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  // UI-only convenience fields kept for the existing form/detail UX. The backend
+  // schema has no columns for these, so Mongoose silently drops them on save —
+  // they don't persist across a refresh. Simplification for this migration.
+  phone?: string;
+  username?: string;
+  designation?: string;
+  dateOfJoining?: string;
+  photo?: string;
+  notes?: string;
+}
+
+interface DeptApi { _id: string; id: string; name: string; isActive: boolean }
+
+const ROLE_OPTIONS = [
+  { label: 'Admin', value: 'Admin' },
+  { label: 'Management', value: 'Management' },
+  { label: 'Production Manager', value: 'ProductionManager' },
+  { label: 'Stores Manager', value: 'StoresManager' },
+  { label: 'Quality Manager', value: 'QualityManager' },
+  { label: 'Inspector', value: 'Inspector' },
+];
+const ROLE_LABEL: Record<string, string> = Object.fromEntries(ROLE_OPTIONS.map((r) => [r.value, r.label]));
+const ROLE_VARIANT: Record<string, any> = { Admin: 'slate', Management: 'purple', ProductionManager: 'accent', StoresManager: 'teal', QualityManager: 'warning', Inspector: 'success' };
+
+const UserConfigForm = ({ form, setForm, errs, editing, departmentOptions }: any) => {
   const fields: FieldDef[] = [
     { section: 'Personal Information', name: 'firstName', label: 'First Name', type: 'text', required: true, col: 'half' },
     {                                  name: 'lastName',  label: 'Last Name',  type: 'text', required: true, col: 'half' },
@@ -30,10 +71,13 @@ const UserConfigForm = ({ form, setForm, errs, editing, roles, departments }: an
 
     { section: 'Employment', name: 'employeeId',  label: 'Employee ID', type: 'text', required: true, col: 'half' },
     {                        name: 'username',    label: 'Username',    type: 'text', col: 'half', help: 'Auto-suggested from name' },
-    {                        name: 'roleId',      label: 'Role',        type: 'select', required: true, options: roles.map((r: any) => ({ label: r.name, value: r.id })), col: 'half' },
-    {                        name: 'departmentId',label: 'Department',  type: 'select', required: true, options: departments.map((d: any) => ({ label: d.name, value: d.id })), col: 'half' },
+    {                        name: 'role',        label: 'Role',        type: 'select', required: true, options: ROLE_OPTIONS, col: 'half' },
+    {                        name: 'department',  label: 'Department',  type: 'select', options: departmentOptions, col: 'half' },
     {                        name: 'designation', label: 'Designation / Job Title', type: 'text', col: 'half' },
     {                        name: 'dateOfJoining', label: 'Date of Joining', type: 'date', col: 'half' },
+    // No 'password' field type exists on the shared ConfigForm (out of scope for this
+    // migration unit), so this renders as a plain (unmasked) text input.
+    ...(!editing ? [{ name: 'password', label: 'Password', type: 'text' as const, required: true, col: 'half' as const, help: 'Used for the user’s first login' }] : []),
 
     { section: 'Settings',   name: 'status', label: 'Active', type: 'toggle', col: 'half' },
     ...(!editing ? [{ name: 'sendInvite', label: 'Send invite email on creation', type: 'checkbox' as const, col: 'half' as const }] : []),
@@ -53,45 +97,47 @@ const UserConfigForm = ({ form, setForm, errs, editing, roles, departments }: an
   };
   return <ConfigForm fields={fields} value={wrappedValue} onChange={handleChange} errors={errs} />;
 };
-import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
-import { useData } from '@/context/DataContext';
-import { isValidEmail, nextId } from '@/lib/utils';
-import type { User } from '@/types';
-
-const ROLE_VARIANT: Record<string, any> = { Admin: 'slate', Management: 'purple', 'Production Manager': 'accent', 'Stores Manager': 'teal', 'Quality Manager': 'warning', Inspector: 'success' };
 
 export const UsersPage = () => {
-  const { users, roles, departments, addUser, updateUser, deleteUser, bulkUpdateUserStatus } = useData();
+  const { user: authUser } = useAuth();
+  const { items: users, loading, create, update, remove } = useApiResource<ApiUser>('/admin/users');
+  const { items: departments } = useApiResource<DeptApi>('/admin/departments');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [deptFilter, setDeptFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [detailUser, setDetailUser] = useState<User | null>(null);
-  const [editing, setEditing] = useState<User | null>(null);
-  const [confirmDel, setConfirmDel] = useState<User | null>(null);
+  const [detailUser, setDetailUser] = useState<ApiUser | null>(null);
+  const [editing, setEditing] = useState<ApiUser | null>(null);
+  const [confirmDel, setConfirmDel] = useState<ApiUser | null>(null);
   const [confirmBulkDel, setConfirmBulkDel] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
 
+  const activeDepartments = useMemo(() => departments.filter((d) => d.isActive), [departments]);
+  const departmentOptions = useMemo(() => activeDepartments.map((d) => ({ label: d.name, value: d.name })), [activeDepartments]);
+
+  const suggestEmployeeId = () => nextId('EMP', users.map((u) => ({ id: u.employeeId || '' })));
+
   const initialForm: any = {
-    firstName: '', lastName: '', name: '', employeeId: nextId('EMP', users), email: '', phone: '',
-    username: '', roleId: '', departmentId: '', designation: '', dateOfJoining: new Date().toISOString().slice(0, 10),
-    photo: '', sendInvite: true, notes: '', status: 'Active' as 'Active' | 'Inactive',
+    firstName: '', lastName: '', name: '', employeeId: suggestEmployeeId(), email: '', phone: '',
+    username: '', role: '', department: '', designation: '', dateOfJoining: new Date().toISOString().slice(0, 10),
+    photo: '', sendInvite: true, notes: '', status: 'Active' as 'Active' | 'Inactive', password: '',
   };
   const [form, setForm] = useState<any>(initialForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
 
   const filtered = useMemo(() => users.filter((u) => {
     const q = search.toLowerCase();
-    if (search && !(u.name.toLowerCase().includes(q) || u.employeeId.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))) return false;
-    if (roleFilter !== 'all' && u.roleId !== roleFilter) return false;
-    if (deptFilter !== 'all' && u.departmentId !== deptFilter) return false;
-    if (statusFilter !== 'all' && u.status !== statusFilter) return false;
+    if (search && !(u.name.toLowerCase().includes(q) || (u.employeeId || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q))) return false;
+    if (roleFilter !== 'all' && u.role !== roleFilter) return false;
+    if (deptFilter !== 'all' && u.department !== deptFilter) return false;
+    const status = u.isActive ? 'Active' : 'Inactive';
+    if (statusFilter !== 'all' && status !== statusFilter) return false;
     return true;
   }), [users, search, roleFilter, deptFilter, statusFilter]);
 
-  const openAdd = () => { setEditing(null); setForm({ ...initialForm, employeeId: nextId('EMP', users) }); setErrs({}); setDrawerOpen(true); };
-  const openEdit = (u: User) => {
+  const openAdd = () => { setEditing(null); setForm({ ...initialForm, employeeId: suggestEmployeeId() }); setErrs({}); setDrawerOpen(true); };
+  const openEdit = (u: ApiUser) => {
     setEditing(u);
     const parts = u.name.split(' ');
     setForm({
@@ -100,6 +146,7 @@ export const UsersPage = () => {
       phone: u.phone || '', username: u.username || u.email.split('@')[0],
       designation: u.designation || '', dateOfJoining: u.dateOfJoining || u.createdAt?.slice(0, 10) || '',
       photo: u.photo || '', sendInvite: false, notes: u.notes || '',
+      status: u.isActive ? 'Active' : 'Inactive',
     });
     setErrs({}); setDrawerOpen(true);
   };
@@ -112,53 +159,92 @@ export const UsersPage = () => {
     if (!form.employeeId?.trim()) e.employeeId = 'Required';
     if (!form.email?.trim()) e.email = 'Required';
     else if (!isValidEmail(form.email)) e.email = 'Invalid email';
-    if (!form.roleId) e.roleId = 'Required';
-    if (!form.departmentId) e.departmentId = 'Required';
+    if (!form.role) e.role = 'Required';
+    if (!editing && !form.password?.trim()) e.password = 'Required';
     setErrs(e);
     if (Object.keys(e).length) return;
     // FileInput yields string[]; a user photo is single — store the last entry as a plain string.
     const photo = Array.isArray(form.photo) ? form.photo[form.photo.length - 1] || '' : form.photo || '';
-    const payload = { ...form, name: fullName, photo };
-    const res = editing ? updateUser(editing.id, payload) : addUser(payload);
-    if (!res.success) { toast.error(res.error || 'Failed'); return; }
-    if (form.sendInvite && !editing) toast.success(`User created — invite email sent to ${form.email}`);
-    else toast.success(editing ? 'User updated' : 'User created');
-    setDrawerOpen(false);
+    const payload: Partial<ApiUser> & { password?: string } = {
+      ...form,
+      name: fullName,
+      photo,
+      isActive: form.status === 'Active' || form.status === true,
+      organization: authUser?.organization,
+    };
+    delete (payload as any).status;
+    delete (payload as any).firstName;
+    delete (payload as any).lastName;
+    delete (payload as any).sendInvite;
+    if (editing) delete (payload as any).password;
+    try {
+      if (editing) await update(editing.id, payload);
+      else await create(payload);
+      if (form.sendInvite && !editing) toast.success(`User created — invite email sent to ${form.email}`);
+      else toast.success(editing ? 'User updated' : 'User created');
+      setDrawerOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
-  const handleBulkStatus = (status: 'Active' | 'Inactive') => {
-    bulkUpdateUserStatus(selected, status);
-    toast.success(`${selected.length} user${selected.length > 1 ? 's' : ''} marked ${status}`);
-    setSelected([]);
+  const handleBulkStatus = async (status: 'Active' | 'Inactive') => {
+    try {
+      await Promise.all(selected.map((id) => update(id, { isActive: status === 'Active' })));
+      toast.success(`${selected.length} user${selected.length > 1 ? 's' : ''} marked ${status}`);
+      setSelected([]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
-  const handleBulkDelete = () => {
-    selected.forEach((id) => deleteUser(id));
-    toast.success(`${selected.length} users deleted`);
-    setSelected([]); setConfirmBulkDel(false);
+  const handleBulkDelete = async () => {
+    try {
+      await Promise.all(selected.map((id) => remove(id)));
+      toast.success(`${selected.length} users deleted`);
+      setSelected([]); setConfirmBulkDel(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!confirmDel) return;
-    deleteUser(confirmDel.id);
-    toast.success(`${confirmDel.name} deleted`);
-    setConfirmDel(null);
+    try {
+      await remove(confirmDel.id);
+      toast.success(`${confirmDel.name} deleted`);
+      setConfirmDel(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    }
   };
 
-  const handleImport = (rows: Record<string, string>[]) => {
+  const handleImport = async (rows: Record<string, string>[]) => {
     let ok = 0, fail = 0;
-    rows.forEach((r) => {
-      const role = roles.find((x) => x.name.toLowerCase() === (r.Role || r.role || '').toLowerCase());
-      const dept = departments.find((x) => x.name.toLowerCase() === (r.Department || r.department || '').toLowerCase());
-      if (!role || !dept) { fail++; return; }
-      const res = addUser({
-        name: r.Name || r.name || '',
-        employeeId: r['Employee ID'] || r.employeeId || nextId('EMP', users),
-        email: r.Email || r.email || '',
-        roleId: role.id, departmentId: dept.id, status: 'Active',
-      });
-      if (res.success) ok++; else fail++;
-    });
+    for (const r of rows) {
+      const roleRaw = (r.Role || r.role || '').trim();
+      const roleOpt = ROLE_OPTIONS.find((x) => x.value.toLowerCase() === roleRaw.toLowerCase() || x.label.toLowerCase() === roleRaw.toLowerCase());
+      const email = r.Email || r.email || '';
+      const name = r.Name || r.name || '';
+      if (!roleOpt || !email || !name) { fail++; continue; }
+      try {
+        await create({
+          name,
+          employeeId: r['Employee ID'] || r.employeeId || suggestEmployeeId(),
+          email,
+          role: roleOpt.value,
+          department: r.Department || r.department || undefined,
+          // Imported rows have no password column — fall back to a temporary default;
+          // the user should change it on first login. Simplification for bulk import.
+          password: r.Password || r.password || 'Welcome@123',
+          isActive: true,
+          organization: authUser?.organization,
+        } as Partial<ApiUser>);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
     if (ok) toast.success(`${ok} users imported`);
     if (fail) toast.error(`${fail} rows skipped`);
   };
@@ -171,30 +257,30 @@ export const UsersPage = () => {
 
   const exportData = users.map((u) => ({
     Name: u.name,
-    'Employee ID': u.employeeId,
+    'Employee ID': u.employeeId || '',
     Email: u.email,
-    Role: roles.find((r) => r.id === u.roleId)?.name || '',
-    Department: departments.find((d) => d.id === u.departmentId)?.name || '',
-    Status: u.status,
+    Role: ROLE_LABEL[u.role] || u.role,
+    Department: u.department || '',
+    Status: u.isActive ? 'Active' : 'Inactive',
   }));
 
-  const columns: Column<User>[] = [
+  const columns: Column<ApiUser>[] = [
     { key: 'name',  header: 'Name', sortable: true, sortValue: (u) => u.name, cell: (u) => (
       <div className="flex items-center gap-3"><Avatar name={u.name} src={u.photo} size="sm" /><span className="font-medium">{u.name}</span></div>
     ) },
-    { key: 'emp',   header: 'Employee ID', sortable: true, sortValue: (u) => u.employeeId, cell: (u) => <span className="text-xs font-mono text-muted-foreground">{u.employeeId}</span> },
+    { key: 'emp',   header: 'Employee ID', sortable: true, sortValue: (u) => u.employeeId || '', cell: (u) => <span className="text-xs font-mono text-muted-foreground">{u.employeeId || '—'}</span> },
     { key: 'email', header: 'Email', cell: (u) => <span className="text-sm">{u.email}</span> },
-    { key: 'role',  header: 'Role', cell: (u) => { const r = roles.find((x) => x.id === u.roleId); return r ? <Badge variant={ROLE_VARIANT[r.name] || 'outline'}>{r.name}</Badge> : '—'; } },
-    { key: 'dept',  header: 'Department', cell: (u) => departments.find((d) => d.id === u.departmentId)?.name || '—' },
-    { key: 'status', header: 'Status', cell: (u) => <StatusBadge status={u.status} /> },
+    { key: 'role',  header: 'Role', cell: (u) => u.role ? <Badge variant={ROLE_VARIANT[u.role] || 'outline'}>{ROLE_LABEL[u.role] || u.role}</Badge> : '—' },
+    { key: 'dept',  header: 'Department', cell: (u) => u.department || '—' },
+    { key: 'status', header: 'Status', cell: (u) => <StatusBadge status={u.isActive ? 'Active' : 'Inactive'} /> },
     { key: 'actions', header: '', width: 'w-12', cell: (u) => (
       <div onClick={(e) => e.stopPropagation()}>
         <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
           <DropdownItem onClick={() => setDetailUser(u)}><Eye className="h-4 w-4" /> View Details</DropdownItem>
           <DropdownItem onClick={() => openEdit(u)}><Pencil className="h-4 w-4" /> Edit User</DropdownItem>
-          <DropdownItem onClick={() => updateUser(u.id, { status: u.status === 'Active' ? 'Inactive' : 'Active' })}>
-            {u.status === 'Active' ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-            {u.status === 'Active' ? 'Deactivate' : 'Activate'}
+          <DropdownItem onClick={() => update(u.id, { isActive: !u.isActive }).catch((err) => toast.error(err instanceof Error ? err.message : 'Something went wrong'))}>
+            {u.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+            {u.isActive ? 'Deactivate' : 'Activate'}
           </DropdownItem>
           <DropdownSeparator />
           <DropdownItem onClick={() => sendEmail(u.email)}><Send className="h-4 w-4" /> Send Email</DropdownItem>
@@ -221,8 +307,8 @@ export const UsersPage = () => {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Search by name, email or ID…" className="sm:w-72" />
-        <Select value={roleFilter} onChange={setRoleFilter} options={[{ label: 'All Roles', value: 'all' }, ...roles.map((r) => ({ label: r.name, value: r.id }))]} className="sm:w-40" />
-        <Select value={deptFilter} onChange={setDeptFilter} options={[{ label: 'All Departments', value: 'all' }, ...departments.map((d) => ({ label: d.name, value: d.id }))]} className="sm:w-44" />
+        <Select value={roleFilter} onChange={setRoleFilter} options={[{ label: 'All Roles', value: 'all' }, ...ROLE_OPTIONS]} className="sm:w-40" />
+        <Select value={deptFilter} onChange={setDeptFilter} options={[{ label: 'All Departments', value: 'all' }, ...departmentOptions]} className="sm:w-44" />
         <Select value={statusFilter} onChange={setStatusFilter} options={[{ label: 'All Status', value: 'all' }, { label: 'Active', value: 'Active' }, { label: 'Inactive', value: 'Inactive' }]} className="sm:w-36" />
       </div>
 
@@ -246,6 +332,7 @@ export const UsersPage = () => {
       <DataTable
         columns={columns} data={filtered} selectable selectedIds={selected} onSelectionChange={setSelected}
         onRowClick={(u) => setDetailUser(u)}
+        loading={loading}
         emptyTitle="No users found"
         emptyDescription={search ? `No results for "${search}"` : 'Add a user to get started.'}
       />
@@ -262,8 +349,7 @@ export const UsersPage = () => {
           setForm={(f: any) => setForm(f)}
           errs={errs}
           editing={!!editing}
-          roles={roles}
-          departments={departments.filter((d) => d.status === 'Active')}
+          departmentOptions={departmentOptions}
         />
       </FormDrawer>
 
@@ -280,10 +366,10 @@ export const UsersPage = () => {
                 </div>
               </div>
               <dl className="grid grid-cols-2 gap-4 text-sm">
-                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Employee ID</dt><dd className="mt-1 font-mono">{detailUser.employeeId}</dd></div>
-                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Status</dt><dd className="mt-1"><StatusBadge status={detailUser.status} /></dd></div>
-                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Role</dt><dd className="mt-1">{roles.find((r) => r.id === detailUser.roleId)?.name}</dd></div>
-                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Department</dt><dd className="mt-1">{departments.find((d) => d.id === detailUser.departmentId)?.name}</dd></div>
+                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Employee ID</dt><dd className="mt-1 font-mono">{detailUser.employeeId || '—'}</dd></div>
+                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Status</dt><dd className="mt-1"><StatusBadge status={detailUser.isActive ? 'Active' : 'Inactive'} /></dd></div>
+                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Role</dt><dd className="mt-1">{ROLE_LABEL[detailUser.role] || detailUser.role}</dd></div>
+                <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Department</dt><dd className="mt-1">{detailUser.department || '—'}</dd></div>
                 {detailUser.designation && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Designation</dt><dd className="mt-1">{detailUser.designation}</dd></div>}
                 {detailUser.phone && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Phone</dt><dd className="mt-1">{detailUser.phone}</dd></div>}
                 {detailUser.dateOfJoining && <div><dt className="text-xs text-muted-foreground uppercase tracking-wider">Date of Joining</dt><dd className="mt-1">{detailUser.dateOfJoining}</dd></div>}

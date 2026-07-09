@@ -15,15 +15,35 @@ import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetFooter, SheetDescriptio
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormDrawer } from '@/components/shared/FormDrawer';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { useData } from '@/context/DataContext';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { useApiResource } from '@/hooks/useApi';
+import { useAuth } from '@/context/AuthContext';
 import { ALL_PAGES } from '@/data/mockData';
 import { staggerContainer, staggerItem } from '@/lib/animations';
-import type { Role, Permission } from '@/types';
+import type { Permission } from '@/types';
 
-const ROLE_ICONS: Record<string, any> = { Admin: ShieldCheck, Management: Eye, 'Production Manager': Clipboard, 'Stores Manager': Warehouse, 'Quality Manager': Award, Inspector: HardHat };
+/** Backend Role shape (server/models/Role.ts) — name is a plain string, no FK to User. */
+interface Role {
+  id: string;
+  _id: string;
+  name: string;
+  description: string;
+  isSystem: boolean;
+  permissions: Record<string, Permission>;
+  organization?: string;
+}
+
+// Backend seeds system role names in PascalCase (no spaces) — matches User.role enum exactly.
+const ROLE_ICONS: Record<string, any> = { Admin: ShieldCheck, Management: Eye, ProductionManager: Clipboard, StoresManager: Warehouse, QualityManager: Award, Inspector: HardHat };
+
+/** "ProductionManager" -> "Production Manager" for display; custom role names (already spaced) pass through. */
+const formatRoleName = (name: string) => name.replace(/([a-z])([A-Z])/g, '$1 $2');
 
 export const RolesPage = () => {
-  const { roles, users, addRole, updateRole, deleteRole } = useData();
+  const { user } = useAuth();
+  const { items: roles, loading, create: addRole, update: updateRole, remove: deleteRole } = useApiResource<Role>('/roles');
+  // Read-only: used only to count users per role (User.role is a plain enum string, not a Role FK).
+  const { items: users } = useApiResource<any>('/admin/users');
   const [view, setView] = useState<Role | null>(null);
   const [editing, setEditing] = useState<Role | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -37,16 +57,26 @@ export const RolesPage = () => {
   const [err, setErr] = useState('');
 
   const openAdd = () => { setEditing(null); setForm({ name: '', description: '', permissions: blankPerm() }); setErr(''); setDrawerOpen(true); };
-  const openEdit = (r: Role) => { setEditing(r); setForm({ name: r.name, description: r.description, permissions: r.permissions }); setErr(''); setDrawerOpen(true); };
+  // Backend roles (e.g. system-seeded ones) may only have sparse entries in `permissions` (a '*' wildcard
+  // plus a few specific pages) — merge onto a full blankPerm() so every ALL_PAGES key is always present.
+  const openEdit = (r: Role) => { setEditing(r); setForm({ name: r.name, description: r.description, permissions: { ...blankPerm(), ...r.permissions } }); setErr(''); setDrawerOpen(true); };
 
   const submit = async () => {
     if (!form.name.trim()) { setErr('Role name is required'); return; }
-    const res = editing
-      ? updateRole(editing.id, { name: form.name.trim(), description: form.description.trim() || 'Custom role', permissions: form.permissions })
-      : addRole({ name: form.name.trim(), description: form.description.trim() || 'Custom role', isSystem: false, permissions: form.permissions });
-    if (!res.success) { setErr(res.error || 'Failed'); toast.error(res.error); return; }
-    toast.success(editing ? 'Role updated' : 'Role created');
-    setDrawerOpen(false);
+    try {
+      if (editing) {
+        await updateRole(editing.id, { name: form.name.trim(), description: form.description.trim() || 'Custom role', permissions: form.permissions });
+        toast.success('Role updated');
+      } else {
+        await addRole({ name: form.name.trim(), description: form.description.trim() || 'Custom role', isSystem: false, permissions: form.permissions, organization: user?.organization });
+        toast.success('Role created');
+      }
+      setDrawerOpen(false);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed';
+      setErr(msg);
+      toast.error(msg);
+    }
   };
 
   const togglePerm = (page: string, key: keyof Permission) => {
@@ -67,14 +97,18 @@ export const RolesPage = () => {
 
   const duplicateRole = (r: Role) => {
     setEditing(null);
-    setForm({ name: `${r.name} (Copy)`, description: r.description, permissions: { ...r.permissions } });
+    setForm({ name: `${formatRoleName(r.name)} (Copy)`, description: r.description, permissions: { ...blankPerm(), ...r.permissions } });
     setErr(''); setDrawerOpen(true);
   };
 
+  const userCountFor = (r: Role) => users.filter((u) => u.role === r.name).length;
+
   const exportData = roles.map((r) => ({
-    Name: r.name, Description: r.description, Type: r.isSystem ? 'System' : 'Custom',
-    Users: users.filter((u) => u.roleId === r.id).length,
+    Name: formatRoleName(r.name), Description: r.description, Type: r.isSystem ? 'System' : 'Custom',
+    Users: userCountFor(r),
   }));
+
+  if (loading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
 
   return (
     <PageWrapper>
@@ -92,7 +126,7 @@ export const RolesPage = () => {
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {roles.map((r) => {
           const Icon = ROLE_ICONS[r.name] || ShieldCheck;
-          const userCount = users.filter((u) => u.roleId === r.id).length;
+          const userCount = userCountFor(r);
           return (
             <motion.div key={r.id} variants={staggerItem} whileHover={{ y: -2 }} transition={{ duration: 0.2 }}>
               <Card className="p-6 hover:shadow-md h-full flex flex-col">
@@ -102,7 +136,7 @@ export const RolesPage = () => {
                   </div>
                   {r.isSystem ? <Badge variant="slate">System</Badge> : <Badge variant="accent">Custom</Badge>}
                 </div>
-                <h3 className="font-semibold mb-1">{r.name}</h3>
+                <h3 className="font-semibold mb-1">{formatRoleName(r.name)}</h3>
                 <p className="text-sm text-muted-foreground mb-4 flex-1">{r.description}</p>
                 <div className="flex items-center justify-between pt-3 border-t">
                   <span className="text-xs text-muted-foreground">{userCount} user{userCount !== 1 ? 's' : ''}</span>
@@ -131,7 +165,7 @@ export const RolesPage = () => {
         {view && (
           <>
             <SheetHeader>
-              <SheetTitle>{view.name} — Permissions</SheetTitle>
+              <SheetTitle>{formatRoleName(view.name)} — Permissions</SheetTitle>
               <SheetDescription>{view.description}</SheetDescription>
             </SheetHeader>
             <SheetBody>
@@ -232,7 +266,17 @@ export const RolesPage = () => {
       </FormDrawer>
 
       <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.name}
-        onConfirm={() => { if (confirmDel) { const r = deleteRole(confirmDel.id); if (r.success) { toast.success('Role deleted'); setConfirmDel(null); } else toast.error(r.error); } }} />
+        onConfirm={async () => {
+          if (!confirmDel) return;
+          if (confirmDel.isSystem) { toast.error('Cannot delete a system role'); setConfirmDel(null); return; }
+          try {
+            await deleteRole(confirmDel.id);
+            toast.success('Role deleted');
+            setConfirmDel(null);
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Failed to delete role');
+          }
+        }} />
     </PageWrapper>
   );
 };
