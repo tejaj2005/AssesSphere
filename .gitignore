@@ -6,3 +6,4 @@ dist-node
 *.local
 .env*
 *.tsbuildinfo
+server/uploads
