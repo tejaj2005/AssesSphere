@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { QualityDashboardPage } from '@/components/dashboard/QualityDashboardPage';
-import { useData } from '@/context/DataContext';
-import { useDashboardFilters, standardColumns, InspectionDetailSheet } from '@/pages/management/dashboardHelpers';
+import { useAuth } from '@/context/AuthContext';
+import { useApiResource } from '@/hooks/useApi';
+import { useDashboardFilters, standardColumns, InspectionDetailSheet, reportsToRecords } from '@/pages/management/dashboardHelpers';
 import { ProductQualityDashboard } from '@/pages/management/ProductQualityDashboard';
 import { ManufacturingQualityDashboard } from '@/pages/management/ManufacturingQualityDashboard';
 import { AssemblingQualityDashboard } from '@/pages/management/AssemblingQualityDashboard';
@@ -17,9 +18,53 @@ export const QMMaterialQualityDash = MaterialQualityDashboard;
 export const QMSupplierDash = SupplierEvalDashboard;
 
 export const QMComponentQualityDash = () => {
-  const { inspectionRecords, products, components } = useData();
-  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords, 'COMPONENT');
+  const { user } = useAuth();
+  const query = useMemo(() => (user?.organization ? { organization: user.organization } : undefined), [user?.organization]);
+  const componentPlanQuery = useMemo(
+    () => (user?.organization ? { organization: user.organization, planType: 'R2_COMPONENT' } : undefined),
+    [user?.organization]
+  );
+
+  const { items: reports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', query);
+  const { items: plans, loading: plansLoading } = useApiResource<any>('/inspection-plans', componentPlanQuery);
+  const { items: products } = useApiResource<any>('/admin/products', query);
+  const { items: components } = useApiResource<any>('/admin/components', query);
+
+  const componentMap = useMemo(
+    () => Object.fromEntries(components.map((c) => [c.id, c.name])),
+    [components]
+  );
+
+  // reportsToRecords doesn't resolve `plan.component` (list endpoints don't populate it), so
+  // separately join report -> plan -> component here to fill in componentName/componentId.
+  const reportComponent = useMemo(() => {
+    const plansById = new Map(plans.map((p: any) => [String(p._id ?? p.id), p]));
+    const map: Record<string, { componentId?: string; componentName?: string }> = {};
+    reports.forEach((r: any) => {
+      const planRef = r.plan;
+      const planIdRaw = typeof planRef === 'string' ? planRef : planRef?._id;
+      const plan = planIdRaw ? plansById.get(String(planIdRaw)) : undefined;
+      const componentId = plan?.component ? String(plan.component) : undefined;
+      map[String(r._id ?? r.id)] = { componentId, componentName: componentId ? componentMap[componentId] : undefined };
+    });
+    return map;
+  }, [reports, plans, componentMap]);
+
+  const records = useMemo(
+    () => reportsToRecords(reports, plans, { planTypes: ['R2_COMPONENT'] }).map((r) => {
+      const reportId = r.id.slice(0, r.id.lastIndexOf('-'));
+      const extra = reportComponent[reportId];
+      return extra?.componentId ? { ...r, componentId: extra.componentId, componentName: extra.componentName } : r;
+    }),
+    [reports, plans, reportComponent]
+  );
+
+  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(records, 'COMPONENT');
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
+
+  if (reportsLoading || plansLoading) {
+    return <p className="text-sm text-muted-foreground p-6">Loading component quality data…</p>;
+  }
 
   const exportRows = filtered.map((r) => ({
     Date: formatDate(r.date), Product: r.productName, Component: r.componentName,

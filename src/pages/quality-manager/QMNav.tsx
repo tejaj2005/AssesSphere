@@ -1,4 +1,4 @@
-import { LayoutDashboard, ClipboardList, FileEdit, Users, FlaskConical, FileCheck, BarChart3, Factory, Wrench, Layers, Puzzle, Truck } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, FileEdit, Users, FlaskConical, FileCheck, BarChart3, Factory, Wrench, Layers, Puzzle, Truck, Sparkles } from 'lucide-react';
 import type { NavGroup } from '@/components/layout/navConfig';
 
 export const QM_NAV: NavGroup[] = [
@@ -18,6 +18,7 @@ export const QM_NAV: NavGroup[] = [
       { label: 'Review Reports', icon: FileCheck,   to: '/qm/review-reports' },
     ],
   },
+  { label: 'AI Tools', items: [{ label: 'AI Gap Analysis', icon: Sparkles, to: '/qm/ai-gap-analysis' }] },
   {
     label: 'Dashboards',
     items: [

@@ -1,8 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
-import { Loader2, AlertTriangle } from 'lucide-react';
-import { isSameDay } from 'date-fns';
+import { Loader2 } from 'lucide-react';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
@@ -12,28 +11,35 @@ import { Select } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
-import { useData } from '@/context/DataContext';
+import { useApiResource } from '@/hooks/useApi';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-
-import type { InspectorReportType } from '@/types';
 
 type AssignTab = 'MATERIAL_RECEIVED' | 'MANUFACTURING' | 'ASSEMBLING' | 'COMPONENT';
 
-// Map an assignment tab to the inspector report queue that handles it.
-// Manufacturing stage inspections are filed under the Component queue
-// (see ReportListPage scaffolding), assembling under Assembly.
-const TAB_TO_REPORT_TYPE: Record<AssignTab, InspectorReportType> = {
-  MATERIAL_RECEIVED: 'MATERIAL',
-  MANUFACTURING: 'COMPONENT',
-  ASSEMBLING: 'ASSEMBLY',
-  COMPONENT: 'COMPONENT',
+// Mock InspectionPlan.type -> backend InspectionPlan.planType.
+const TAB_TO_PLAN_TYPE: Record<AssignTab, string> = {
+  MATERIAL_RECEIVED: 'R1_MATERIAL',
+  MANUFACTURING: 'R3_MANUFACTURING',
+  ASSEMBLING: 'R4_ASSEMBLY',
+  COMPONENT: 'R2_COMPONENT',
 };
 
+/** Ref fields may arrive populated (object) or as a raw id string depending on the endpoint. */
+const refId = (v: any): string => (v && typeof v === 'object' ? v._id : v) || '';
+const refName = (v: any): string => (v && typeof v === 'object' ? v.name : '') || '';
+
 export const AssignInspectors = () => {
-  const { inspectionPlans, materialPlans, users, roles, products, updateInspectionPlan, updateMaterialPlan, resourceAssignments, inspectorTasks, addInspectorTask } = useData();
   const { user } = useAuth();
+  // Single fetch across all plan types (mirrors the old "all inspectionPlans + materialPlans"
+  // approach); tabs filter client-side so switching tabs doesn't refetch.
+  const { items, loading, error, refetch } = useApiResource<any>('/inspection-plans', {
+    organization: user?.organization || '',
+    limit: '1000',
+  });
+  const [inspectors, setInspectors] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [tab, setTab] = useState<AssignTab>('MANUFACTURING');
   const [productFilter, setProductFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'Unassigned' | 'Assigned'>('all');
@@ -41,80 +47,105 @@ export const AssignInspectors = () => {
   const [bulkInspector, setBulkInspector] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const inspectorRole = roles.find((r) => r.name === 'Inspector');
-  const inspectors = users.filter((u) => u.roleId === inspectorRole?.id);
+  useEffect(() => {
+    if (!user?.organization) return;
+    api.getList<any>(`/admin/users?role=Inspector&organization=${user.organization}&limit=500`)
+      .then(({ data }) => setInspectors(data.map((u: any) => ({ ...u, id: u._id }))))
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Failed to load inspectors'));
+    api.getList<any>(`/admin/products?organization=${user.organization}&limit=500`)
+      .then(({ data }) => setProducts(data.map((p: any) => ({ ...p, id: p._id }))))
+      .catch(() => {});
+  }, [user?.organization]);
 
-  const inspectorLoad = (id: string, date?: string) =>
-    resourceAssignments.filter((r) => r.inspectorId === id && r.status !== 'COMPLETED' && (!date || isSameDay(new Date(r.assignedDate), new Date(date)))).length;
+  // No per-assignment "date" exists on a plan (only a single dueDate for the whole plan), so
+  // workload is simplified to "how many ACTIVE plans (of any type) is this inspector on".
+  const inspectorLoad = (id: string) =>
+    items.filter((p) => p.status === 'ACTIVE' && (p.assignedInspectors || []).some((u: any) => refId(u) === id)).length;
 
-  const allRows = useMemo(() => {
-    if (tab === 'MATERIAL_RECEIVED') {
-      return materialPlans.map((p) => ({ id: p.id, code: p.planCode, productName: p.productName, productId: p.productId, stage: `${p.materialName} (${p.quantity} ${p.unit})`, status: p.overallStatus, inspectorId: p.inspectorId, inspectorName: p.inspectorName, isMaterial: true, date: p.date }));
-    }
-    return inspectionPlans.filter((p) => p.type === tab).map((p) => ({ id: p.id, code: p.planCode, productName: p.productName, productId: p.productId, stage: p.stageName || p.componentName || p.materialName || '—', status: p.status, inspectorId: p.inspectorId, inspectorName: p.inspectorName, isMaterial: false, date: p.inspectionDate || p.createdAt }));
-  }, [tab, inspectionPlans, materialPlans]);
+  const allRows = useMemo(() => items
+    .filter((p) => p.planType === TAB_TO_PLAN_TYPE[tab])
+    .map((p) => {
+      const inspectorNames = (Array.isArray(p.assignedInspectors) ? p.assignedInspectors : [])
+        .map((u: any) => refName(u) || (typeof u === 'string' ? u : ''))
+        .filter(Boolean);
+      return {
+        id: p.id,
+        code: p.planId || p.id,
+        productName: refName(p.product) || p.title || '—',
+        productId: refId(p.product),
+        // manufacturingStage/assemblyStage/component refs aren't populated by GET /inspection-plans,
+        // so fall back to the plan's own title (for material plans, the populated material name).
+        stage: tab === 'MATERIAL_RECEIVED' ? (refName(p.material) || p.title || '—') : (p.title || '—'),
+        status: p.status,
+        inspectorNames,
+        date: p.dueDate || p.createdAt,
+      };
+    }), [items, tab]);
 
   const filtered = useMemo(() => allRows.filter((r) => {
     if (productFilter !== 'all' && r.productId !== productFilter) return false;
-    if (statusFilter === 'Unassigned' && r.inspectorId) return false;
-    if (statusFilter === 'Assigned' && !r.inspectorId) return false;
+    if (statusFilter === 'Unassigned' && r.inspectorNames.length > 0) return false;
+    if (statusFilter === 'Assigned' && r.inspectorNames.length === 0) return false;
     return true;
   }), [allRows, productFilter, statusFilter]);
 
-  // Push a task onto the inspector's queue so the assignment shows on their
-  // dashboard. Reuses an existing task for the same plan instead of duplicating.
-  const pushTask = (row: typeof allRows[number]) => {
-    if (inspectorTasks.some((t) => t.planId === row.id)) return;
-    const due = (row.date || new Date().toISOString()).slice(0, 10);
-    addInspectorTask({
-      planId: row.id, planCode: row.code, type: TAB_TO_REPORT_TYPE[tab],
-      productName: row.productName, stageName: row.stage,
-      dueDate: due, equipment: 'As per plan', status: 'ASSIGNED',
-    });
+  // Assigning also activates a DRAFT plan, since the inspector dashboard (GET /dashboard/inspector)
+  // only surfaces plans with status ACTIVE and the inspector in assignedInspectors.
+  const activateIfNeeded = async (planId: string) => {
+    const plan = items.find((p) => p.id === planId);
+    if (plan && plan.status !== 'ACTIVE' && plan.status !== 'COMPLETED') {
+      await api.put(`/inspection-plans/${planId}/activate`);
+    }
   };
 
-  const assign = (rowId: string, inspectorId: string, isMaterial: boolean) => {
+  const assign = async (planId: string, inspectorId: string) => {
     const insp = inspectors.find((u) => u.id === inspectorId);
     if (!insp) return;
-    if (isMaterial) updateMaterialPlan(rowId, { inspectorId: insp.id, inspectorName: insp.name });
-    else updateInspectionPlan(rowId, { inspectorId: insp.id, inspectorName: insp.name, status: 'ACTIVE' as any });
-    const row = allRows.find((r) => r.id === rowId);
-    if (row) pushTask(row);
-    toast.success(`Assigned to ${insp.name}. Task sent to inspector dashboard.`);
+    try {
+      await api.put(`/inspection-plans/${planId}/assign-inspector`, { inspectorId });
+      await activateIfNeeded(planId);
+      await refetch();
+      toast.success(`Assigned to ${insp.name}.`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
   };
 
   const bulkAssign = async () => {
     if (!bulkInspector) { toast.error('Select inspector'); return; }
     setBusy(true);
-    await new Promise((r) => setTimeout(r, 300));
-    const insp = inspectors.find((u) => u.id === bulkInspector)!;
-    selected.forEach((id) => {
-      const row = allRows.find((r) => r.id === id);
-      if (!row) return;
-      if (row.isMaterial) updateMaterialPlan(id, { inspectorId: insp.id, inspectorName: insp.name });
-      else updateInspectionPlan(id, { inspectorId: insp.id, inspectorName: insp.name, status: 'ACTIVE' as any });
-      pushTask(row);
-    });
-    toast.success(`Assigned ${selected.length} plans to ${insp.name}. Tasks sent to inspector dashboard.`);
-    setSelected([]); setBulkInspector(''); setBusy(false);
+    try {
+      const insp = inspectors.find((u) => u.id === bulkInspector);
+      await Promise.all(selected.map(async (id) => {
+        await api.put(`/inspection-plans/${id}/assign-inspector`, { inspectorId: bulkInspector });
+        await activateIfNeeded(id);
+      }));
+      await refetch();
+      toast.success(`Assigned ${selected.length} plan(s) to ${insp?.name || 'inspector'}.`);
+      setSelected([]); setBulkInspector('');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const exportRows = filtered.map((r) => ({ Plan: r.code, Product: r.productName, Stage: r.stage, Inspector: r.inspectorName || 'Unassigned', Status: r.status }));
+  const exportRows = filtered.map((r) => ({ Plan: r.code, Product: r.productName, Stage: r.stage, Inspector: r.inspectorNames.join(', ') || 'Unassigned', Status: r.status }));
 
   const columns: Column<typeof allRows[0]>[] = [
     { key: 'code', header: 'Plan Code', cell: (r) => <span className="font-mono text-xs font-medium">{r.code}</span> },
     { key: 'prod', header: 'Product', cell: (r) => <span className="font-medium text-sm">{r.productName}</span> },
     { key: 'stage', header: 'Stage / Material', cell: (r) => r.stage },
-    { key: 'insp', header: 'Inspector', cell: (r) => r.inspectorName ? (
-      <div className="flex items-center gap-2"><Avatar name={r.inspectorName} size="sm" /><span className="text-sm">{r.inspectorName}</span></div>
+    { key: 'insp', header: 'Inspector', cell: (r) => r.inspectorNames.length ? (
+      <div className="flex items-center gap-2"><Avatar name={r.inspectorNames[0]} size="sm" /><span className="text-sm">{r.inspectorNames.join(', ')}</span></div>
     ) : <Badge variant="warning">Unassigned</Badge> },
     { key: 'status', header: 'Status', cell: (r) => <Badge variant="outline">{r.status}</Badge> },
     { key: 'assign', header: 'Assign', width: 'w-52', cell: (r) => (
       <div onClick={(e) => e.stopPropagation()}>
-        <Select value="" onChange={(v) => assign(r.id, v, r.isMaterial)} options={inspectors.map((u) => {
-          const load = inspectorLoad(u.id, r.date);
-          return { label: load > 1 ? `${u.name} (${load} on this date)` : u.name, value: u.id };
-        })} placeholder={r.inspectorId ? 'Reassign' : 'Assign'} className="w-44" />
+        <Select value="" onChange={(v) => assign(r.id, v)} options={inspectors.map((u) => {
+          const load = inspectorLoad(u.id);
+          return { label: load > 1 ? `${u.name} (${load} active)` : u.name, value: u.id };
+        })} placeholder={r.inspectorNames.length ? 'Add Inspector' : 'Assign'} className="w-44" />
       </div>
     ) },
   ];
@@ -139,6 +170,8 @@ export const AssignInspectors = () => {
             <Select value={statusFilter} onChange={(v) => setStatusFilter(v as any)} options={[{ label: 'All Status', value: 'all' }, { label: 'Unassigned', value: 'Unassigned' }, { label: 'Assigned', value: 'Assigned' }]} className="w-40" />
           </div>
 
+          {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+
           <AnimatePresence>
             {selected.length > 0 && (
               <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mb-3 flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-accent/5">
@@ -150,7 +183,7 @@ export const AssignInspectors = () => {
             )}
           </AnimatePresence>
 
-          <DataTable columns={columns} data={filtered} selectable selectedIds={selected} onSelectionChange={setSelected} emptyTitle="No plans to assign" />
+          <DataTable columns={columns} data={filtered} loading={loading} selectable selectedIds={selected} onSelectionChange={setSelected} emptyTitle="No plans to assign" />
         </div>
 
         <Card>
