@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Upload, X, FileText, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -10,36 +10,71 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { RAGBadge } from '@/components/dashboard/RAGBadge';
-import { useData } from '@/context/DataContext';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { InspectionReport, InspectorReportType, ReportParameter, ReportChecklistItem, ChecklistObservation } from '@/types';
+import type { InspectorReportType, ReportParameter, ReportChecklistItem, ChecklistObservation } from '@/types';
 
 interface InspectionFormProps {
   type: InspectorReportType;
-  report?: InspectionReport;
-  taskId?: string;
+  /**
+   * Either an existing backend InspectionReport (id !== 'new'; shape per
+   * server/models/InspectionReport.ts — checklistResults/status/plan/observations/
+   * evidenceFiles/rejectionReason, with `plan` populated as {_id, planId, title, planType})
+   * or a fresh scaffold `{ id: 'new', plan: <full InspectionPlan incl. checklistTemplate> }`
+   * built by InspectorReports.tsx from an active plan assigned to this inspector.
+   * Left as `any` — the two shapes genuinely differ and this is a data-layer swap, not a
+   * type-modeling exercise.
+   */
+  report?: any;
 }
 
 const calcVar = (target: number, actual: number) => target === 0 ? 0 : ((actual - target) / target) * 100;
 const ragOf = (v: number): 'GREEN' | 'AMBER' | 'RED' => { const x = Math.abs(v); return x <= 2 ? 'GREEN' : x <= 5 ? 'AMBER' : 'RED'; };
 
-export const InspectionForm = ({ type, report, taskId }: InspectionFormProps) => {
-  const { inspectionPlans, materialPlans, addInspectionReport, updateInspectionReport, updateInspectorTask } = useData();
+export const InspectionForm = ({ type, report }: InspectionFormProps) => {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [parameters, setParameters] = useState<ReportParameter[]>(report?.parameters || []);
-  const [checklist, setChecklist] = useState<ReportChecklistItem[]>(report?.checklistItems || []);
-  const [observations, setObservations] = useState(report?.observations || '');
-  const [evidence, setEvidence] = useState<string[]>(report?.evidenceFiles || []);
-  const [overallStatus, setOverallStatus] = useState<'APPROVED' | 'REJECTED' | 'HOLD'>(report?.overallStatus || 'APPROVED');
-  const [busy, setBusy] = useState<'draft' | 'submit' | null>(null);
+  const isNew = !report || report.id === 'new';
+  // MATERIAL/COMPONENT reports measure numeric parameters against a target; ASSEMBLY/
+  // FINAL_PRODUCT reports run a PASS/FAIL/NOTE checklist. Both are ultimately backed by the
+  // same backend array (InspectionPlan.checklistTemplate / InspectionReport.checklistResults) —
+  // there's no separate "parameters" vs "checklist" concept server-side anymore.
+  const useParams = type === 'MATERIAL' || type === 'COMPONENT';
+  const sourceRows: any[] = isNew ? (report?.plan?.checklistTemplate || []) : (report?.checklistResults || []);
 
-  // For Material report type, use multi-reading? No, just single. For Component, use multi-reading (3 readings).
+  const [parameters, setParameters] = useState<ReportParameter[]>(() => !useParams ? [] : sourceRows.map((row, idx): ReportParameter => isNew ? {
+    id: `p-${idx}`, parameterName: row.parameter, unit: row.unit || '', targetValue: parseFloat(row.specificationValue) || 0,
+    readings: [], actualValue: 0, variance: 0, status: 'GREEN', equipment: 'Equipment',
+  } : {
+    id: `p-${idx}`, parameterName: row.parameter, unit: '', targetValue: parseFloat(row.specificationValue) || 0,
+    readings: [parseFloat(row.actualValue) || 0], actualValue: parseFloat(row.actualValue) || 0,
+    variance: row.variancePercent ?? 0, status: row.result === 'PASS' ? 'GREEN' : row.result === 'MARGINAL' ? 'AMBER' : 'RED',
+    equipment: 'Equipment', observation: row.observations,
+  }));
+
+  const [checklist, setChecklist] = useState<ReportChecklistItem[]>(() => useParams ? [] : sourceRows.map((row, idx): ReportChecklistItem => isNew ? {
+    id: `c-${idx}`, item: row.parameter, result: 'PENDING',
+  } : {
+    id: `c-${idx}`, item: row.parameter,
+    result: (row.result === 'PASS' ? 'PASS' : row.result === 'FAIL' ? 'FAIL' : row.observations ? 'NOTE' : 'PENDING') as ChecklistObservation,
+    note: row.observations,
+  }));
+
+  const [observations, setObservations] = useState(isNew ? '' : (report?.observations || ''));
+  const [evidence, setEvidence] = useState<string[]>(isNew ? [] : (report?.evidenceFiles || []).map((f: any) => f?.fileName || f));
+  const [overallStatus, setOverallStatus] = useState<'APPROVED' | 'REJECTED' | 'HOLD'>(
+    !isNew && report?.status === 'REJECTED' ? 'REJECTED' : !isNew && report?.status === 'ON_HOLD' ? 'HOLD' : 'APPROVED'
+  );
+  const [busy, setBusy] = useState<'draft' | 'submit' | null>(null);
+  // Tracks the Mongo _id once this report exists server-side, so a second "Save Draft"
+  // click PUTs the same document instead of creating a duplicate.
+  const [savedId, setSavedId] = useState<string | undefined>(isNew ? undefined : (report?._id || report?.id));
+
+  // For Component reports, take a 3-reading average for accuracy; other types use a single reading.
   const allowMultiReading = type === 'COMPONENT';
 
-  // Recompute variance live for each parameter
   const updateReading = (paramId: string, idx: number, value: number) => {
     setParameters((p) => p.map((par) => {
       if (par.id !== paramId) return par;
@@ -67,26 +102,62 @@ export const InspectionForm = ({ type, report, taskId }: InspectionFormProps) =>
     if (action === 'SUBMIT' && !allChecklistDone) { toast.error('Complete all checklist items first'); return; }
     if (action === 'SUBMIT' && evidenceMissing) { toast.error('Evidence required for rejections'); return; }
     setBusy(action === 'DRAFT' ? 'draft' : 'submit');
-    await new Promise((r) => setTimeout(r, 350));
+    try {
+      // Both parameters (numeric) and checklist (pass/fail/note) rows collapse into the
+      // single backend checklistResults[] shape (see server/models/InspectionReport.ts).
+      const checklistResults = [
+        ...parameters.map((p) => ({
+          parameter: p.parameterName,
+          specificationValue: `${p.targetValue}${p.unit ? ` ${p.unit}` : ''}`,
+          actualValue: `${p.actualValue}${p.unit ? ` ${p.unit}` : ''}`,
+          result: (p.status === 'GREEN' ? 'PASS' : p.status === 'AMBER' ? 'MARGINAL' : 'FAIL') as 'PASS' | 'MARGINAL' | 'FAIL',
+          variancePercent: p.variance,
+        })),
+        ...checklist.map((c) => ({
+          parameter: c.item,
+          specificationValue: 'Conformance',
+          actualValue: c.result === 'NOTE' ? (c.note || '') : c.result,
+          result: (c.result === 'PASS' ? 'PASS' : c.result === 'FAIL' ? 'FAIL' : 'NA') as 'PASS' | 'FAIL' | 'NA',
+          observations: c.result === 'NOTE' ? c.note : undefined,
+        })),
+      ];
 
-    const reportData: Omit<InspectionReport, 'id'> = {
-      reportCode: report?.reportCode || `IR-${type.slice(0, 3)}-${Date.now().toString().slice(-4)}`,
-      type, planId: report?.planId, planCode: report?.planCode,
-      productId: report?.productId, productName: report?.productName,
-      materialName: report?.materialName, supplierName: report?.supplierName,
-      componentName: report?.componentName, stageName: report?.stageName, assemblerResource: report?.assemblerResource,
-      parameters, checklistItems: checklist, observations, evidenceFiles: evidence, overallStatus,
-      inspectorId: user?.id || '', inspectorName: user?.name || 'Inspector',
-      inspectionDate: report?.inspectionDate || new Date().toISOString(),
-      submittedDate: action === 'SUBMIT' ? new Date().toISOString() : report?.submittedDate,
-      reportStatus: action === 'SUBMIT' ? 'SUBMITTED' : 'IN_PROGRESS',
-    };
+      const planId = report?.plan?._id || report?.plan?.id || report?.plan;
 
-    if (report) updateInspectionReport(report.id, reportData);
-    else addInspectionReport(reportData);
-    if (taskId) updateInspectorTask(taskId, { status: action === 'SUBMIT' ? 'SUBMITTED' : 'ASSIGNED' });
-    setBusy(null);
-    toast.success(action === 'DRAFT' ? 'Saved as draft' : `Report submitted for ${type === 'CALIBRATION' ? 'Quality Manager' : 'review'}`);
+      const payload: Record<string, any> = {
+        plan: planId,
+        inspector: user?.id,
+        inspectionDate: report?.inspectionDate || new Date().toISOString(),
+        checklistResults,
+        observations,
+        evidenceFiles: evidence.map((name) => ({ fileName: name, fileUrl: '', fileType: '' })),
+        organization: user?.organization,
+      };
+      // Explicit DRAFT status so re-saving a previously rejected/submitted report as a draft
+      // (correcting it) moves it back out of that state; SUBMIT is handled by the dedicated
+      // /submit endpoint below instead of setting status here.
+      if (action === 'DRAFT') payload.status = 'DRAFT';
+      // No dedicated inspector-side "overall status" field on the backend report — fold a
+      // rejection call into the free-text nonConformities column for the reviewer's benefit.
+      if (overallStatus === 'REJECTED') payload.nonConformities = observations;
+
+      let saved: any;
+      if (savedId) {
+        saved = await api.put(`/inspection-reports/${savedId}`, payload);
+      } else {
+        saved = await api.post('/inspection-reports', payload);
+        setSavedId(saved._id || saved.id);
+      }
+      if (action === 'SUBMIT') {
+        const id = saved._id || saved.id || savedId;
+        saved = await api.put(`/inspection-reports/${id}/submit`, {});
+      }
+      toast.success(action === 'DRAFT' ? 'Saved as draft' : 'Report submitted for review');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (

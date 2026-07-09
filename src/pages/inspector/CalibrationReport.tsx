@@ -1,32 +1,89 @@
-import { useState, useRef } from 'react';
-import { Upload, FileText, X, Loader2, Send, Save } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { Upload, FileText, X, Loader2, Send, Save, History } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
-import { useData } from '@/context/DataContext';
+import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
+import { formatDate } from '@/lib/utils';
+
+/** Backend Equipment model (server/models/Equipment.ts) — diverges from the old mock
+ * InspectionEquipment shape (code -> equipmentId, supplier -> vendorName, calibrationDueDate ->
+ * nextCalibrationDate), so a local interface is used instead of the mock `@/types` one. */
+interface EquipmentDoc {
+  _id: string;
+  id: string;
+  name: string;
+  equipmentId: string;
+  type: string;
+  vendorName?: string;
+  calibrationStatus: 'COMPLETED' | 'PENDING' | 'OVERDUE' | 'NOT_REQUIRED';
+  nextCalibrationDate?: string;
+  lastCalibrationDate?: string;
+  organization?: string;
+}
+
+/** Backend CalibrationRecord model (server/models/CalibrationRecord.ts). This page only
+ * submits + views the inspector's own history; approve/reject lives on the QM's
+ * CalibrationApprovals page. `equipment`/`submittedBy`/`reviewedBy` come back populated. */
+interface CalibrationRecordDoc {
+  _id: string;
+  id: string;
+  equipment: { _id: string; name: string; equipmentId: string; type: string } | string;
+  calibrationDate: string;
+  nextDueDate: string;
+  performedBy: string;
+  certificate?: string;
+  result: 'PASS' | 'FAIL' | 'CONDITIONAL';
+  notes?: string;
+  organization: string;
+  approvalStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedBy?: { _id: string; name: string } | string;
+  reviewedBy?: { _id: string; name: string } | string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  createdAt?: string;
+}
+
+const emptyForm = {
+  equipmentId: '', lab: '', certNumber: '', standard: '', result: 'PASS' as 'PASS' | 'FAIL' | 'CONDITIONAL',
+  calibrationDate: new Date().toISOString().slice(0, 10),
+  nextDue: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10),
+  remarks: '', certFile: '',
+};
 
 export const CalibrationReport = () => {
-  const { equipment, addCalibrationApproval, addInspectionReport } = useData();
   const { user } = useAuth();
-  const pendingEqp = equipment.filter((e) => e.calibrationStatus === 'PENDING');
+  const orgQuery = useMemo(() => ({ organization: user?.organization || '' }), [user?.organization]);
+  const { items: equipment, loading: eqpLoading } = useApiResource<EquipmentDoc>('/admin/equipment', orgQuery);
+  const { items: records, loading: recLoading, refetch: refetchRecords } = useApiResource<CalibrationRecordDoc>('/admin/calibration-records', orgQuery);
+
+  // Equipment awaiting or overdue for calibration is what an inspector can submit against.
+  const eligibleEqp = useMemo(() => equipment.filter((e) => e.calibrationStatus === 'PENDING' || e.calibrationStatus === 'OVERDUE'), [equipment]);
+
+  // The list endpoint returns every submission for the org — narrow to this inspector's own.
+  const mySubmissions = useMemo(() => records
+    .filter((r) => (typeof r.submittedBy === 'string' ? r.submittedBy : r.submittedBy?._id) === user?.id)
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')), [records, user?.id]);
+
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [form, setForm] = useState({
-    equipmentId: '', lab: '', certNumber: '', standard: '', result: 'PASS' as 'PASS' | 'FAIL',
-    nextDue: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10), remarks: '', certFile: '',
-  });
+  const [form, setForm] = useState(emptyForm);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<'draft' | 'submit' | null>(null);
 
-  const selected = equipment.find((e) => e.id === form.equipmentId);
+  const selected = eligibleEqp.find((e) => e.id === form.equipmentId);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -40,6 +97,7 @@ export const CalibrationReport = () => {
     const e: Record<string, string> = {};
     if (!form.equipmentId) e.equipmentId = 'Required';
     if (action === 'submit') {
+      if (!form.calibrationDate) e.calibrationDate = 'Required';
       if (!form.lab) e.lab = 'Required';
       if (!form.certNumber) e.certNumber = 'Required';
       if (!form.standard) e.standard = 'Required';
@@ -48,29 +106,39 @@ export const CalibrationReport = () => {
     setErrs(e);
     if (Object.keys(e).length) return;
     setBusy(action);
-    await new Promise((r) => setTimeout(r, 300));
-    const eq = selected!;
-    if (action === 'submit') {
-      addCalibrationApproval({
-        equipmentId: eq.id, equipmentName: eq.name, equipmentCode: eq.code, dueDate: eq.calibrationDueDate,
-        calibrationLab: form.lab, certificateNumber: form.certNumber, calibrationStandard: form.standard,
-        result: form.result, nextDueDate: form.nextDue, inspectorRemarks: form.remarks,
-        certificateFileName: form.certFile || 'cert.pdf', approvalStatus: 'PENDING',
-      });
-      addInspectionReport({
-        reportCode: `IR-CAL-${Date.now().toString().slice(-4)}`, type: 'CALIBRATION', productName: eq.name,
-        parameters: [], observations: form.remarks, evidenceFiles: form.certFile ? [form.certFile] : [],
-        overallStatus: form.result === 'PASS' ? 'APPROVED' : 'REJECTED',
-        inspectorId: user?.id || '', inspectorName: user?.name || 'Inspector',
-        inspectionDate: new Date().toISOString(), submittedDate: new Date().toISOString(), reportStatus: 'SUBMITTED',
+
+    if (action === 'draft') {
+      // CalibrationRecord has no draft state on the backend — mirrors the previous
+      // mock behavior of just acknowledging the save without persisting anywhere.
+      toast.success('Saved as draft');
+      setBusy(null);
+      return;
+    }
+
+    try {
+      const notes = [`Calibration Lab: ${form.lab}`, `Standard: ${form.standard}`, form.remarks, form.certFile && `Certificate File: ${form.certFile}`]
+        .filter(Boolean).join('\n');
+      await api.post(`/admin/equipment/${form.equipmentId}/calibration`, {
+        calibrationDate: form.calibrationDate,
+        nextDueDate: form.nextDue,
+        performedBy: user?.name || 'Inspector',
+        certificate: form.certNumber,
+        result: form.result,
+        notes,
+        submittedBy: user?.id,
+        organization: user?.organization,
       });
       toast.success('Calibration report submitted for Quality Manager approval');
-      setForm({ equipmentId: '', lab: '', certNumber: '', standard: '', result: 'PASS', nextDue: new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10), remarks: '', certFile: '' });
-    } else {
-      toast.success('Saved as draft');
+      setForm(emptyForm);
+      await refetchRecords();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(null);
     }
-    setBusy(null);
   };
+
+  if (eqpLoading || recLoading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
 
   return (
     <PageWrapper>
@@ -81,17 +149,22 @@ export const CalibrationReport = () => {
           <div className="space-y-1.5">
             <Label>Instrument <span className="text-destructive">*</span></Label>
             <Select value={form.equipmentId} onChange={(v) => setForm({ ...form, equipmentId: v })} error={!!errs.equipmentId}
-              options={pendingEqp.map((e) => ({ label: `${e.name} (${e.code})`, value: e.id }))} placeholder={pendingEqp.length ? 'Select pending equipment' : 'No pending calibrations'} />
+              options={eligibleEqp.map((e) => ({ label: `${e.name} (${e.equipmentId})`, value: e.id }))} placeholder={eligibleEqp.length ? 'Select pending equipment' : 'No pending calibrations'} />
             {errs.equipmentId && <p className="text-xs text-destructive">{errs.equipmentId}</p>}
           </div>
 
           {selected && (
             <div className="p-3 rounded-lg border bg-muted/30 text-xs grid grid-cols-2 gap-2">
-              <div><span className="text-muted-foreground">Code:</span> <span className="font-mono">{selected.code}</span></div>
-              <div><span className="text-muted-foreground">Due:</span> {new Date(selected.calibrationDueDate).toLocaleDateString()}</div>
-              <div><span className="text-muted-foreground">Supplier:</span> {selected.supplier}</div>
+              <div><span className="text-muted-foreground">Code:</span> <span className="font-mono">{selected.equipmentId}</span></div>
+              <div><span className="text-muted-foreground">Due:</span> {selected.nextCalibrationDate ? new Date(selected.nextCalibrationDate).toLocaleDateString() : '—'}</div>
+              <div><span className="text-muted-foreground">Supplier:</span> {selected.vendorName || '—'}</div>
             </div>
           )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label>Calibration Date <span className="text-destructive">*</span></Label><DatePicker value={form.calibrationDate} onChange={(v) => setForm({ ...form, calibrationDate: v })} />{errs.calibrationDate && <p className="text-xs text-destructive">{errs.calibrationDate}</p>}</div>
+            <div className="space-y-1.5"><Label>Next Calibration Due</Label><DatePicker value={form.nextDue} onChange={(v) => setForm({ ...form, nextDue: v })} /></div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>Calibration Lab <span className="text-destructive">*</span></Label><Input value={form.lab} error={!!errs.lab} onChange={(e) => { setForm({ ...form, lab: e.target.value }); setErrs({ ...errs, lab: '' }); }} placeholder="e.g., NationalCal" />{errs.lab && <p className="text-xs text-destructive">{errs.lab}</p>}</div>
@@ -101,11 +174,9 @@ export const CalibrationReport = () => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>Calibration Standard <span className="text-destructive">*</span></Label><Input value={form.standard} error={!!errs.standard} onChange={(e) => { setForm({ ...form, standard: e.target.value }); setErrs({ ...errs, standard: '' }); }} placeholder="ISO 3611" />{errs.standard && <p className="text-xs text-destructive">{errs.standard}</p>}</div>
             <div className="space-y-1.5"><Label>Result</Label>
-              <Select value={form.result} onChange={(v) => setForm({ ...form, result: v as 'PASS' | 'FAIL' })} options={[{ label: 'Pass', value: 'PASS' }, { label: 'Fail', value: 'FAIL' }]} />
+              <Select value={form.result} onChange={(v) => setForm({ ...form, result: v as 'PASS' | 'FAIL' | 'CONDITIONAL' })} options={[{ label: 'Pass', value: 'PASS' }, { label: 'Fail', value: 'FAIL' }, { label: 'Conditional', value: 'CONDITIONAL' }]} />
             </div>
           </div>
-
-          <div className="space-y-1.5"><Label>Next Calibration Due</Label><DatePicker value={form.nextDue} onChange={(v) => setForm({ ...form, nextDue: v })} /></div>
 
           <div className="space-y-1.5"><Label>Inspector Remarks <span className="text-destructive">*</span></Label><Textarea value={form.remarks} error={!!errs.remarks} onChange={(e) => { setForm({ ...form, remarks: e.target.value }); setErrs({ ...errs, remarks: '' }); }} rows={3} placeholder="Summary of calibration result, any adjustments made…" />{errs.remarks && <p className="text-xs text-destructive">{errs.remarks}</p>}</div>
 
@@ -126,6 +197,34 @@ export const CalibrationReport = () => {
           </div>
         </div>
       </Card>
+
+      <div className="max-w-3xl mt-6">
+        <h3 className="text-sm font-semibold mb-3 flex items-center gap-1.5"><History className="h-4 w-4" /> My Submissions</h3>
+        {mySubmissions.length === 0 ? (
+          <Card className="p-8"><EmptyState title="No submissions yet" description="Calibration reports you submit will show up here with their approval status." /></Card>
+        ) : (
+          <div className="space-y-2">
+            {mySubmissions.map((r) => {
+              const eq = typeof r.equipment === 'string' ? null : r.equipment;
+              return (
+                <Card key={r.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm">{eq?.name || 'Equipment'} <span className="text-xs text-muted-foreground font-mono">{eq?.equipmentId}</span></p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Calibrated {formatDate(r.calibrationDate)} · Next due {formatDate(r.nextDueDate)}</p>
+                      {r.approvalStatus === 'REJECTED' && r.rejectionReason && <p className="text-xs text-red-700 dark:text-red-400 italic mt-1">"{r.rejectionReason}"</p>}
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Badge variant={r.result === 'PASS' ? 'success' : r.result === 'FAIL' ? 'danger' : 'warning'}>{r.result}</Badge>
+                      <Badge variant={r.approvalStatus === 'APPROVED' ? 'success' : r.approvalStatus === 'REJECTED' ? 'danger' : 'warning'}>{r.approvalStatus}</Badge>
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </PageWrapper>
   );
 };
