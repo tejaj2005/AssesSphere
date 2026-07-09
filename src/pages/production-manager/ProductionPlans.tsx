@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, CheckCircle2, Clock, Circle, Loader2, Factory, Wrench } from 'lucide-react';
+import { Plus, CheckCircle2, Clock, Circle, Loader2, Factory, Wrench, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -17,7 +17,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
-import { useData } from '@/context/DataContext';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
+import { useApiResource } from '@/hooks/useApi';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import { formatDate, cn } from '@/lib/utils';
@@ -39,22 +42,87 @@ const completion = (p: ProductionPlan) => {
   return Math.round((stages.filter((s) => s.status === 'COMPLETED').length / stages.length) * 100);
 };
 
-export const ProductionPlans = () => {
-  const { productionPlans, products, manufacturingStages, assemblingStages, users, roles, addProductionPlan } = useData();
-  const { user } = useAuth();
+/** Maps a raw stage-assignment sub-doc (from ProductionPlan.manufacturingStages/assemblingStages)
+ * into the mock-shaped `ProductionStageAssignment` the existing JSX was written against.
+ * `stage` may be a populated object (single-plan GET) or a bare ObjectId string (list GET). */
+const toStageView = (s: any, stageType: ProductionStageAssignment['stageType']): ProductionStageAssignment => {
+  const stageObj = typeof s.stage === 'object' && s.stage ? s.stage : null;
+  const opObj = typeof s.operator === 'object' && s.operator ? s.operator : null;
+  return {
+    stageId: stageObj?._id || s.stage || '',
+    stageName: stageObj?.name || '',
+    stageType,
+    order: s.order ?? stageObj?.sequence ?? 0,
+    workCenter: s.workCenter || stageObj?.workCenter,
+    standardTimeMin: s.standardTimeMin ?? stageObj?.standardTimeMin,
+    operatorId: opObj?._id || (typeof s.operator === 'string' ? s.operator : undefined),
+    operatorName: opObj?.name,
+    status: s.status,
+  };
+};
 
-  const operatorRole = roles.find((r) => r.name === 'Operator');
-  const operators = useMemo(() => users.filter((u) => u.roleId === operatorRole?.id && u.status === 'Active'), [users, operatorRole]);
-  // Domain split: machining work centres draw from Production, assembly from the Assembly dept.
-  const machineOperators = operators.filter((u) => u.departmentId === 'DEPT-001');
-  const assemblyOperators = operators.filter((u) => u.departmentId === 'DEPT-004');
-  const mfgPool = machineOperators.length ? machineOperators : operators;
-  const asmPool = assemblyOperators.length ? assemblyOperators : operators;
+/** Maps a raw ProductionPlan API doc into the mock-shaped `ProductionPlan` view type. */
+const toPlanView = (raw: any): ProductionPlan => {
+  const prod = typeof raw.product === 'object' && raw.product ? raw.product : null;
+  const creator = typeof raw.createdBy === 'object' && raw.createdBy ? raw.createdBy : null;
+  return {
+    id: raw._id || raw.id,
+    planCode: raw.planId || '',
+    productId: prod?._id || raw.product || '',
+    productName: prod?.name || '',
+    productCode: prod?.productId || '',
+    targetQuantity: raw.targetQuantity,
+    plannedStartDate: raw.plannedStartDate,
+    plannedEndDate: raw.plannedEndDate,
+    manufacturingStages: (raw.manufacturingStages || []).map((s: any) => toStageView(s, 'MANUFACTURING')),
+    assemblingStages: (raw.assemblingStages || []).map((s: any) => toStageView(s, 'ASSEMBLING')),
+    status: raw.status,
+    notes: raw.notes,
+    createdBy: creator?.name || raw.createdBy || '',
+    createdAt: raw.createdAt,
+  };
+};
+
+export const ProductionPlans = () => {
+  const { user } = useAuth();
+  const { items: rawPlans, loading, create, remove } = useApiResource<any>(
+    '/production-plans',
+    user?.organization ? { organization: user.organization } : undefined
+  );
+
+  const [products, setProducts] = useState<any[]>([]);
+  const [operators, setOperators] = useState<any[]>([]);
+  const [lookupsLoading, setLookupsLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [p, u] = await Promise.all([
+          api.getList<any>('/admin/products?limit=500'),
+          api.getList<any>('/admin/users?limit=500'),
+        ]);
+        if (!active) return;
+        setProducts(p.data);
+        // No dedicated shop-floor "Operator" role exists on the backend (only the 6 app
+        // roles) — fall back to every active user in the org as the assignable pool.
+        setOperators(u.data.filter((x: any) => x.isActive));
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : 'Failed to load products/users');
+      } finally {
+        if (active) setLookupsLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const productionPlans = useMemo(() => rawPlans.map(toPlanView), [rawPlans]);
 
   const [tab, setTab] = useState<'all' | 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED'>('all');
   const [drawer, setDrawer] = useState(false);
   const [detail, setDetail] = useState<ProductionPlan | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<ProductionPlan | null>(null);
 
   const [productId, setProductId] = useState('');
   const [targetQuantity, setTargetQuantity] = useState('');
@@ -67,11 +135,27 @@ export const ProductionPlans = () => {
   const filtered = useMemo(() => productionPlans.filter((p) => tab === 'all' || p.status === tab), [productionPlans, tab]);
   const count = (s: string) => productionPlans.filter((p) => s === 'all' || p.status === s).length;
 
-  const selectedProduct = products.find((p) => p.id === productId);
-  const productMfg = selectedProduct ? manufacturingStages.filter((s) => selectedProduct.manufacturingStageIds.includes(s.id)).sort((a, b) => a.order - b.order) : [];
-  const productAsm = selectedProduct ? assemblingStages.filter((s) => selectedProduct.assemblingStageIds.includes(s.id)).sort((a, b) => a.order - b.order) : [];
+  const selectedProduct = products.find((p) => p._id === productId);
+  const productMfg = useMemo(
+    () => (selectedProduct?.manufacturingStages || []).slice().sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0)),
+    [selectedProduct]
+  );
+  const productAsm = useMemo(
+    () => (selectedProduct?.assemblyStages || []).slice().sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0)),
+    [selectedProduct]
+  );
 
   const onProductChange = (id: string) => { setProductId(id); setMfgOps({}); setAsmOps({}); };
+
+  /** The list endpoint doesn't populate stage refs (only operator/product names), so stage
+   * names would be blank in the detail sheet. Open with the list version immediately, then
+   * swap in the fully-populated single-plan GET when it arrives. */
+  const openDetail = (p: ProductionPlan) => {
+    setDetail(p);
+    api.get<any>(`/production-plans/${p.id}`)
+      .then((full) => setDetail((cur) => (cur && cur.id === p.id ? toPlanView(full) : cur)))
+      .catch(() => { /* keep the list-derived view */ });
+  };
 
   const resetForm = () => {
     setProductId(''); setTargetQuantity(''); setNotes('');
@@ -84,30 +168,53 @@ export const ProductionPlans = () => {
     const qty = Number(targetQuantity);
     if (!qty || qty <= 0) { toast.error('Enter a valid target quantity'); return; }
     if (new Date(endDate) < new Date(startDate)) { toast.error('End date cannot be before start date'); return; }
-    if (status === 'SCHEDULED' && (productMfg.some((s) => !mfgOps[s.id]) || productAsm.some((s) => !asmOps[s.id]))) {
+    if (status === 'SCHEDULED' && (productMfg.some((s: any) => !mfgOps[s._id]) || productAsm.some((s: any) => !asmOps[s._id]))) {
       toast.error('Assign an operator to every stage before scheduling');
       return;
     }
+    if (!user?.organization) { toast.error('Missing organization context'); return; }
     setBusy(true);
-    await new Promise((r) => setTimeout(r, 400));
-    const prod = selectedProduct!;
-    const makeStage = (s: typeof manufacturingStages[number], opId: string, type: ProductionStageAssignment['stageType']): ProductionStageAssignment => {
-      const op = operators.find((u) => u.id === opId);
-      return { stageId: s.id, stageName: s.name, stageType: type, order: s.order, workCenter: s.workCenter, standardTimeMin: s.standardTimeMin, operatorId: op?.id, operatorName: op?.name, status: 'NOT_STARTED' };
-    };
-    addProductionPlan({
-      productId: prod.id, productName: prod.name, productCode: prod.code,
-      targetQuantity: qty,
-      plannedStartDate: new Date(startDate).toISOString(),
-      plannedEndDate: new Date(endDate).toISOString(),
-      manufacturingStages: productMfg.map((s) => makeStage(s, mfgOps[s.id] || '', 'MANUFACTURING')),
-      assemblingStages: productAsm.map((s) => makeStage(s, asmOps[s.id] || '', 'ASSEMBLING')),
-      status, notes: notes.trim() || undefined,
-      createdBy: user?.name || 'Production Manager',
+    const makeStage = (s: any, opId: string, stageType: ProductionStageAssignment['stageType']) => ({
+      stage: s._id, stageType, order: s.sequence ?? 0, workCenter: s.workCenter,
+      standardTimeMin: s.standardTimeMin, operator: opId || undefined, status: 'NOT_STARTED',
     });
-    toast.success(status === 'DRAFT' ? 'Production plan saved as draft' : 'Production plan scheduled');
-    setBusy(false); setDrawer(false); resetForm();
+    try {
+      await create({
+        product: productId,
+        targetQuantity: qty,
+        plannedStartDate: new Date(startDate).toISOString(),
+        plannedEndDate: new Date(endDate).toISOString(),
+        manufacturingStages: productMfg.map((s: any) => makeStage(s, mfgOps[s._id] || '', 'MANUFACTURING')),
+        assemblingStages: productAsm.map((s: any) => makeStage(s, asmOps[s._id] || '', 'ASSEMBLING')),
+        status, notes: notes.trim() || undefined,
+        organization: user.organization,
+        createdBy: user.id,
+      });
+      toast.success(status === 'DRAFT' ? 'Production plan saved as draft' : 'Production plan scheduled');
+      setDrawer(false); resetForm();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
   };
+
+  const handleDelete = useCallback(async () => {
+    if (!confirmDel) return;
+    if (confirmDel.status !== 'DRAFT') {
+      toast.error('Only DRAFT plans can be deleted');
+      setConfirmDel(null);
+      return;
+    }
+    try {
+      await remove(confirmDel.id);
+      toast.success('Production plan deleted');
+      setDetail(null);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    }
+    setConfirmDel(null);
+  }, [confirmDel, remove]);
 
   const exportRows = productionPlans.map((p) => ({
     Plan: p.planCode, Product: p.productName, Quantity: p.targetQuantity,
@@ -115,6 +222,8 @@ export const ProductionPlans = () => {
     Start: formatDate(p.plannedStartDate), End: formatDate(p.plannedEndDate),
     Completion: `${completion(p)}%`, Status: p.status,
   }));
+
+  if (loading || lookupsLoading) return <PageWrapper><LoadingSkeleton /></PageWrapper>;
 
   return (
     <PageWrapper>
@@ -141,7 +250,7 @@ export const ProductionPlans = () => {
           const totalStages = p.manufacturingStages.length + p.assemblingStages.length;
           return (
             <motion.div key={p.id} variants={staggerItem}>
-              <Card className="p-5 hover:shadow-md cursor-pointer" onClick={() => setDetail(p)}>
+              <Card className="p-5 hover:shadow-md cursor-pointer" onClick={() => openDetail(p)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -152,9 +261,16 @@ export const ProductionPlans = () => {
                       {p.targetQuantity} units · {p.manufacturingStages.length} machining · {p.assemblingStages.length} assembling
                     </p>
                   </div>
-                  <Badge variant={p.status === 'COMPLETED' ? 'success' : p.status === 'IN_PROGRESS' ? 'accent' : p.status === 'SCHEDULED' ? 'warning' : 'slate'}>
-                    {p.status.replace('_', ' ')}
-                  </Badge>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant={p.status === 'COMPLETED' ? 'success' : p.status === 'IN_PROGRESS' ? 'accent' : p.status === 'SCHEDULED' ? 'warning' : 'slate'}>
+                      {p.status.replace('_', ' ')}
+                    </Badge>
+                    {p.status === 'DRAFT' && (
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); setConfirmDel(p); }}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden mb-2">
                   <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6 }} className={cn('h-full rounded-full', pct === 100 ? 'bg-emerald-500' : 'bg-accent')} />
@@ -221,6 +337,11 @@ export const ProductionPlans = () => {
                 ))}
               </div>
             </SheetBody>
+            {detail.status === 'DRAFT' && (
+              <SheetFooter>
+                <Button variant="destructive" onClick={() => setConfirmDel(detail)}><Trash2 className="h-4 w-4" /> Delete Plan</Button>
+              </SheetFooter>
+            )}
           </>
         )}
       </Sheet>
@@ -232,7 +353,7 @@ export const ProductionPlans = () => {
           <div className="space-y-5">
             <div className="space-y-1.5">
               <Label>Product <span className="text-destructive">*</span></Label>
-              <Select value={productId} onChange={onProductChange} options={products.map((p) => ({ label: `${p.name} (${p.code})`, value: p.id }))} placeholder="Select product" />
+              <Select value={productId} onChange={onProductChange} options={products.map((p) => ({ label: `${p.name} (${p.productId})`, value: p._id }))} placeholder="Select product" />
             </div>
 
             <div className="grid grid-cols-3 gap-3">
@@ -255,10 +376,10 @@ export const ProductionPlans = () => {
                 <section className="border rounded-lg p-4">
                   <h4 className="font-semibold mb-3 flex items-center gap-2"><Factory className="h-4 w-4 text-muted-foreground" /> Machining Stages ({productMfg.length})</h4>
                   <div className="space-y-3">
-                    {productMfg.map((s) => (
-                      <div key={s.id} className="p-3 rounded border bg-muted/30 space-y-2">
-                        <p className="text-sm font-medium">{s.order}. {s.name} <span className="text-[10px] text-muted-foreground font-normal">· {s.workCenter}</span></p>
-                        <Select value={mfgOps[s.id] || ''} onChange={(val) => setMfgOps({ ...mfgOps, [s.id]: val })} options={mfgPool.map((u) => ({ label: `${u.name}${u.designation ? ` — ${u.designation}` : ''}`, value: u.id }))} placeholder="Assign operator" />
+                    {productMfg.map((s: any) => (
+                      <div key={s._id} className="p-3 rounded border bg-muted/30 space-y-2">
+                        <p className="text-sm font-medium">{s.sequence}. {s.name} <span className="text-[10px] text-muted-foreground font-normal">· {s.workCenter}</span></p>
+                        <Select value={mfgOps[s._id] || ''} onChange={(val) => setMfgOps({ ...mfgOps, [s._id]: val })} options={operators.map((u) => ({ label: `${u.name}${u.department ? ` — ${u.department}` : ''}`, value: u._id }))} placeholder="Assign operator" />
                       </div>
                     ))}
                     {!productMfg.length && <p className="text-xs text-muted-foreground">This product has no machining stages.</p>}
@@ -268,10 +389,10 @@ export const ProductionPlans = () => {
                 <section className="border rounded-lg p-4">
                   <h4 className="font-semibold mb-3 flex items-center gap-2"><Wrench className="h-4 w-4 text-muted-foreground" /> Assembling Stages ({productAsm.length})</h4>
                   <div className="space-y-3">
-                    {productAsm.map((s) => (
-                      <div key={s.id} className="p-3 rounded border bg-muted/30 space-y-2">
-                        <p className="text-sm font-medium">{s.order}. {s.name} <span className="text-[10px] text-muted-foreground font-normal">· {s.workCenter}</span></p>
-                        <Select value={asmOps[s.id] || ''} onChange={(val) => setAsmOps({ ...asmOps, [s.id]: val })} options={asmPool.map((u) => ({ label: `${u.name}${u.designation ? ` — ${u.designation}` : ''}`, value: u.id }))} placeholder="Assign operator" />
+                    {productAsm.map((s: any) => (
+                      <div key={s._id} className="p-3 rounded border bg-muted/30 space-y-2">
+                        <p className="text-sm font-medium">{s.sequence}. {s.name} <span className="text-[10px] text-muted-foreground font-normal">· {s.workCenter}</span></p>
+                        <Select value={asmOps[s._id] || ''} onChange={(val) => setAsmOps({ ...asmOps, [s._id]: val })} options={operators.map((u) => ({ label: `${u.name}${u.department ? ` — ${u.department}` : ''}`, value: u._id }))} placeholder="Assign operator" />
                       </div>
                     ))}
                     {!productAsm.length && <p className="text-xs text-muted-foreground">This product has no assembling stages.</p>}
@@ -292,6 +413,15 @@ export const ProductionPlans = () => {
           <Button variant="accent" onClick={() => submit('SCHEDULED')} disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Schedule Plan</Button>
         </SheetFooter>
       </Sheet>
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        onOpenChange={(o) => !o && setConfirmDel(null)}
+        title="Delete production plan?"
+        description="Only DRAFT plans can be deleted. This action cannot be undone."
+        entityName={confirmDel?.planCode}
+        onConfirm={handleDelete}
+      />
     </PageWrapper>
   );
 };

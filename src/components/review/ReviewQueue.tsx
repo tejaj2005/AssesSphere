@@ -8,39 +8,85 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { RAGBadge, ReviewBadge } from '@/components/dashboard/RAGBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { useData } from '@/context/DataContext';
+import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatDate, cn } from '@/lib/utils';
-import type { InspectionRecord, ReviewStatus } from '@/types';
+import type { RAGStatus, ReviewStatus } from '@/types';
 
-interface ReviewQueueProps {
-  records: InspectionRecord[];
+/** One checklist parameter row from the report's `checklistResults[]`. */
+export interface ReviewChecklistRow {
+  parameter: string;
+  targetValue: string;
+  actualValue: string;
+  variance: number;
+  status: RAGStatus;
 }
 
-export const ReviewQueue = ({ records }: ReviewQueueProps) => {
-  const { reviewInspectionRecord } = useData();
+/** Client-side view of an InspectionReport, shaped for this queue's rendering.
+ * Built by the parent page (ReviewReports.tsx) from the live `/inspection-reports` data —
+ * see that file for the report → ReviewRecord mapping. */
+export interface ReviewRecord {
+  id: string;
+  date: string;
+  title: string;
+  planCode?: string;
+  rows: ReviewChecklistRow[];
+  variance: number;
+  status: RAGStatus;
+  inspectorName: string;
+  reviewStatus: ReviewStatus;
+  observations?: string;
+  reviewComment?: string;
+  reviewedBy?: string;
+  reviewedDate?: string;
+}
+
+interface ReviewQueueProps {
+  records: ReviewRecord[];
+  /** Called after a successful approve/reject/hold so the parent can refetch. */
+  onActionComplete?: () => void;
+}
+
+export const ReviewQueue = ({ records, onActionComplete }: ReviewQueueProps) => {
   const { user } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<{ rec: InspectionRecord; action: 'REJECTED' | 'INFO_REQUESTED' } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{ rec: ReviewRecord; action: 'REJECTED' | 'INFO_REQUESTED' } | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
-  const approve = async (rec: InspectionRecord) => {
+  const approve = async (rec: ReviewRecord) => {
     setBusy(rec.id);
-    await new Promise((r) => setTimeout(r, 250));
-    reviewInspectionRecord(rec.id, 'APPROVED', '', user?.name || 'PM');
-    toast.success('Report approved and sent to Quality Manager');
-    setBusy(null);
+    try {
+      await api.put(`/inspection-reports/${rec.id}/approve`, { approvedBy: user?.id, reviewComments: '' });
+      toast.success('Report approved and sent to Quality Manager');
+      onActionComplete?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setBusy(null);
+    }
   };
 
   const submitComment = async () => {
     if (!pendingAction) return;
     if (comment.trim().length < 10) { toast.error('Comment must be at least 10 characters'); return; }
     setBusy(pendingAction.rec.id);
-    await new Promise((r) => setTimeout(r, 250));
-    reviewInspectionRecord(pendingAction.rec.id, pendingAction.action, comment.trim(), user?.name || 'PM');
-    toast.success(pendingAction.action === 'REJECTED' ? 'Report rejected with comments' : 'Information requested from inspector');
-    setComment(''); setPendingAction(null); setBusy(null);
+    try {
+      if (pendingAction.action === 'REJECTED') {
+        await api.put(`/inspection-reports/${pendingAction.rec.id}/reject`, { reviewedBy: user?.id, rejectionReason: comment.trim() });
+        toast.success('Report rejected with comments');
+      } else {
+        // Closest available backend status for "request more info" — the hold endpoint
+        // doesn't persist a comment, so it's shown locally only via the toast.
+        await api.put(`/inspection-reports/${pendingAction.rec.id}/hold`, {});
+        toast.success('Information requested from inspector');
+      }
+      onActionComplete?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Something went wrong');
+    } finally {
+      setComment(''); setPendingAction(null); setBusy(null);
+    }
   };
 
   if (records.length === 0) {
@@ -57,9 +103,8 @@ export const ReviewQueue = ({ records }: ReviewQueueProps) => {
                 <button onClick={() => setExpanded(expanded === rec.id ? null : rec.id)} className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/30">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold">{rec.productName}</p>
-                      <span className="text-xs text-muted-foreground">·</span>
-                      <span className="text-sm">{rec.stageName || rec.componentName || rec.materialName || rec.parameterName}</span>
+                      <p className="font-semibold">{rec.title}</p>
+                      {rec.planCode && <span className="text-xs text-muted-foreground font-mono">{rec.planCode}</span>}
                       <RAGBadge status={rec.status} />
                       <ReviewBadge status={rec.reviewStatus} />
                     </div>
@@ -82,19 +127,23 @@ export const ReviewQueue = ({ records }: ReviewQueueProps) => {
                               <tr><th className="text-left px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">Parameter</th><th className="px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">Target</th><th className="px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">Actual</th><th className="px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">Variance</th><th className="px-3 py-2 text-xs uppercase tracking-wider text-muted-foreground">Status</th></tr>
                             </thead>
                             <tbody>
-                              <tr>
-                                <td className="px-3 py-2 font-medium">{rec.parameterName}</td>
-                                <td className="px-3 py-2 text-center">{rec.targetValue} {rec.unit}</td>
-                                <td className="px-3 py-2 text-center">{rec.actualValue} {rec.unit}</td>
-                                <td className={cn('px-3 py-2 text-center font-mono', rec.status === 'RED' && 'text-red-600', rec.status === 'AMBER' && 'text-amber-600', rec.status === 'GREEN' && 'text-emerald-600')}>{rec.variance.toFixed(2)}%</td>
-                                <td className="px-3 py-2 text-center"><RAGBadge status={rec.status} /></td>
-                              </tr>
+                              {rec.rows.map((row, i) => (
+                                <tr key={i}>
+                                  <td className="px-3 py-2 font-medium">{row.parameter}</td>
+                                  <td className="px-3 py-2 text-center">{row.targetValue}</td>
+                                  <td className="px-3 py-2 text-center">{row.actualValue}</td>
+                                  <td className={cn('px-3 py-2 text-center font-mono', row.status === 'RED' && 'text-red-600', row.status === 'AMBER' && 'text-amber-600', row.status === 'GREEN' && 'text-emerald-600')}>{row.variance.toFixed(2)}%</td>
+                                  <td className="px-3 py-2 text-center"><RAGBadge status={row.status} /></td>
+                                </tr>
+                              ))}
+                              {!rec.rows.length && (
+                                <tr><td colSpan={5} className="px-3 py-3 text-center text-muted-foreground">No checklist results recorded.</td></tr>
+                              )}
                             </tbody>
                           </table>
                         </div>
 
                         {rec.observations && <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Observations</p><p className="text-sm">{rec.observations}</p></div>}
-                        {rec.equipmentUsed && <div><p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Equipment Used</p><p className="text-sm">{rec.equipmentUsed}</p></div>}
                         {rec.reviewComment && <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20"><p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-1">Previous Review Comment</p><p className="text-sm">{rec.reviewComment}</p></div>}
 
                         {rec.reviewStatus === 'PENDING' && (
@@ -111,7 +160,7 @@ export const ReviewQueue = ({ records }: ReviewQueueProps) => {
                           </div>
                         )}
                         {rec.reviewStatus !== 'PENDING' && rec.reviewedBy && (
-                          <p className="text-xs text-muted-foreground pt-2 border-t">Reviewed by <span className="font-medium">{rec.reviewedBy}</span> on {formatDate(rec.reviewedDate!)}</p>
+                          <p className="text-xs text-muted-foreground pt-2 border-t">Reviewed by <span className="font-medium">{rec.reviewedBy}</span>{rec.reviewedDate && <> on {formatDate(rec.reviewedDate)}</>}</p>
                         )}
                       </div>
                     </motion.div>
