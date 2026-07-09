@@ -1,17 +1,44 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { QualityDashboardPage } from '@/components/dashboard/QualityDashboardPage';
-import { useData } from '@/context/DataContext';
-import { useDashboardFilters, standardColumns, InspectionDetailSheet } from '@/pages/management/dashboardHelpers';
+import { useAuth } from '@/context/AuthContext';
+import { useApiResource } from '@/hooks/useApi';
+import { useDashboardFilters, standardColumns, InspectionDetailSheet, reportsToRecords } from '@/pages/management/dashboardHelpers';
 import { SupplierEvalDashboard } from '@/pages/management/SupplierEvalDashboard';
 import { formatDate } from '@/lib/utils';
 import type { InspectionRecord } from '@/types';
 
 export const SMMaterialQualityDash = () => {
-  const { inspectionRecords, materials, suppliers } = useData();
-  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(inspectionRecords, 'MATERIAL');
+  const { user } = useAuth();
+  const query = useMemo(() => (user?.organization ? { organization: user.organization } : undefined), [user?.organization]);
+  const materialPlanQuery = useMemo(
+    () => (user?.organization ? { organization: user.organization, planType: 'R1_MATERIAL' } : undefined),
+    [user?.organization]
+  );
+
+  const { items: reports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', query);
+  const { items: plans, loading: plansLoading } = useApiResource<any>('/inspection-plans', materialPlanQuery);
+  const { items: materials } = useApiResource<any>('/admin/materials', query);
+  const { items: suppliers } = useApiResource<any>('/admin/suppliers', query);
+
+  const supplierMap = useMemo(
+    () => Object.fromEntries(suppliers.map((s) => [s.id, s.name])),
+    [suppliers]
+  );
+
+  const records = useMemo(
+    () => reportsToRecords(reports, plans, { planTypes: ['R1_MATERIAL'], supplierMap }),
+    [reports, plans, supplierMap]
+  );
+
+  const { filtered, search, setSearch, from, setFrom, to, setTo, filterState, setFilterState } = useDashboardFilters(records, 'MATERIAL');
   const [detail, setDetail] = useState<InspectionRecord | null>(null);
   const supplierNames = Array.from(new Set(suppliers.map((s) => s.name)));
   const exportRows = filtered.map((r) => ({ Date: formatDate(r.date), Material: r.materialName, Supplier: r.supplierName, Parameter: r.parameterName, Target: `${r.targetValue} ${r.unit}`, Actual: `${r.actualValue} ${r.unit}`, Variance: `${r.variance.toFixed(2)}%`, Status: r.status, Review: r.reviewStatus }));
+
+  if (reportsLoading || plansLoading) {
+    return <p className="text-sm text-muted-foreground p-6">Loading material quality data…</p>;
+  }
+
   return (
     <>
       <QualityDashboardPage

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
@@ -12,45 +12,159 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sheet, SheetHeader, SheetTitle, SheetBody, SheetFooter, SheetDescription } from '@/components/ui/sheet';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
-import { useData } from '@/context/DataContext';
+import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { formatDate, cn } from '@/lib/utils';
-import type { MaterialStockStatement } from '@/types';
+
+/**
+ * MaterialStockStatement has no backend model. This page derives an
+ * approximate stock statement client-side from live Materials +
+ * R1_MATERIAL InspectionPlans/InspectionReports:
+ *  - InspectionPlan (planType=R1_MATERIAL) links a Material to its reports.
+ *  - InspectionReport.status on those reports is bucketed into
+ *    approved / rejected / pending counts (1 report ≈ 1 received batch —
+ *    there is no quantity field on the backend to sum instead).
+ * The resulting rows are a one-time snapshot seeded into local state; the
+ * "Create Statement" / delete actions only manipulate that local list
+ * (nothing is persisted server-side), matching the read-only nature of the
+ * data available.
+ */
+interface StockRow {
+  id: string;
+  date: string;
+  materialId: string;
+  materialName: string;
+  materialCode: string;
+  totalAvailable: number;
+  approvedCount: number;
+  rejectedCount: number;
+  pendingCount: number;
+  category: string;
+  preparedBy: string;
+  unit: string;
+}
+
+const PENDING_STATUSES = ['DRAFT', 'SUBMITTED', 'UNDER_REVIEW', 'ON_HOLD'];
 
 export const StockStatement = () => {
-  const { stockStatements, materials, materialTypes, addStockStatement, deleteStockStatement, materialPlans } = useData();
   const { user } = useAuth();
+
+  const materialsQuery = useMemo(
+    () => (user?.organization ? { organization: user.organization } : undefined),
+    [user?.organization]
+  );
+  const plansQuery = useMemo(
+    () => ({ ...(user?.organization ? { organization: user.organization } : {}), planType: 'R1_MATERIAL', limit: '200' }),
+    [user?.organization]
+  );
+  const reportsQuery = useMemo(
+    () => ({ ...(user?.organization ? { organization: user.organization } : {}), limit: '200' }),
+    [user?.organization]
+  );
+
+  const { items: materials, loading: materialsLoading } = useApiResource<any>('/admin/materials', materialsQuery);
+  const { items: plans, loading: plansLoading } = useApiResource<any>('/inspection-plans', plansQuery);
+  const { items: reports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', reportsQuery);
+
+  const loading = materialsLoading || plansLoading || reportsLoading;
+
+  // materialId (_id) -> approved/rejected/pending counts, derived from R1_MATERIAL reports
+  const countsByMaterial = useMemo(() => {
+    const planMaterialMap = new Map<string, string>();
+    plans.forEach((p: any) => {
+      const matId = typeof p.material === 'object' && p.material ? p.material._id : p.material;
+      if (matId) planMaterialMap.set(p._id, matId);
+    });
+    const map = new Map<string, { approved: number; rejected: number; pending: number }>();
+    reports.forEach((r: any) => {
+      const planId = typeof r.plan === 'object' && r.plan ? r.plan._id : r.plan;
+      const materialId = planId ? planMaterialMap.get(planId) : undefined;
+      if (!materialId) return; // not a material-inspection report
+      const bucket = map.get(materialId) || { approved: 0, rejected: 0, pending: 0 };
+      if (r.status === 'APPROVED') bucket.approved += 1;
+      else if (r.status === 'REJECTED') bucket.rejected += 1;
+      else if (PENDING_STATUSES.includes(r.status)) bucket.pending += 1;
+      map.set(materialId, bucket);
+    });
+    return map;
+  }, [plans, reports]);
+
+  const [rows, setRows] = useState<StockRow[]>([]);
+  const [seeded, setSeeded] = useState(false);
+
+  // One-time client-side snapshot, seeded once all three sources have loaded.
+  useEffect(() => {
+    if (loading || seeded) return;
+    const derived: StockRow[] = materials.map((m: any) => {
+      const counts = countsByMaterial.get(m._id) || { approved: 0, rejected: 0, pending: 0 };
+      const typeName = typeof m.materialType === 'object' && m.materialType ? m.materialType.name : undefined;
+      return {
+        id: m._id,
+        date: new Date().toISOString(),
+        materialId: m._id,
+        materialName: m.name,
+        materialCode: m.materialId,
+        totalAvailable: counts.approved + counts.rejected + counts.pending,
+        approvedCount: counts.approved,
+        rejectedCount: counts.rejected,
+        pendingCount: counts.pending,
+        category: typeName || 'Raw Material',
+        preparedBy: user?.name || 'SM',
+        unit: m.unit || 'units',
+      };
+    });
+    setRows(derived);
+    setSeeded(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, seeded]);
+
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
   const [drawer, setDrawer] = useState(false);
   const [form, setForm] = useState({ materialId: '', approved: 0, rejected: 0, pending: 0 });
-  const [confirmDel, setConfirmDel] = useState<MaterialStockStatement | null>(null);
+  const [confirmDel, setConfirmDel] = useState<StockRow | null>(null);
 
-  const filtered = useMemo(() => stockStatements.filter((s) => {
+  const categoryOptions = useMemo(() => {
+    const names = new Set<string>();
+    materials.forEach((m: any) => {
+      const n = typeof m.materialType === 'object' && m.materialType ? m.materialType.name : undefined;
+      if (n) names.add(n);
+    });
+    return Array.from(names);
+  }, [materials]);
+
+  const filtered = useMemo(() => rows.filter((s) => {
     if (search && !s.materialName.toLowerCase().includes(search.toLowerCase())) return false;
     if (catFilter !== 'all' && s.category !== catFilter) return false;
     return true;
-  }), [stockStatements, search, catFilter]);
+  }), [rows, search, catFilter]);
 
-  // When material selected, prefill from approved counts in material plans
+  // When material selected, prefill from derived approved/rejected/pending counts
   const onMatChange = (id: string) => {
-    const plans = materialPlans.filter((p) => p.materialId === id);
-    const approvedTotal = plans.filter((p) => p.overallStatus === 'APPROVED').reduce((s, p) => s + p.quantity, 0);
-    const rejectedTotal = plans.filter((p) => p.overallStatus === 'REJECTED').reduce((s, p) => s + p.quantity, 0);
-    const pendingTotal = plans.filter((p) => ['DRAFT', 'SUBMITTED', 'INSPECTED', 'HOLD'].includes(p.overallStatus)).reduce((s, p) => s + p.quantity, 0);
-    setForm({ materialId: id, approved: approvedTotal, rejected: rejectedTotal, pending: pendingTotal });
+    const counts = countsByMaterial.get(id) || { approved: 0, rejected: 0, pending: 0 };
+    setForm({ materialId: id, approved: counts.approved, rejected: counts.rejected, pending: counts.pending });
   };
 
   const submit = () => {
     if (!form.materialId) { toast.error('Material required'); return; }
-    const mat = materials.find((m) => m.id === form.materialId)!;
-    const type = materialTypes.find((t) => t.id === mat.materialTypeId);
-    addStockStatement({
-      date: new Date().toISOString(), materialId: mat.id, materialName: mat.name, materialCode: mat.code,
+    const mat = materials.find((m: any) => m._id === form.materialId);
+    if (!mat) { toast.error('Material not found'); return; }
+    const typeName = typeof mat.materialType === 'object' && mat.materialType ? mat.materialType.name : undefined;
+    const newRow: StockRow = {
+      id: `${mat._id}-${Date.now()}`,
+      date: new Date().toISOString(),
+      materialId: mat._id,
+      materialName: mat.name,
+      materialCode: mat.materialId,
       totalAvailable: form.approved + form.rejected + form.pending,
-      approvedCount: form.approved, rejectedCount: form.rejected, pendingCount: form.pending,
-      category: type?.name || 'Raw Material', preparedBy: user?.name || 'SM', unit: 'units',
-    });
+      approvedCount: form.approved,
+      rejectedCount: form.rejected,
+      pendingCount: form.pending,
+      category: typeName || 'Raw Material',
+      preparedBy: user?.name || 'SM',
+      unit: mat.unit || 'units',
+    };
+    setRows((prev) => [newRow, ...prev]);
     toast.success('Stock statement created');
     setDrawer(false);
     setForm({ materialId: '', approved: 0, rejected: 0, pending: 0 });
@@ -69,7 +183,7 @@ export const StockStatement = () => {
 
       <div className="flex flex-wrap items-center gap-3 mb-4">
         <SearchInput value={search} onChange={setSearch} placeholder="Search material…" className="sm:w-72" />
-        <Select value={catFilter} onChange={setCatFilter} options={[{ label: 'All Categories', value: 'all' }, ...materialTypes.map((t) => ({ label: t.name, value: t.name }))]} className="w-48" />
+        <Select value={catFilter} onChange={setCatFilter} options={[{ label: 'All Categories', value: 'all' }, ...categoryOptions.map((n) => ({ label: n, value: n }))]} className="w-48" />
       </div>
 
       <Card className="overflow-hidden print-area">
@@ -90,7 +204,9 @@ export const StockStatement = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {filtered.length === 0 ? (
+              {loading && !seeded ? (
+                <tr><td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">Loading stock statement…</td></tr>
+              ) : filtered.length === 0 ? (
                 <tr><td colSpan={10} className="py-12 text-center text-sm text-muted-foreground">No stock statements yet</td></tr>
               ) : filtered.map((s) => (
                 <tr key={s.id} className="hover:bg-muted/30">
@@ -116,7 +232,7 @@ export const StockStatement = () => {
         <SheetBody>
           <div className="space-y-4">
             <div className="space-y-1.5"><Label>Material <span className="text-destructive">*</span></Label>
-              <Select value={form.materialId} onChange={onMatChange} options={materials.map((m) => ({ label: m.name, value: m.id }))} placeholder="Select material" />
+              <Select value={form.materialId} onChange={onMatChange} options={materials.map((m: any) => ({ label: m.name, value: m._id }))} placeholder="Select material" />
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5"><Label>Approved</Label><Input type="number" value={form.approved || ''} onChange={(e) => setForm({ ...form, approved: parseInt(e.target.value) || 0 })} /></div>
@@ -135,7 +251,7 @@ export const StockStatement = () => {
         </SheetFooter>
       </Sheet>
 
-      <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.materialName} onConfirm={() => { if (confirmDel) { deleteStockStatement(confirmDel.id); toast.success('Deleted'); setConfirmDel(null); } }} />
+      <ConfirmDialog open={!!confirmDel} onOpenChange={(o) => !o && setConfirmDel(null)} entityName={confirmDel?.materialName} onConfirm={() => { if (confirmDel) { setRows((prev) => prev.filter((r) => r.id !== confirmDel.id)); toast.success('Deleted'); setConfirmDel(null); } }} />
     </PageWrapper>
   );
 };
