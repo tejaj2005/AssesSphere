@@ -2,12 +2,12 @@
  * Audit history dialog — shows the audit log entries for a specific entity.
  * Used by the View History action in ActionMenus across all entity pages.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { History, Plus, Pencil, Trash2, FileText, Clock, User as UserIcon } from 'lucide-react';
+import { History, Plus, Pencil, Trash2, FileText, Clock } from 'lucide-react';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { useData } from '@/context/DataContext';
+import { api } from '@/lib/api';
 import { relativeTime, formatDate, cn } from '@/lib/utils';
 
 interface AuditHistoryDialogProps {
@@ -19,6 +19,15 @@ interface AuditHistoryDialogProps {
   title?: string;
 }
 
+interface ApiAuditEntry {
+  _id: string;
+  action: 'Created' | 'Updated' | 'Deleted';
+  entityType: string;
+  entityName: string;
+  performedBy?: { name?: string } | null;
+  createdAt: string;
+}
+
 const ACTION_STYLE = {
   Created: { Icon: Plus,    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' },
   Updated: { Icon: Pencil,  cls: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400' },
@@ -26,15 +35,28 @@ const ACTION_STYLE = {
 } as const;
 
 export const AuditHistoryDialog = ({ open, onOpenChange, entityType, entityName, title }: AuditHistoryDialogProps) => {
-  const { auditLog } = useData();
+  const [entries, setEntries] = useState<ApiAuditEntry[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = entityType ? `?entityType=${encodeURIComponent(entityType)}` : '';
+        const { data } = await api.getList<ApiAuditEntry>(`/audit-log${qs}`);
+        if (!cancelled) setEntries(data);
+      } catch {
+        if (!cancelled) setEntries([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, entityType]);
 
   const filtered = useMemo(() => {
-    return auditLog.filter((entry) => {
-      if (entityType && entry.entityType !== entityType) return false;
-      if (entityName && entry.entityName !== entityName) return false;
-      return true;
-    }).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [auditLog, entityType, entityName]);
+    return entries
+      .filter((entry) => !entityName || entry.entityName === entityName)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }, [entries, entityName]);
 
   const dialogTitle = title || (entityName ? `${entityName} — History` : 'Audit History');
 
@@ -66,7 +88,7 @@ export const AuditHistoryDialog = ({ open, onOpenChange, entityType, entityName,
               const Icon = style.Icon;
               return (
                 <motion.li
-                  key={entry.id}
+                  key={entry._id}
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
@@ -78,7 +100,7 @@ export const AuditHistoryDialog = ({ open, onOpenChange, entityType, entityName,
                   <div className="p-3 rounded-lg border bg-card">
                     <div className="flex items-start justify-between gap-2 flex-wrap">
                       <p className="text-sm">
-                        <span className="font-medium">{entry.userName}</span>
+                        <span className="font-medium">{entry.performedBy?.name || 'Unknown user'}</span>
                         <span className="text-muted-foreground"> {entry.action.toLowerCase()} </span>
                         <span className="font-medium">{entry.entityType}</span>
                       </p>
@@ -87,9 +109,9 @@ export const AuditHistoryDialog = ({ open, onOpenChange, entityType, entityName,
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
                       <FileText className="h-3 w-3" /> <span className="font-medium text-foreground/80">{entry.entityName}</span>
                       <span>·</span>
-                      <Clock className="h-3 w-3" /> {relativeTime(entry.timestamp)}
+                      <Clock className="h-3 w-3" /> {relativeTime(entry.createdAt)}
                       <span>·</span>
-                      <span title={formatDate(entry.timestamp, 'PPpp')}>{formatDate(entry.timestamp)}</span>
+                      <span title={formatDate(entry.createdAt, 'PPpp')}>{formatDate(entry.createdAt)}</span>
                     </p>
                   </div>
                 </motion.li>
