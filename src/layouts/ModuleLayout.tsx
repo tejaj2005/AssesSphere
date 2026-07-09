@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/avatar';
 import { Circle } from 'lucide-react';
 import { AssessSphereLogoWhite } from '@/components/AssessSphereLogo';
+import { GlobalCopilotButton } from '@/components/ai/GlobalCopilotButton';
 import { cn } from '@/lib/utils';
 import type { NavGroup } from '@/components/layout/navConfig';
 
@@ -86,6 +87,8 @@ export const ModuleLayout = ({ moduleName, groups, profileLink }: ModuleLayoutPr
           <AnimatePresence mode="wait"><div key={location.pathname}><Outlet /></div></AnimatePresence>
         </main>
       </div>
+
+      <GlobalCopilotButton systemContext={{ userRole: user?.role || moduleName }} />
     </div>
   );
 };

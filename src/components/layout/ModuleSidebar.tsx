@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/avatar';
 import { Tooltip } from '@/components/ui/tooltip';
 import { AssessSphereLogoWhite } from '@/components/AssessSphereLogo';
 import { sidebarText } from '@/lib/animations';
-import { cn } from '@/lib/utils';
+import { cn, formatRole } from '@/lib/utils';
 import type { NavGroup } from './navConfig';
 
 interface ModuleSidebarProps {
@@ -97,7 +97,7 @@ export const ModuleSidebar = ({ collapsed, onToggle, groups, moduleName, profile
               <motion.div variants={sidebarText} initial="collapsed" animate="expanded" exit="collapsed" className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-white truncate leading-tight">{user?.name}</p>
                 <p className="text-[10px] text-white/50 flex items-center gap-1 leading-tight mt-0.5">
-                  <Circle className="h-1.5 w-1.5 fill-[#2e9e6b] text-[#2e9e6b]" /> {user?.role}
+                  <Circle className="h-1.5 w-1.5 fill-[#2e9e6b] text-[#2e9e6b]" /> {formatRole(user?.role)}
                 </p>
               </motion.div>
             )}

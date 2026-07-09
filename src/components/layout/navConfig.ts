@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Building2, Building, Users, Shield, Package, Puzzle, Settings,
   Wrench, ClipboardList, Microscope, FlaskConical, FileText, Layers, FolderOpen,
-  Factory, User, Cog, type LucideIcon,
+  Factory, User, Cog, Sparkles, type LucideIcon,
 } from 'lucide-react';
 
 export interface NavItem { label: string; icon: LucideIcon; to: string; permKey?: string; }
@@ -46,6 +46,10 @@ export const NAV: NavGroup[] = [
       { label: 'Material Types', icon: FolderOpen, to: '/admin/material-types', permKey: 'Material Types' },
       { label: 'Suppliers',      icon: Factory,    to: '/admin/suppliers',      permKey: 'Suppliers' },
     ],
+  },
+  {
+    label: 'AI',
+    items: [{ label: 'AI Settings', icon: Sparkles, to: '/admin/ai-settings', permKey: 'AI Settings' }],
   },
   {
     label: 'Account',

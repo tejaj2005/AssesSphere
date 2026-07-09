@@ -9,16 +9,16 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { LegalDialog, LegalKind } from '@/components/shared/LegalDialog';
-import { useAuth, MOCK_ACCOUNTS } from '@/context/AuthContext';
+import { useAuth, DEMO_ACCOUNTS } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { isValidEmail, cn } from '@/lib/utils';
+import { isValidEmail, cn, formatRole } from '@/lib/utils';
 
 const ROLE_ICONS: Record<string, any> = {
   Admin: Shield,
   Management: EyeIcon,
-  'Production Manager': Clipboard,
-  'Stores Manager': Warehouse,
-  'Quality Manager': Award,
+  ProductionManager: Clipboard,
+  StoresManager: Warehouse,
+  QualityManager: Award,
   Inspector: HardHat,
 };
 
@@ -26,8 +26,8 @@ export const Login = () => {
   const { login, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('priya@pqas.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('admin@qmics.com');
+  const [password, setPassword] = useState('Admin@2025');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -52,7 +52,7 @@ export const Login = () => {
     navigate('/app');
   };
 
-  const selectRole = async (acc: typeof MOCK_ACCOUNTS[0]) => {
+  const selectRole = async (acc: typeof DEMO_ACCOUNTS[0]) => {
     setEmail(acc.email); setPassword(acc.password); setShowAccounts(false);
     setBusy(true);
     toast.message(`Signing in as ${acc.role}…`);
@@ -166,17 +166,17 @@ export const Login = () => {
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              {MOCK_ACCOUNTS.filter((a) => a.id !== 'U-DEMO').map((acc) => {
+              {DEMO_ACCOUNTS.map((acc) => {
                 const Icon = ROLE_ICONS[acc.role] || Shield;
                 return (
-                  <motion.button key={acc.id} type="button" disabled={busy} onClick={() => selectRole(acc)}
+                  <motion.button key={acc.email} type="button" disabled={busy} onClick={() => selectRole(acc)}
                     whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
                     className="flex items-center gap-2 px-3 py-2.5 rounded-lg border hover:border-accent hover:bg-accent/5 transition-colors text-left disabled:opacity-50">
                     <div className="flex h-8 w-8 items-center justify-center rounded-md bg-accent/10 text-accent shrink-0">
                       <Icon className="h-4 w-4" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate">{acc.role}</p>
+                      <p className="text-xs font-semibold truncate">{formatRole(acc.role)}</p>
                       <p className="text-[10px] text-muted-foreground truncate">{acc.name}</p>
                     </div>
                   </motion.button>

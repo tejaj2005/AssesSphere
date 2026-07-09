@@ -26,3 +26,6 @@ export const debounce = <T extends (...args: any[]) => void>(fn: T, ms = 250) =>
 };
 
 export const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+/** 'ProductionManager' -> 'Production Manager' — for displaying backend PascalCase role enums. */
+export const formatRole = (role?: string) => (role ? role.replace(/([a-z0-9])([A-Z])/g, '$1 $2') : '');

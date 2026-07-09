@@ -5,7 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Avatar } from '@/components/ui/avatar';
 import { Circle } from 'lucide-react';
 import { AssessSphereLogoWhite } from '@/components/AssessSphereLogo';
-import { cn } from '@/lib/utils';
+import { cn, formatRole } from '@/lib/utils';
 
 export const MobileSidebar = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const { user } = useAuth();
@@ -47,7 +47,7 @@ export const MobileSidebar = ({ open, onClose }: { open: boolean; onClose: () =>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-white truncate">{user?.name}</p>
             <p className="text-[10px] text-slate-500 flex items-center gap-1">
-              <Circle className="h-1.5 w-1.5 fill-success text-success" />{user?.role} • Online
+              <Circle className="h-1.5 w-1.5 fill-success text-success" />{formatRole(user?.role)} • Online
             </p>
           </div>
         </div>

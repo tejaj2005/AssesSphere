@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { CommandPalette } from '@/components/shared/CommandPalette';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
+import { formatRole } from '@/lib/utils';
 import { NAV } from './navConfig';
 
 const findLabel = (pathname: string) => {
@@ -155,7 +156,7 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
             <Avatar name={user?.name || 'U'} src={user?.avatar} size="sm" />
             <div className="hidden sm:block text-left">
               <p className="text-xs font-medium leading-tight">{user?.name}</p>
-              <p className="text-[10px] text-muted-foreground">{user?.role}</p>
+              <p className="text-[10px] text-muted-foreground">{formatRole(user?.role)}</p>
             </div>
           </button>
         }
@@ -163,7 +164,7 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
         <div className="px-3 py-2 border-b">
           <p className="text-sm font-medium truncate">{user?.name}</p>
           <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-          <Badge variant="accent" className="mt-1.5 text-[10px]">{user?.role}</Badge>
+          <Badge variant="accent" className="mt-1.5 text-[10px]">{formatRole(user?.role)}</Badge>
         </div>
         <DropdownItem onClick={() => navigate('/admin/profile')}><UserIcon className="h-4 w-4" /> Profile</DropdownItem>
         <DropdownItem onClick={() => navigate('/admin/settings')}><Cog className="h-4 w-4" /> Settings</DropdownItem>

@@ -4,8 +4,11 @@ import { AnimatePresence } from 'framer-motion';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Topbar } from '@/components/layout/Topbar';
 import { MobileSidebar } from '@/components/layout/MobileSidebar';
+import { GlobalCopilotButton } from '@/components/ai/GlobalCopilotButton';
+import { useAuth } from '@/context/AuthContext';
 
 export const AdminLayout = () => {
+  const { user } = useAuth();
   const [collapsed, setCollapsed] = useState(() => {
     try {
       const stored = localStorage.getItem('pqas_sidebar_collapsed');
@@ -49,6 +52,8 @@ export const AdminLayout = () => {
           </AnimatePresence>
         </main>
       </div>
+
+      <GlobalCopilotButton systemContext={{ userRole: user?.role || 'Admin' }} />
     </div>
   );
 };

@@ -33,6 +33,8 @@ import { MaterialTypesPage } from '@/pages/MaterialTypes';
 import { SuppliersPage } from '@/pages/Suppliers';
 import { ProfilePage } from '@/pages/Profile';
 import { SettingsPage } from '@/pages/Settings';
+import { AISettingsPage } from '@/pages/admin/AISettingsPage';
+import { AIGapAnalysisPage } from '@/components/ai/AIGapAnalysisPage';
 
 // Management
 import { MANAGEMENT_NAV } from '@/pages/management/ManagementNav';
@@ -90,7 +92,15 @@ const App = () => (
             <Route path="/logout" element={<Logout />} />
             <Route path="/app" element={<RoleRedirect />} />
 
+            {/* /admin/profile is the shared profileLink target for every module's sidebar, so it must stay
+                reachable by any authenticated role, not just Admin. */}
             <Route element={<ProtectedRoute />}>
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
+            </Route>
+
+            <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />
                 <Route path="organization" element={<OrganizationPage />} />
@@ -109,10 +119,12 @@ const App = () => (
                 <Route path="materials" element={<MaterialsPage />} />
                 <Route path="material-types" element={<MaterialTypesPage />} />
                 <Route path="suppliers" element={<SuppliersPage />} />
-                <Route path="profile" element={<ProfilePage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="ai-settings" element={<AISettingsPage />} />
               </Route>
+            </Route>
 
+            <Route element={<ProtectedRoute allowedRoles={['Management']} />}>
               <Route path="/management" element={<ModuleLayout moduleName="Management" groups={MANAGEMENT_NAV} profileLink="/admin/profile" />}>
                 <Route index element={<Navigate to="product-quality" replace />} />
                 <Route path="product-quality" element={<ProductQualityDashboard />} />
@@ -121,7 +133,9 @@ const App = () => (
                 <Route path="material-quality" element={<MaterialQualityDashboard />} />
                 <Route path="supplier-evaluation" element={<SupplierEvalDashboard />} />
               </Route>
+            </Route>
 
+            <Route element={<ProtectedRoute allowedRoles={['ProductionManager']} />}>
               <Route path="/pm" element={<ModuleLayout moduleName="Production Manager" groups={PM_NAV} profileLink="/admin/profile" />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<PMDashboard />} />
@@ -133,7 +147,9 @@ const App = () => (
                 <Route path="review-reports" element={<ReviewReports />} />
                 <Route path="quality-plan-review" element={<QualityPlanReview />} />
               </Route>
+            </Route>
 
+            <Route element={<ProtectedRoute allowedRoles={['StoresManager']} />}>
               <Route path="/sm" element={<ModuleLayout moduleName="Stores Manager" groups={SM_NAV} profileLink="/admin/profile" />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<SMDashboard />} />
@@ -145,7 +161,9 @@ const App = () => (
                 <Route path="material-quality" element={<SMMaterialQualityDash />} />
                 <Route path="supplier-performance" element={<SMSupplierDash />} />
               </Route>
+            </Route>
 
+            <Route element={<ProtectedRoute allowedRoles={['QualityManager']} />}>
               <Route path="/qm" element={<ModuleLayout moduleName="Quality Manager" groups={QM_NAV} profileLink="/admin/profile" />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<QMDashboard />} />
@@ -154,6 +172,7 @@ const App = () => (
                 <Route path="checklists" element={<InspectionChecklists />} />
                 <Route path="calibration-approvals" element={<CalibrationApprovals />} />
                 <Route path="review-reports" element={<ReviewAllReports />} />
+                <Route path="ai-gap-analysis" element={<AIGapAnalysisPage />} />
                 <Route path="product-quality" element={<QMProductQualityDash />} />
                 <Route path="mfg-quality" element={<QMMfgQualityDash />} />
                 <Route path="asm-quality" element={<QMAsmQualityDash />} />
@@ -161,7 +180,9 @@ const App = () => (
                 <Route path="component-quality" element={<QMComponentQualityDash />} />
                 <Route path="supplier-performance" element={<QMSupplierDash />} />
               </Route>
+            </Route>
 
+            <Route element={<ProtectedRoute allowedRoles={['Inspector']} />}>
               <Route path="/inspector" element={<ModuleLayout moduleName="Inspector" groups={INSPECTOR_NAV} profileLink="/admin/profile" />}>
                 <Route index element={<Navigate to="dashboard" replace />} />
                 <Route path="dashboard" element={<InspectorDashboard />} />

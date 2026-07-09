@@ -217,6 +217,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: string;
+  organization?: string;
   avatar?: string;
   phone?: string;
   address?: string;
