@@ -82,7 +82,13 @@ export const ModuleLayout = ({ moduleName, groups, profileLink }: ModuleLayoutPr
       </Sheet>
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Topbar onMenuClick={() => setMobileOpen(true)} onSidebarToggle={() => setCollapsed((c) => !c)} sidebarCollapsed={collapsed} />
+        <Topbar
+          onMenuClick={() => setMobileOpen(true)}
+          onSidebarToggle={() => setCollapsed((c) => !c)}
+          sidebarCollapsed={collapsed}
+          moduleName={moduleName}
+          groups={groups}
+        />
         <main className="flex-1 min-w-0">
           <AnimatePresence mode="wait"><div key={location.pathname}><Outlet /></div></AnimatePresence>
         </main>

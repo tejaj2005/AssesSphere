@@ -11,22 +11,30 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { formatRole } from '@/lib/utils';
 import { NAV } from './navConfig';
+import type { NavGroup } from './navConfig';
 
-const findLabel = (pathname: string) => {
-  for (const g of NAV) for (const i of g.items) if (i.to === pathname) return i.label;
+const findLabel = (pathname: string, groups: NavGroup[]) => {
+  for (const g of groups) for (const i of g.items) if (i.to === pathname) return i.label;
   if (pathname.startsWith('/admin/products/')) return 'Product Detail';
   return 'Page';
 };
 
-interface TopbarProps { onMenuClick: () => void; onSidebarToggle?: () => void; sidebarCollapsed?: boolean }
+interface TopbarProps {
+  onMenuClick: () => void;
+  onSidebarToggle?: () => void;
+  sidebarCollapsed?: boolean;
+  /** Set by ModuleLayout so the breadcrumb reflects the actual module instead of always "Admin". */
+  moduleName?: string;
+  groups?: NavGroup[];
+}
 
-export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: TopbarProps) => {
+export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed, moduleName, groups }: TopbarProps) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const label = findLabel(location.pathname);
-  const isDashboard = location.pathname === '/admin';
+  const label = findLabel(location.pathname, groups ?? NAV);
+  const isDashboard = label === 'Dashboard';
   const [fullscreen, setFullscreen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [notifRead, setNotifRead] = useState(false);
@@ -84,7 +92,9 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed }: Topba
           <span className="hidden sm:inline">Home</span>
         </Link>
         <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <Link to="/admin" className="text-muted-foreground hover:text-foreground transition-colors">Admin</Link>
+        <Link to={moduleName ? '/app' : '/admin'} className="text-muted-foreground hover:text-foreground transition-colors">
+          {moduleName ?? 'Admin'}
+        </Link>
         {!isDashboard && (
           <>
             <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
