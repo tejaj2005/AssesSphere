@@ -18,7 +18,10 @@ export async function generateAssessmentChecklist(
   processType?: string
 ): Promise<Record<string, any>> {
   const cacheKey = buildCacheKey('checklist', standard, productType || '', processType || '');
-  const cached = await getCached<Record<string, any>>(cacheKey);
+  // A standard's checklist is effectively static reference material — cache it much longer
+  // (default 1 week) than narrative content that should track changing business data.
+  const checklistMaxAgeHours = parseInt(process.env.AI_CACHE_TTL_CHECKLIST_HOURS || '168');
+  const cached = await getCached<Record<string, any>>(cacheKey, checklistMaxAgeHours);
   if (cached) return cached;
 
   const standardLabel = STANDARD_LABELS[standard] || standard;
