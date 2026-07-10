@@ -8,7 +8,7 @@ async function post(endpoint: string, body: any): Promise<any> {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(60000),
   });
   return res.json();
 }
@@ -20,9 +20,9 @@ async function get(endpoint: string): Promise<any> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Gemini's free tier is 5 req/min and occasionally returns transient 503s under load. */
+/** Gemini's free tier is 5 req/min and occasionally returns transient 503s or times out under load. */
 function isTransientAIError(message: string): boolean {
-  return /503|429|high demand|quota|rate.?limit/i.test(message);
+  return /503|429|high demand|quota|rate.?limit|timeout|aborted/i.test(message);
 }
 
 function parseRetryDelayMs(message: string): number | null {
