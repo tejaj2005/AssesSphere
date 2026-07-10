@@ -59,8 +59,11 @@ async function t(feature: string, fn: () => Promise<any>, opts: { gemini?: boole
   console.log(`  ✗  ${feature.padEnd(35)} ${ms}ms  — ${lastNote}`);
 }
 
+// Fixed (not Date.now()-based) IDs on purpose: the server caches Gemini responses by these IDs
+// (see server/ai/cache.ts), so re-running this script the same day hits the cache instead of
+// spending fresh free-tier quota on an identical request.
 const SAMPLE_INSPECTION = {
-  inspectionReportId: `VERIFY-RPT-${Date.now()}`,
+  inspectionReportId: 'VERIFY-RPT-STABLE-001',
   productName: 'GearBox GX-200',
   inspectionType: 'In-Process Inspection',
   stage: 'R3_MANUFACTURING',
@@ -85,7 +88,7 @@ async function main() {
   await t('ai-findings-generator', () => post('findings', SAMPLE_INSPECTION), { gemini: true });
 
   await t('capa-recommendation-engine', () => post('capa', {
-    findingId: `NC-VERIFY-${Date.now()}`,
+    findingId: 'NC-VERIFY-STABLE-001',
     severity: 'MAJOR',
     description: 'Surface hardness 55 HRC measured, minimum specification is 60 HRC. Heat treatment process suspected as root cause.',
     affectedParameter: 'Surface Hardness (HRC)',
@@ -111,7 +114,7 @@ async function main() {
   }));
 
   await t('risk-scoring-ai-narrative', () => post('risk-score', {
-    entityType: 'PRODUCT', entityId: `VERIFY-PRD-${Date.now()}`, entityName: 'GearBox GX-200',
+    entityType: 'PRODUCT', entityId: 'VERIFY-PRD-STABLE-001', entityName: 'GearBox GX-200',
     totalInspections: 30, failedInspections: 4, criticalFindings: 1, majorFindings: 3, minorFindings: 8,
     capaOpenCount: 4, capaOverdueCount: 1, complianceScore: 84, withNarrative: true,
   }), { gemini: true });
@@ -140,13 +143,13 @@ async function main() {
   }), { gemini: true });
 
   await t('predictive-maturity-model', () => post('maturity', {
-    organizationId: `VERIFY-ORG-${Date.now()}`,
+    organizationId: 'VERIFY-ORG-STABLE-001',
     totalInspections: 180, averageComplianceScore: 87,
     capaClosureRate: 82, documentedProcesses: 24, auditFrequency: 'Quarterly',
   }), { gemini: true });
 
   await t('predictive-compliance', () => post('predict', {
-    entityId: `VERIFY-ENT-${Date.now()}`,
+    entityId: 'VERIFY-ENT-STABLE-001',
     entityType: 'DEPARTMENT', entityName: 'Quality Control Department',
     currentRiskScore: 58,
     historicalTrend: [
@@ -166,7 +169,7 @@ async function main() {
   }), { gemini: true });
 
   await t('executive-ai-dashboard', () => post('executive-summary', {
-    organizationId: `VERIFY-EXEC-${Date.now()}`,
+    organizationId: 'VERIFY-EXEC-STABLE-001',
     period: 'H1 2026',
     totalInspections: 248, approvalRate: 94,
     openFindings: 12, criticalFindings: 2, supplierCount: 18, avgRiskScore: 42,
