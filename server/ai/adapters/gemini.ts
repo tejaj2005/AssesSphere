@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI, GenerativeModel, Part, FunctionDeclaration } from '@google/generative-ai';
+import { assertGeminiQuotaAvailable } from '../quotaGuard';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
@@ -39,6 +40,7 @@ export async function geminiGenerate(
   userPrompt: string,
   options?: { maxTokens?: number }
 ): Promise<string> {
+  await assertGeminiQuotaAvailable();
   const model = getGeminiModel();
   const result = await model.generateContent({
     contents: [
@@ -58,6 +60,7 @@ export async function geminiGenerateWithTool(
   userPrompt: string,
   toolDeclaration: FunctionDeclaration
 ): Promise<Record<string, any>> {
+  await assertGeminiQuotaAvailable();
   const model = getGeminiModel();
   const result = await model.generateContent({
     contents: [
@@ -83,6 +86,7 @@ export async function geminiGenerateJSON(
   userPrompt: string,
   maxTokens = 4096
 ): Promise<Record<string, any>> {
+  await assertGeminiQuotaAvailable();
   const model = getGeminiModel();
   const result = await model.generateContent({
     contents: [{
@@ -106,6 +110,7 @@ export async function geminiGenerateWithImage(
   imageBase64: string,
   mimeType: string
 ): Promise<string> {
+  await assertGeminiQuotaAvailable();
   const model = getGeminiModel();
   const imagePart: Part = {
     inlineData: { data: imageBase64, mimeType: mimeType as any },
