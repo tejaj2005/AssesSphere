@@ -128,18 +128,18 @@ export const AISettingsPage = () => {
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <th className="py-2 pr-3 font-medium">Feature</th>
-                  <th className="py-2 pr-3 font-medium">Calls</th>
-                  <th className="py-2 pr-3 font-medium">Success</th>
-                  <th className="py-2 font-medium">Avg ms</th>
+                  <th className="py-2 pr-3 font-medium text-right">Calls</th>
+                  <th className="py-2 pr-3 font-medium text-right">Success</th>
+                  <th className="py-2 font-medium text-right">Avg ms</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.map((s) => (
                   <tr key={s.feature} className="border-b border-border/60">
                     <td className="py-1.5 pr-3">{FEATURE_LABELS[s.feature]}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{s.calls}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{s.successRate === null ? '—' : `${s.successRate}%`}</td>
-                    <td className="py-1.5 tabular-nums">{s.avgMs || '—'}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{s.calls}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{s.successRate === null ? '—' : `${s.successRate}%`}</td>
+                    <td className="py-1.5 text-right tabular-nums">{s.avgMs || '—'}</td>
                   </tr>
                 ))}
               </tbody>
