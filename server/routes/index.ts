@@ -11,20 +11,29 @@ import documentRoutes           from './document.routes';
 import productionPlanRoutes     from './production-plan.routes';
 import auditLogRoutes           from './audit-log.routes';
 import aiRoutes                 from '../ai/routes/ai.routes';
+import { requireAuth }          from '../middleware/auth';
+import { auditLogger }          from '../middleware/auditLogger';
 
 const router = Router();
 
-router.use('/auth',                authRoutes);
-router.use('/admin',               adminRoutes);
-router.use('/inspection-plans',    inspectionPlanRoutes);
-router.use('/inspection-reports',  inspectionReportRoutes);
-router.use('/quality-plans',       productQualityPlanRoutes);
-router.use('/supplier-evaluations',supplierEvaluationRoutes);
-router.use('/dashboard',           dashboardRoutes);
-router.use('/roles',               roleRoutes);
-router.use('/documents',           documentRoutes);
-router.use('/production-plans',    productionPlanRoutes);
-router.use('/audit-log',           auditLogRoutes);
-router.use('/ai',                  aiRoutes);
+// Public — no token yet when hitting these.
+router.use('/auth', authRoutes);
+
+// Every other route needs a valid session, and gets its mutations auto-logged to the audit trail.
+const protect = [requireAuth, auditLogger];
+
+router.use('/admin',               ...protect, adminRoutes);
+router.use('/inspection-plans',    ...protect, inspectionPlanRoutes);
+router.use('/inspection-reports',  ...protect, inspectionReportRoutes);
+router.use('/quality-plans',       ...protect, productQualityPlanRoutes);
+router.use('/supplier-evaluations',...protect, supplierEvaluationRoutes);
+router.use('/dashboard',           ...protect, dashboardRoutes);
+router.use('/roles',               ...protect, roleRoutes);
+router.use('/documents',           ...protect, documentRoutes);
+router.use('/production-plans',    ...protect, productionPlanRoutes);
+router.use('/audit-log',           ...protect, auditLogRoutes);
+
+// AI routes stay public for now — the copilot/AI panels don't currently send an auth header.
+router.use('/ai', aiRoutes);
 
 export default router;
