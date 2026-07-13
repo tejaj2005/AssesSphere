@@ -43,6 +43,7 @@ import { ManufacturingQualityDashboard } from '@/pages/management/ManufacturingQ
 import { AssemblingQualityDashboard } from '@/pages/management/AssemblingQualityDashboard';
 import { MaterialQualityDashboard } from '@/pages/management/MaterialQualityDashboard';
 import { SupplierEvalDashboard } from '@/pages/management/SupplierEvalDashboard';
+import { ManagementAIInsights } from '@/pages/management/ManagementAIInsights';
 
 // PM
 import { PM_NAV } from '@/pages/production-manager/PMNav';
@@ -74,6 +75,7 @@ import { InspectionChecklists } from '@/pages/quality-manager/InspectionChecklis
 import { CalibrationApprovals } from '@/pages/quality-manager/CalibrationApprovals';
 import { ReviewAllReports } from '@/pages/quality-manager/ReviewAllReports';
 import { QMProductQualityDash, QMMfgQualityDash, QMAsmQualityDash, QMMaterialQualityDash, QMComponentQualityDash, QMSupplierDash } from '@/pages/quality-manager/QMDashboards';
+import { AIAssessmentAssistantPage } from '@/pages/quality-manager/AIAssessmentAssistantPage';
 
 // Inspector
 import { INSPECTOR_NAV } from '@/pages/inspector/InspectorNav';
@@ -132,6 +134,7 @@ const App = () => (
                 <Route path="assembling-quality" element={<AssemblingQualityDashboard />} />
                 <Route path="material-quality" element={<MaterialQualityDashboard />} />
                 <Route path="supplier-evaluation" element={<SupplierEvalDashboard />} />
+                <Route path="ai-insights" element={<ManagementAIInsights />} />
               </Route>
             </Route>
 
@@ -173,6 +176,7 @@ const App = () => (
                 <Route path="calibration-approvals" element={<CalibrationApprovals />} />
                 <Route path="review-reports" element={<ReviewAllReports />} />
                 <Route path="ai-gap-analysis" element={<AIGapAnalysisPage />} />
+                <Route path="ai-assistant" element={<AIAssessmentAssistantPage />} />
                 <Route path="product-quality" element={<QMProductQualityDash />} />
                 <Route path="mfg-quality" element={<QMMfgQualityDash />} />
                 <Route path="asm-quality" element={<QMAsmQualityDash />} />

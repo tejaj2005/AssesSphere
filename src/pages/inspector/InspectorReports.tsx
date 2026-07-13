@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InspectionForm } from '@/components/inspector/InspectionForm';
 import { AIFindingsPanel, FindingsInspectionData } from '@/components/ai/AIFindingsPanel';
+import { AIEvidenceValidator } from '@/components/ai/AIEvidenceValidator';
 import { ReviewBadge } from '@/components/dashboard/RAGBadge';
 import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
@@ -116,6 +117,9 @@ export const ReportListPage = ({ type, title, description, prominentBadge }: Rep
             </div>
           );
         })()}
+        <div className="mb-4">
+          <AIEvidenceValidator />
+        </div>
         <InspectionForm key={`${openReport.id}-${formKey}`} type={type} report={openReport} />
       </PageWrapper>
     );

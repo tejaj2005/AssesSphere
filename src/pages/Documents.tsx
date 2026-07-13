@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Plus, Pencil, Trash2, MoreHorizontal, Download, Upload, FileText, FileSpreadsheet, File, Image as ImageIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, Pencil, Trash2, MoreHorizontal, Download, Upload, FileText, FileSpreadsheet, File, Image as ImageIcon, Sparkles, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Card } from '@/components/ui/card';
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
+import { AIDocumentAnalyzer } from '@/components/ai/AIDocumentAnalyzer';
 import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE } from '@/lib/api';
@@ -80,6 +81,7 @@ export const DocumentsPage = () => {
   const [confirmDel, setConfirmDel] = useState<any | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const acceptUpload = (f: File) => {
@@ -195,6 +197,33 @@ export const DocumentsPage = () => {
           </>
         }
       />
+
+      <Card className="mb-4">
+        <button
+          type="button"
+          onClick={() => setAiOpen((o) => !o)}
+          className="flex w-full items-center justify-between p-4 text-left"
+        >
+          <span className="flex items-center gap-2 text-sm font-medium">
+            <Sparkles className="h-4 w-4 text-accent" /> Analyze a Document with AI
+          </span>
+          <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', aiOpen && 'rotate-180')} />
+        </button>
+        <AnimatePresence initial={false}>
+          {aiOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="border-t border-border p-4 pt-4">
+                <AIDocumentAnalyzer />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
 
       <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 mb-6">
         {cats.map((c) => {

@@ -18,7 +18,10 @@ export const QM_NAV: NavGroup[] = [
       { label: 'Review Reports', icon: FileCheck,   to: '/qm/review-reports' },
     ],
   },
-  { label: 'AI Tools', items: [{ label: 'AI Gap Analysis', icon: Sparkles, to: '/qm/ai-gap-analysis' }] },
+  { label: 'AI Tools', items: [
+    { label: 'AI Gap Analysis', icon: Sparkles, to: '/qm/ai-gap-analysis' },
+    { label: 'AI Assistant', icon: Sparkles, to: '/qm/ai-assistant' },
+  ] },
   {
     label: 'Dashboards',
     items: [

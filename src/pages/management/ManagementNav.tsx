@@ -1,4 +1,4 @@
-import { BarChart3, Factory, Wrench, Layers, Truck } from 'lucide-react';
+import { BarChart3, Factory, Wrench, Layers, Truck, Sparkles } from 'lucide-react';
 import type { NavGroup } from '@/components/layout/navConfig';
 
 export const MANAGEMENT_NAV: NavGroup[] = [
@@ -11,5 +11,9 @@ export const MANAGEMENT_NAV: NavGroup[] = [
       { label: 'Material',         icon: Layers,    to: '/management/material-quality' },
       { label: 'Supplier Eval',    icon: Truck,     to: '/management/supplier-evaluation' },
     ],
+  },
+  {
+    label: 'AI Tools',
+    items: [{ label: 'AI Insights', icon: Sparkles, to: '/management/ai-insights' }],
   },
 ];
