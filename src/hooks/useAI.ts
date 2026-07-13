@@ -1,6 +1,12 @@
 import { useState, useCallback } from 'react';
+import { getToken } from '@/lib/api';
 
 export const AI_BASE = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001/api/ai';
+
+export function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 interface AIState<T> {
   data: T | null;
@@ -15,10 +21,10 @@ export function useAICall<TInput = any, TOutput = any>(endpoint: string) {
     setState({ data: null, loading: true, error: null });
     try {
       const response = formData
-        ? await fetch(`${AI_BASE}/${endpoint}`, { method: 'POST', body: formData })
+        ? await fetch(`${AI_BASE}/${endpoint}`, { method: 'POST', body: formData, headers: authHeaders() })
         : await fetch(`${AI_BASE}/${endpoint}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify(input),
           });
 
@@ -54,7 +60,7 @@ export async function streamCopilot(
 ): Promise<void> {
   const response = await fetch(`${AI_BASE}/copilot`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
     signal,
   });

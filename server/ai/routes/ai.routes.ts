@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { AuthedRequest } from '../../middleware/auth';
 import multer from 'multer';
 import path from 'path';
 import os from 'os';
@@ -103,9 +104,9 @@ router.post('/capa', rateLimit(10), async (req: Request, res: Response) => {
 });
 
 // ── COPILOT (Groq streaming) ──────────────────────────────────────────────────
-router.post('/copilot', rateLimit(30), async (req: Request, res: Response) => {
+router.post('/copilot', rateLimit(30), async (req: AuthedRequest, res: Response) => {
   const { messages, context } = req.body;
-  await streamCopilotResponse(messages || [], context || { userRole: 'User' }, res);
+  await streamCopilotResponse(messages || [], context || { userRole: 'User' }, res, req.auth?.userId);
 });
 
 // ── GAP ANALYSIS ──────────────────────────────────────────────────────────────

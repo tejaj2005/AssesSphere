@@ -1,12 +1,33 @@
 import 'dotenv/config';
 
-const BASE = `http://localhost:${process.env.PORT || 3001}/api/ai`;
+const ROOT = `http://localhost:${process.env.PORT || 3001}/api`;
+const BASE = `${ROOT}/ai`;
 const results: { feature: string; status: 'PASS'|'FAIL'; ms: number; note: string }[] = [];
+
+// /api/ai/* now requires a valid session (see server/routes/index.ts) — log in once as the
+// seeded Admin account and reuse the token for every call this script makes.
+let authToken = '';
+
+async function authenticate(): Promise<void> {
+  const res = await fetch(`${ROOT}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@qmics.com', password: 'Admin@2025' }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const json = await res.json();
+  if (!json.success) throw new Error(`verify-ai login failed: ${json.error || res.status}. Run "npm run seed" first.`);
+  authToken = json.data.token;
+}
+
+function authHeader(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+}
 
 async function post(endpoint: string, body: any): Promise<any> {
   const res = await fetch(`${BASE}/${endpoint}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeader() },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(60000),
   });
@@ -14,7 +35,7 @@ async function post(endpoint: string, body: any): Promise<any> {
 }
 
 async function get(endpoint: string): Promise<any> {
-  const res = await fetch(`${BASE}/${endpoint}`, { signal: AbortSignal.timeout(10000) });
+  const res = await fetch(`${BASE}/${endpoint}`, { headers: authHeader(), signal: AbortSignal.timeout(10000) });
   return res.json();
 }
 
@@ -83,6 +104,9 @@ async function main() {
   console.log('╚═════════════════════════════════════════╝\n');
   console.log(`  Server: ${BASE}\n`);
 
+  await authenticate();
+  console.log('  ✓  Authenticated as admin@qmics.com\n');
+
   await t('health-check', () => get('health'));
 
   await t('ai-findings-generator', () => post('findings', SAMPLE_INSPECTION), { gemini: true });
@@ -100,7 +124,7 @@ async function main() {
   await t('ai-compliance-copilot', async () => {
     const res = await fetch(`${BASE}/copilot`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
       body: JSON.stringify({ messages: [{ role: 'user', content: 'Hello, what can you help me with?' }], context: { userRole: 'QualityManager', pendingApprovals: 5, openFindings: 12 } }),
       signal: AbortSignal.timeout(15000),
     });

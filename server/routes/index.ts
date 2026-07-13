@@ -33,7 +33,8 @@ router.use('/documents',           ...protect, documentRoutes);
 router.use('/production-plans',    ...protect, productionPlanRoutes);
 router.use('/audit-log',           ...protect, auditLogRoutes);
 
-// AI routes stay public for now — the copilot/AI panels don't currently send an auth header.
-router.use('/ai', aiRoutes);
+// AI panels now send an auth header (src/hooks/useAI.ts) — same guard as everything else,
+// but no auditLogger since these are AI generations, not entity mutations.
+router.use('/ai', requireAuth, aiRoutes);
 
 export default router;

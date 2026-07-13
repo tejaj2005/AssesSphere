@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
-import { useAIGapAnalysis, AI_BASE } from '@/hooks/useAI';
+import { useAIGapAnalysis, AI_BASE, authHeaders } from '@/hooks/useAI';
 
 const STANDARDS = [
   { value: 'ISO_9001_2015', label: 'ISO 9001:2015' },
@@ -40,7 +40,7 @@ export const AIGapAnalysisPage = () => {
 
   const loadHistory = async () => {
     try {
-      const res = await fetch(`${AI_BASE}/audit-log?feature=gap-analysis`);
+      const res = await fetch(`${AI_BASE}/audit-log?feature=gap-analysis`, { headers: authHeaders() });
       const json = await res.json();
       setHistory((json.data || []).slice(0, 5));
     } catch { /* ignore */ }

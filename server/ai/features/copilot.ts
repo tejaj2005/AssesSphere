@@ -1,5 +1,6 @@
 import { groqStreamToResponse, GroqMessage } from '../adapters/groq';
 import { COPILOT_BASE } from '../system-prompts';
+import { AICopilotSession } from '../../models/AICopilotSession';
 import { Response } from 'express';
 
 export interface CopilotContext {
@@ -38,7 +39,8 @@ function buildSystemMessage(context: CopilotContext): string {
 export async function streamCopilotResponse(
   conversationHistory: Array<{ role: string; content: string }>,
   context: CopilotContext,
-  res: Response
+  res: Response,
+  userId?: string
 ): Promise<void> {
   const systemMessage = buildSystemMessage(context);
 
@@ -50,5 +52,23 @@ export async function streamCopilotResponse(
     })),
   ];
 
-  await groqStreamToResponse(messages, res);
+  const assistantReply = await groqStreamToResponse(messages, res);
+
+  // Fire-and-forget: persisting the exchange isn't on the response's critical path (the
+  // stream has already ended by the time this runs), and a DB hiccup here shouldn't surface
+  // as a chat error to the user.
+  if (userId) {
+    const lastUserMessage = conversationHistory[conversationHistory.length - 1];
+    const toAppend = [
+      ...(lastUserMessage ? [{ role: lastUserMessage.role, content: lastUserMessage.content, timestamp: new Date() }] : []),
+      ...(assistantReply ? [{ role: 'assistant', content: assistantReply, timestamp: new Date() }] : []),
+    ];
+    if (toAppend.length) {
+      AICopilotSession.findOneAndUpdate(
+        { userId },
+        { $push: { messages: { $each: toAppend, $slice: -40 } }, $set: { lastMessageAt: new Date() } },
+        { upsert: true }
+      ).catch(() => { /* session persistence failure is non-fatal */ });
+    }
+  }
 }

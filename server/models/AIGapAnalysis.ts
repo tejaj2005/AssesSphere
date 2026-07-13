@@ -18,4 +18,6 @@ const schema = new Schema<IAIGapAnalysis>({
   analyzedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
+schema.index({ analyzedAt: -1 });
+
 export const AIGapAnalysis = model<IAIGapAnalysis>('AIGapAnalysis', schema);

@@ -24,4 +24,8 @@ const schema = new Schema<IAIAuditLog>({
   createdAt: { type: Date, default: Date.now, index: true },
 });
 
+// quotaGuard.ts runs `{ provider, createdAt: { $gte } }` on every single Gemini call — a
+// compound index keeps that hot-path count cheap instead of scanning by createdAt alone.
+schema.index({ provider: 1, createdAt: -1 });
+
 export const AIAuditLog = model<IAIAuditLog>('AIAuditLog', schema);

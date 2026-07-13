@@ -5,7 +5,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AI_BASE } from '@/hooks/useAI';
+import { AI_BASE, authHeaders } from '@/hooks/useAI';
 
 const FEATURES = [
   'findings', 'capa', 'gap-analysis', 'evidence-validation', 'document-intel',
@@ -54,8 +54,8 @@ export const AISettingsPage = () => {
     setHealthErr(false);
     try {
       const [h, l] = await Promise.all([
-        fetch(`${AI_BASE}/health`).then((r) => r.json()),
-        fetch(`${AI_BASE}/audit-log`).then((r) => r.json()),
+        fetch(`${AI_BASE}/health`, { headers: authHeaders() }).then((r) => r.json()),
+        fetch(`${AI_BASE}/audit-log`, { headers: authHeaders() }).then((r) => r.json()),
       ]);
       setHealth(h);
       setLogs(l.data || []);
