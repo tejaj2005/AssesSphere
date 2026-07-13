@@ -196,8 +196,12 @@ single-instance deployment, worth swapping for a shared store before scaling hor
 ## 5. Auth, authorization & audit
 
 - **JWT bearer tokens** (`jsonwebtoken`), issued on `POST /api/auth/login`, verified by
-  `server/middleware/auth.ts` (`requireAuth`) on every route group except `/auth` and `/ai`.
-- **bcrypt** password hashing (`bcryptjs`) on the `User` model.
+  `server/middleware/auth.ts` (`requireAuth`) on every route group including `/ai` (everything
+  except `/auth`, which has to be reachable pre-login). `JWT_SECRET` has no hardcoded fallback —
+  `server/config/jwtSecret.ts` throws at boot if it's unset, since a fallback baked into source
+  is a secret anyone reading the repo already has.
+- **bcrypt** password hashing (`bcryptjs`) on the `User` model, with an 8-character minimum
+  enforced in the same pre-save hook that does the hashing.
 - **Six fixed roles** — `Admin`, `Management`, `ProductionManager`, `StoresManager`,
   `QualityManager`, `Inspector` — enforced twice: server-side via `req.auth.role` checks where
   relevant, and client-side via `<ProtectedRoute allowedRoles={[...]} />` wrapping each module's
@@ -205,10 +209,13 @@ single-instance deployment, worth swapping for a shared store before scaling hor
 - **Audit logging** — `server/middleware/auditLogger.ts` wraps `res.json` on every protected
   route and fire-and-forget writes a Created/Updated/Deleted `AuditLogEntry` after a successful
   mutation, keyed off the route path to a human label (`ENTITY_LABELS` map). This is what backs
-  the Dashboard activity feed and the standalone Audit Log page.
-- **Known gap:** the `/api/ai/*` routes are still public (no `requireAuth`) — the AI panels don't
-  currently send an auth header. Fine for a single-tenant demo; would need closing before this API
-  is exposed beyond a trusted network.
+  the Dashboard activity feed and the standalone Audit Log page. The AI Compliance Copilot gets
+  its own equivalent — `AICopilotSession` — appending each exchange (capped to the last 40
+  messages) per `userId`, fire-and-forget, same pattern.
+- **Perimeter hardening**: `helmet` for standard security headers, CORS locked to an explicit
+  `ALLOWED_ORIGINS` allowlist instead of a wildcard (a wildcard would let any site's script read
+  API responses on behalf of a logged-in user's browser), and rate limiting on `/auth/login` and
+  `/auth/register` (20 requests / 15 min per IP) to slow credential-stuffing attempts.
 
 ---
 
@@ -248,8 +255,20 @@ persistent MongoDB connection and streams the copilot response over a long-lived
 
 ## 8. Honest trade-offs / what's not production-hardened
 
-- AI routes have no auth check (see §5).
-- Rate limiting is in-memory, single-instance only (see §4).
+- Rate limiting (both the AI-route limiter in §4 and the login limiter in §5) is in-memory,
+  single-instance only — resets on restart and won't hold up across multiple instances behind a
+  load balancer without moving to a shared store (Redis).
+- `npm audit` currently reports two unresolved advisories, deliberately not force-fixed mid-way
+  through an unrelated set of changes:
+  - `xlsx` (prototype pollution / ReDoS) — no patched version on the npm registry. Checked the
+    app's own usage (`src/lib/exportExcel.ts`): it only calls `json_to_sheet`/`writeFile` to
+    generate a download from the app's own trusted data, never `XLSX.read` on untrusted input,
+    which is where both advisories actually live — so the exploitable path isn't in use here,
+    but the dependency itself stays flagged until SheetJS ships a fix upstream.
+  - `esbuild`/`vite` (dev server can be reached by any site's request) — fixing requires a
+    Vite 5→8 major bump, which needs its own isolated testing pass (plugin/config compatibility)
+    rather than a blind `--force` in the middle of other work. Dev-server-only exposure, not a
+    production risk (the production build is static files, no dev server involved).
 - No automated test suite — correctness is currently verified via `verify:ai` (backend smoke
   test) and manual/browser-driven checks, not unit/integration tests.
 - No DB migration tooling — schema evolution is manual, backed by demo seed data rather than
