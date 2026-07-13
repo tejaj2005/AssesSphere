@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
+import { AISchedulingTable, SchedulingEntity } from '@/components/ai/AISchedulingTable';
 import { useApiResource } from '@/hooks/useApi';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -130,6 +131,25 @@ export const AssignInspectors = () => {
     }
   };
 
+  // Scheduling entities derived from real data: one per product, with a lightweight
+  // risk-score heuristic based on how many of that product's plans are still open
+  // (not a substitute for the formal Intelligent Risk Scoring feature elsewhere in the app).
+  const schedulingEntities: SchedulingEntity[] = useMemo(() => products.map((p) => {
+    const productPlans = items.filter((pl) => refId(pl.product) === p.id);
+    const openCount = productPlans.filter((pl) => pl.status !== 'COMPLETED').length;
+    const mostRecent = [...productPlans].sort((a, b) =>
+      new Date(b.dueDate || b.createdAt || 0).getTime() - new Date(a.dueDate || a.createdAt || 0).getTime()
+    )[0];
+    return {
+      id: p.id,
+      name: p.name,
+      type: 'PRODUCT',
+      lastInspectionDate: mostRecent?.dueDate || mostRecent?.createdAt || p.createdAt || new Date().toISOString(),
+      riskScore: Math.min(95, openCount * 20 + 15),
+      overdueCAPAs: 0,
+    };
+  }), [products, items]);
+
   const exportRows = filtered.map((r) => ({ Plan: r.code, Product: r.productName, Stage: r.stage, Inspector: r.inspectorNames.join(', ') || 'Unassigned', Status: r.status }));
 
   const columns: Column<typeof allRows[0]>[] = [
@@ -205,6 +225,12 @@ export const AssignInspectors = () => {
           </CardContent>
         </Card>
       </div>
+
+      {schedulingEntities.length > 0 && (
+        <div className="mt-4">
+          <AISchedulingTable entities={schedulingEntities} availableInspectors={inspectors.length || 3} />
+        </div>
+      )}
     </PageWrapper>
   );
 };

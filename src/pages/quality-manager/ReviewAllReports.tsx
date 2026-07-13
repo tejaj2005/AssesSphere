@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { RAGBadge, ReviewBadge } from '@/components/dashboard/RAGBadge';
+import { AIQualityScoreBadge } from '@/components/ai/AIQualityScoreBadge';
 import { useApiResource } from '@/hooks/useApi';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
@@ -222,10 +223,17 @@ export const ReviewAllReports = () => {
     const reviewStatus = toReviewStatus(r.status);
     const pendingL1 = reviewStatus === 'PENDING' && !r.l1ReviewedBy;
     const pendingQm = reviewStatus === 'PENDING' && !!r.l1ReviewedBy;
+    const checklist = r.checklistResults || [];
     return (
       <motion.div key={r.id} layout initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         <Card className={cn('overflow-hidden', r.overallResult === 'FAIL' && 'border-l-4 border-l-red-500')}>
-          <button onClick={() => setExpanded(expanded === r.id ? null : r.id)} className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/30">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded(expanded === r.id ? null : r.id); } }}
+            className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/30 cursor-pointer"
+          >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-mono text-xs font-medium">{r.reportId}</span>
@@ -233,13 +241,26 @@ export const ReviewAllReports = () => {
                 <span className="font-semibold">{r.plan?.title || 'Untitled Plan'}</span>
                 <ReviewBadge status={reviewStatus} />
                 {pendingQm && <Badge variant="accent">Pending Final Approval</Badge>}
+                {checklist.length > 0 && (
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <AIQualityScoreBadge assessmentData={{
+                      assessmentId: r.id,
+                      totalQuestions: checklist.length,
+                      answeredQuestions: checklist.filter((c: any) => c.actualValue != null && c.actualValue !== '').length,
+                      evidenceCount: checklist.filter((c: any) => !!c.observations).length,
+                      findingsCount: checklist.filter((c: any) => c.result === 'FAIL' || c.result === 'MARGINAL').length,
+                      capaCount: 0,
+                      checklistCompletionRate: Math.round((checklist.filter((c: any) => c.actualValue != null && c.actualValue !== '').length / checklist.length) * 100),
+                    }} />
+                  </span>
+                )}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {nameOf(r.inspector, user?.id, user?.name, 'Unknown Inspector')} · {formatDate(r.inspectionDate)} {r.l1ReviewedBy && '· L1 reviewed'}
               </p>
             </div>
             <ChevronDown className={cn('h-4 w-4 transition-transform', expanded === r.id && 'rotate-180')} />
-          </button>
+          </div>
           <AnimatePresence>
             {expanded === r.id && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">

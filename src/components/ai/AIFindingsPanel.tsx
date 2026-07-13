@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Loader2, ChevronDown, RefreshCw, CheckCircle2, Lightbulb, AlertTriangle } from 'lucide-react';
+import { Sparkles, Loader2, ChevronDown, RefreshCw, CheckCircle2, Lightbulb, AlertTriangle, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
-import { useAIFindings } from '@/hooks/useAI';
+import { useAIFindings, useAICapa } from '@/hooks/useAI';
 import { cn } from '@/lib/utils';
 
 interface ChecklistItem {
@@ -37,6 +37,94 @@ const severityVariant: Record<string, 'danger' | 'warning' | 'accent'> = {
   MAJOR: 'warning',
   MINOR: 'warning',
   OBSERVATION: 'accent',
+};
+
+const priorityVariant: Record<string, 'danger' | 'warning' | 'accent'> = {
+  IMMEDIATE: 'danger',
+  SHORT_TERM: 'warning',
+  LONG_TERM: 'accent',
+};
+
+/** One non-conformity, with its own "Recommend CAPA" action — each card needs its own
+ * loading/result state, so this has to be a component (one useAICapa() call per card),
+ * not a .map() over a single shared hook instance in the parent. */
+const NonConformityCard = ({ nc, productName, stage }: { nc: any; productName: string; stage: string }) => {
+  const { data: capa, loading, error, execute } = useAICapa();
+
+  const requestCapa = () => execute({
+    findingId: nc.findingId,
+    severity: nc.severity,
+    description: nc.description,
+    affectedParameter: nc.affectedParameter || 'Unspecified',
+    productName,
+    stage,
+  });
+
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="font-mono text-xs text-muted-foreground">{nc.findingId}</span>
+        <Badge variant={severityVariant[nc.severity] || 'slate'}>{nc.severity}</Badge>
+        {nc.affectedParameter && <span className="text-xs text-muted-foreground">· {nc.affectedParameter}</span>}
+      </div>
+      <p className="text-sm">{nc.description}</p>
+      {nc.standardReference && (
+        <p className="mt-1 text-xs text-muted-foreground">Ref: {nc.standardReference}</p>
+      )}
+      {nc.immediateAction && (
+        <p className="mt-1 text-xs"><span className="font-medium">Immediate action:</span> {nc.immediateAction}</p>
+      )}
+
+      {!capa ? (
+        <div className="mt-2">
+          <Button variant="outline" size="sm" onClick={requestCapa} disabled={loading}>
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+            {loading ? 'Drafting CAPA…' : 'Recommend CAPA'}
+          </Button>
+          {error && <p className="mt-1 text-xs text-danger">{error}</p>}
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2 border-t border-border pt-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">CAPA Recommendation</p>
+            <AIGeneratedBadge />
+          </div>
+          {Array.isArray(capa.rootCauses) && capa.rootCauses.length > 0 && (
+            <div>
+              <p className="text-xs font-medium">Root Causes</p>
+              <ul className="list-inside list-disc space-y-0.5 text-xs text-muted-foreground">
+                {capa.rootCauses.map((rc: any, i: number) => <li key={i}>{rc.cause} ({rc.methodology}, {rc.likelihood} likelihood)</li>)}
+              </ul>
+            </div>
+          )}
+          {Array.isArray(capa.correctiveActions) && capa.correctiveActions.length > 0 && (
+            <div>
+              <p className="text-xs font-medium">Corrective Actions</p>
+              <ul className="space-y-1">
+                {capa.correctiveActions.map((ca: any, i: number) => (
+                  <li key={i} className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                    <Badge variant={priorityVariant[ca.priority] || 'slate'} className="mt-0.5 shrink-0">{ca.priority}</Badge>
+                    <span>{ca.action} — {ca.responsibleDepartment}, {ca.targetDays}d</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {Array.isArray(capa.preventiveActions) && capa.preventiveActions.length > 0 && (
+            <div>
+              <p className="text-xs font-medium">Preventive Actions</p>
+              <ul className="list-inside list-disc space-y-0.5 text-xs text-muted-foreground">
+                {capa.preventiveActions.map((pa: any, i: number) => <li key={i}>{pa.action} — {pa.responsibleDepartment}, {pa.targetDays}d</li>)}
+              </ul>
+            </div>
+          )}
+          {typeof capa.estimatedRiskReduction === 'number' && (
+            <p className="text-xs text-muted-foreground">Estimated risk reduction: <span className="font-medium tabular-nums">{capa.estimatedRiskReduction}%</span></p>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 export const AIFindingsPanel = ({ inspectionData, onAccepted }: Props) => {
@@ -101,20 +189,7 @@ export const AIFindingsPanel = ({ inspectionData, onAccepted }: Props) => {
                           <AlertTriangle className="h-3.5 w-3.5" /> Non-Conformities
                         </p>
                         {ncs.map((nc, i) => (
-                          <div key={i} className="rounded-lg border border-border p-3">
-                            <div className="mb-1 flex items-center gap-2">
-                              <span className="font-mono text-xs text-muted-foreground">{nc.findingId}</span>
-                              <Badge variant={severityVariant[nc.severity] || 'slate'}>{nc.severity}</Badge>
-                              {nc.affectedParameter && <span className="text-xs text-muted-foreground">· {nc.affectedParameter}</span>}
-                            </div>
-                            <p className="text-sm">{nc.description}</p>
-                            {nc.standardReference && (
-                              <p className="mt-1 text-xs text-muted-foreground">Ref: {nc.standardReference}</p>
-                            )}
-                            {nc.immediateAction && (
-                              <p className="mt-1 text-xs"><span className="font-medium">Immediate action:</span> {nc.immediateAction}</p>
-                            )}
-                          </div>
+                          <NonConformityCard key={i} nc={nc} productName={inspectionData.productName} stage={inspectionData.stage} />
                         ))}
                       </div>
                     )}

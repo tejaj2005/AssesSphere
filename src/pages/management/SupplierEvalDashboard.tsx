@@ -14,6 +14,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { DateRangeFilter } from '@/components/shared/DateRangeFilter';
+import { AIRiskScoreCard } from '@/components/ai/AIRiskScoreCard';
 import { useAuth } from '@/context/AuthContext';
 import { useApiResource } from '@/hooks/useApi';
 import { staggerContainer, staggerItem } from '@/lib/animations';
@@ -158,6 +159,11 @@ export const SupplierEvalDashboard = () => {
         {expanded && (() => {
           const e = filtered.find((x) => x.id === expanded);
           if (!e) return null;
+          // Real-data-derived risk inputs: count this supplier's own evaluation history rather
+          // than inventing numbers — RED/AMBER evaluations stand in for critical/major findings
+          // since supplier evaluations don't carry a separate findings breakdown.
+          const supplierHistory = supplierEvaluations.filter((x) => x.supplierId === e.supplierId);
+          const supplierRecord = suppliers.find((s: any) => s.id === e.supplierId);
           return (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
               <Card className="mt-4 p-6">
@@ -177,6 +183,24 @@ export const SupplierEvalDashboard = () => {
                   <div className="p-3 rounded-lg border"><p className="text-xs uppercase tracking-wider text-muted-foreground">Quantity</p><p className="mt-1 text-2xl font-bold">{e.quantityRating}<span className="text-sm text-muted-foreground">/10</span></p><RAGBadge status={e.quantityStatus} /></div>
                 </div>
                 {e.comments && <div className="mt-4 pt-4 border-t"><p className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Evaluator Comments</p><p className="text-sm italic">"{e.comments}"</p></div>}
+                <div className="mt-4 pt-4 border-t max-w-xs">
+                  <AIRiskScoreCard
+                    entityType="SUPPLIER"
+                    entityId={e.supplierId}
+                    entityName={e.supplierName}
+                    historicalData={{
+                      totalInspections: Math.max(supplierHistory.length, 1),
+                      failedInspections: supplierHistory.filter((x) => x.overallStatus === 'RED').length,
+                      criticalFindings: supplierHistory.filter((x) => x.overallStatus === 'RED').length,
+                      majorFindings: supplierHistory.filter((x) => x.overallStatus === 'AMBER').length,
+                      minorFindings: 0,
+                      capaOpenCount: 0,
+                      capaOverdueCount: 0,
+                      lastInspectionDate: e.evaluationDate,
+                      complianceScore: supplierRecord ? Math.round((supplierRecord.overallRating || 0) * 10) : undefined,
+                    }}
+                  />
+                </div>
               </Card>
             </motion.div>
           );
