@@ -8,14 +8,17 @@ import { JWT_SECRET } from '../config/jwtSecret';
 const router = Router();
 
 // Slows down credential-stuffing / brute-force attempts against /login without needing a
-// captcha — 20 attempts per IP per 15 minutes is generous for a real user, punishing for a
-// script trying passwords.
+// captcha. skipSuccessfulRequests is the important part: only *failed* attempts count toward
+// the cap, so a real user (or this app's "quick role sign-in", which fires several correct
+// logins back to back when switching demo roles) never gets blocked by their own successful
+// logins — only a run of wrong passwords does.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 20,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, error: 'Too many login attempts. Try again in a few minutes.' },
+  skipSuccessfulRequests: true,
+  message: { success: false, error: 'Too many failed login attempts. Try again in a few minutes.' },
 });
 
 router.post('/login', loginLimiter, async (req: Request, res: Response) => {
