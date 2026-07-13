@@ -53,9 +53,9 @@ export const ReviewAllReports = () => {
   const { user } = useAuth();
   const orgQuery = useMemo(() => ({ organization: user?.organization || '' }), [user?.organization]);
 
-  const { items: reports, setItems: setReports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', { ...orgQuery, limit: '500' });
-  const { items: supplierEvaluations, setItems: setSupplierEvals, loading: evalsLoading } = useApiResource<any>('/supplier-evaluations', orgQuery);
-  const { items: qualityPlans, setItems: setQualityPlans, loading: plansLoading } = useApiResource<any>('/quality-plans', orgQuery);
+  const { items: reports, setItems: setReports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', { ...orgQuery, limit: '500' }, 20000);
+  const { items: supplierEvaluations, setItems: setSupplierEvals, loading: evalsLoading } = useApiResource<any>('/supplier-evaluations', orgQuery, 20000);
+  const { items: qualityPlans, setItems: setQualityPlans, loading: plansLoading } = useApiResource<any>('/quality-plans', orgQuery, 20000);
   const { items: materials } = useApiResource<any>('/admin/materials', orgQuery);
 
   const materialsById = useMemo(() => Object.fromEntries(materials.map((m: any) => [m.id, m.name])), [materials]);

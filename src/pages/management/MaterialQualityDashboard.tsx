@@ -10,8 +10,8 @@ export const MaterialQualityDashboard = () => {
   const { user } = useAuth();
   const organization = user?.organization ?? '';
 
-  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' });
-  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, planType: 'R1_MATERIAL', limit: '200' });
+  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' }, 20000);
+  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, planType: 'R1_MATERIAL', limit: '200' }, 20000);
   const { items: materials } = useApiResource<any>('/admin/materials', { organization });
   const { items: suppliers } = useApiResource<any>('/admin/suppliers', { organization });
 

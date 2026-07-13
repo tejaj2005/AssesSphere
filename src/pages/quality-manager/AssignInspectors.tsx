@@ -38,7 +38,7 @@ export const AssignInspectors = () => {
   const { items, loading, error, refetch } = useApiResource<any>('/inspection-plans', {
     organization: user?.organization || '',
     limit: '1000',
-  });
+  }, 20000);
   const [inspectors, setInspectors] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [tab, setTab] = useState<AssignTab>('MANUFACTURING');

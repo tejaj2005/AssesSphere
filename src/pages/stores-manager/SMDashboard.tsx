@@ -72,11 +72,18 @@ export const SMDashboard = () => {
 
   useEffect(() => {
     if (!user?.organization) return;
-    setLoading(true);
-    api.get<StoresDashboardData>(`/dashboard/stores?organization=${user.organization}`)
-      .then(setData)
-      .catch((e) => toast.error(e instanceof Error ? e.message : 'Failed to load dashboard'))
-      .finally(() => setLoading(false));
+    const load = (silent = false) => {
+      if (!silent) setLoading(true);
+      api.get<StoresDashboardData>(`/dashboard/stores?organization=${user.organization}`)
+        .then(setData)
+        .catch((e) => { if (!silent) toast.error(e instanceof Error ? e.message : 'Failed to load dashboard'); })
+        .finally(() => setLoading(false));
+    };
+    load();
+    // Refresh quietly every 20s so a material plan / supplier change made elsewhere shows up
+    // here without needing to leave and come back to this page.
+    const interval = setInterval(() => load(true), 20000);
+    return () => clearInterval(interval);
   }, [user?.organization]);
 
   if (loading || !data) return <PageWrapper><LoadingSkeleton /></PageWrapper>;

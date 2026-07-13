@@ -54,19 +54,23 @@ export const QMDashboard = () => {
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const qs = user?.organization ? `?organization=${user.organization}` : '';
         const result = await api.get<QualityDashboardData>(`/dashboard/quality${qs}`);
         if (!cancelled) setData(result);
       } catch (e) {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
+        if (!cancelled && !silent) toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    load();
+    // Refresh quietly every 20s so a plan/report/evaluation change made elsewhere shows up here
+    // without needing to leave and come back to this page.
+    const interval = setInterval(() => load(true), 20000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [user?.organization]);
 
   if (loading || !data) {

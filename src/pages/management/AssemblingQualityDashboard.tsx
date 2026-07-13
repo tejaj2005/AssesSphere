@@ -10,8 +10,8 @@ export const AssemblingQualityDashboard = () => {
   const { user } = useAuth();
   const organization = user?.organization ?? '';
 
-  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' });
-  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, planType: 'R4_ASSEMBLY', limit: '200' });
+  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' }, 20000);
+  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, planType: 'R4_ASSEMBLY', limit: '200' }, 20000);
   const { items: products } = useApiResource<any>('/admin/products', { organization });
   const { items: assemblingStages } = useApiResource<any>('/admin/assembly-stages', { organization });
 

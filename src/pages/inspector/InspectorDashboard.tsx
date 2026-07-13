@@ -96,18 +96,22 @@ export const InspectorDashboard = () => {
   useEffect(() => {
     if (!user?.id) return;
     let cancelled = false;
-    (async () => {
-      setLoading(true);
+    const load = async (silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const result = await api.get<InspectorDashboardData>(`/dashboard/inspector?inspectorId=${user.id}`);
         if (!cancelled) setData(result);
       } catch (e) {
-        if (!cancelled) toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
+        if (!cancelled && !silent) toast.error(e instanceof Error ? e.message : 'Failed to load dashboard');
       } finally {
         if (!cancelled) setLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
+    };
+    load();
+    // Refresh quietly every 20s so a newly assigned plan shows up here without needing to
+    // leave and come back to this page.
+    const interval = setInterval(() => load(true), 20000);
+    return () => { cancelled = true; clearInterval(interval); };
   }, [user?.id]);
 
   const tasks: Task[] = useMemo(() => {

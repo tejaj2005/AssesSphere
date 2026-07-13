@@ -54,7 +54,7 @@ export const SupplierEvalDashboard = () => {
   const organization = user?.organization ?? '';
   const chart = useChartColors();
 
-  const { items: rawEvaluations } = useApiResource<any>('/supplier-evaluations', { organization });
+  const { items: rawEvaluations } = useApiResource<any>('/supplier-evaluations', { organization }, 20000);
   const { items: suppliers } = useApiResource<any>('/admin/suppliers', { organization });
 
   const supplierEvaluations = useMemo(() => rawEvaluations.map(toSupplierEvaluation), [rawEvaluations]);

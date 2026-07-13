@@ -15,8 +15,8 @@ export const ProductQualityDashboard = () => {
 
   // Product-wide overview: every InspectionReport regardless of plan type (mfg/asm/material/component/final),
   // joined against the matching InspectionPlan list so product/material names can be recovered.
-  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' });
-  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, limit: '200' });
+  const { items: reports } = useApiResource<any>('/inspection-reports', { organization, limit: '200' }, 20000);
+  const { items: plans } = useApiResource<any>('/inspection-plans', { organization, limit: '200' }, 20000);
   const { items: products } = useApiResource<any>('/admin/products', { organization });
 
   const records = useMemo(() => reportsToRecords(reports, plans), [reports, plans]);

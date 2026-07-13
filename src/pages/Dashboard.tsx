@@ -79,13 +79,19 @@ export const Dashboard = () => {
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
     const qs = user?.organization ? `?organization=${user.organization}` : '';
-    api.get<ManagementDashboardData>(`/dashboard/management${qs}`)
-      .then((data) => { if (active) setDashboard(data); })
-      .catch((e) => { toast.error(e instanceof Error ? e.message : 'Something went wrong'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const load = (silent = false) => {
+      if (!silent) setLoading(true);
+      api.get<ManagementDashboardData>(`/dashboard/management${qs}`)
+        .then((data) => { if (active) setDashboard(data); })
+        .catch((e) => { if (!silent) toast.error(e instanceof Error ? e.message : 'Something went wrong'); })
+        .finally(() => { if (active) setLoading(false); });
+    };
+    load();
+    // Refresh quietly every 20s so activity from other roles shows up on the Dashboard's
+    // activity feed and stats without needing to leave and come back to this page.
+    const interval = setInterval(() => load(true), 20000);
+    return () => { active = false; clearInterval(interval); };
   }, [user?.organization]);
 
   const kpis: DashboardKpis = dashboard?.kpis ?? { totalInspections: 0, approvedCount: 0, pendingReview: 0, rejectedCount: 0, approvalRate: 0 };

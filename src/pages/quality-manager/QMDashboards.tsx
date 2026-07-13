@@ -25,8 +25,8 @@ export const QMComponentQualityDash = () => {
     [user?.organization]
   );
 
-  const { items: reports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', query);
-  const { items: plans, loading: plansLoading } = useApiResource<any>('/inspection-plans', componentPlanQuery);
+  const { items: reports, loading: reportsLoading } = useApiResource<any>('/inspection-reports', query, 20000);
+  const { items: plans, loading: plansLoading } = useApiResource<any>('/inspection-plans', componentPlanQuery, 20000);
   const { items: products } = useApiResource<any>('/admin/products', query);
   const { items: components } = useApiResource<any>('/admin/components', query);
 

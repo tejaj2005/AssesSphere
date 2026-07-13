@@ -100,7 +100,9 @@ const UserConfigForm = ({ form, setForm, errs, editing, departmentOptions }: any
 
 export const UsersPage = () => {
   const { user: authUser } = useAuth();
-  const { items: users, loading, create, update, remove } = useApiResource<ApiUser>('/admin/users');
+  // Polls every 20s so a user created/edited from another tab or session shows up here without
+  // needing to leave and come back to this page.
+  const { items: users, loading, create, update, remove } = useApiResource<ApiUser>('/admin/users', undefined, 20000);
   const { items: departments } = useApiResource<DeptApi>('/admin/departments');
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
