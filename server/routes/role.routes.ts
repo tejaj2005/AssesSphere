@@ -16,6 +16,14 @@ router.post('/', async (req, res) => {
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
+router.get('/:id', async (req, res) => {
+  try {
+    const role = await Role.findById(req.params.id);
+    if (!role) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: role });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 router.put('/:id', async (req, res) => {
   try {
     const role = await Role.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });

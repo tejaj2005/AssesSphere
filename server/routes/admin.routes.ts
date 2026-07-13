@@ -82,6 +82,13 @@ router.put('/products/:id', async (req, res) => {
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
+router.delete('/products/:id', async (req, res) => {
+  try {
+    const p = await Product.findByIdAndDelete(req.params.id);
+    if (!p) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
 
 // EQUIPMENT + CALIBRATION
 router.get('/equipment', async (req, res) => {
@@ -97,12 +104,27 @@ router.post('/equipment', async (req, res) => {
   try { res.status(201).json({ success: true, data: await Equipment.create(req.body) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
+router.get('/equipment/:id', async (req, res) => {
+  try {
+    const eq = await Equipment.findById(req.params.id);
+    if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: eq });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
 router.put('/equipment/:id', async (req, res) => {
   try {
     const eq = await Equipment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: eq });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
+});
+router.delete('/equipment/:id', async (req, res) => {
+  try {
+    const eq = await Equipment.findByIdAndDelete(req.params.id);
+    if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
+    await CalibrationRecord.deleteMany({ equipment: req.params.id });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 router.post('/equipment/:id/calibration', async (req, res) => {
   try {
@@ -173,12 +195,26 @@ router.post('/suppliers', async (req, res) => {
   try { res.status(201).json({ success: true, data: await Supplier.create(req.body) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
+router.get('/suppliers/:id', async (req, res) => {
+  try {
+    const s = await Supplier.findById(req.params.id);
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: s });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
 router.put('/suppliers/:id', async (req, res) => {
   try {
     const s = await Supplier.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: s });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
+});
+router.delete('/suppliers/:id', async (req, res) => {
+  try {
+    const s = await Supplier.findByIdAndDelete(req.params.id);
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // COMPONENTS / MATERIALS / STAGES / TYPES — compact pattern
