@@ -1,12 +1,24 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import rateLimit from 'express-rate-limit';
 import { User } from '../models/User';
 import { Organization } from '../models/Organization';
+import { JWT_SECRET } from '../config/jwtSecret';
 
-const router  = Router();
-const SECRET  = process.env.JWT_SECRET || 'assesssphere_secret_dev_2025';
+const router = Router();
 
-router.post('/login', async (req: Request, res: Response) => {
+// Slows down credential-stuffing / brute-force attempts against /login without needing a
+// captcha — 20 attempts per IP per 15 minutes is generous for a real user, punishing for a
+// script trying passwords.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts. Try again in a few minutes.' },
+});
+
+router.post('/login', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ success: false, error: 'Email and password required' });
@@ -16,12 +28,12 @@ router.post('/login', async (req: Request, res: Response) => {
     }
     user.lastLogin = new Date();
     await user.save();
-    const token = jwt.sign({ userId: user._id, role: user.role, organization: user.organization }, SECRET, { expiresIn: '8h' });
+    const token = jwt.sign({ userId: user._id, role: user.role, organization: user.organization }, JWT_SECRET, { expiresIn: '8h' });
     res.json({ success: true, data: { token, user } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/register', async (req: Request, res: Response) => {
+router.post('/register', loginLimiter, async (req: Request, res: Response) => {
   try {
     const { name, email, password, role, organizationName } = req.body;
     let org = await Organization.findOne({ name: organizationName || 'Default' });
@@ -30,7 +42,7 @@ router.post('/register', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Email already registered' });
     }
     const user = await User.create({ name, email, password, role: role || 'Inspector', organization: org._id });
-    const token = jwt.sign({ userId: user._id, role: user.role, organization: user.organization }, SECRET, { expiresIn: '8h' });
+    const token = jwt.sign({ userId: user._id, role: user.role, organization: user.organization }, JWT_SECRET, { expiresIn: '8h' });
     res.status(201).json({ success: true, data: { token, userId: user._id } });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -39,7 +51,7 @@ router.get('/me', async (req: Request, res: Response) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
     if (!token) return res.status(401).json({ success: false, error: 'No token' });
-    const decoded = jwt.verify(token, SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
     const user = await User.findById(decoded.userId).select('-password').populate('organization');
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
     res.json({ success: true, data: user });

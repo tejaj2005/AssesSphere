@@ -32,6 +32,7 @@ const schema = new Schema<IUser>({
 
 schema.pre('save', async function () {
   if (!this.isModified('password')) return;
+  if (this.password.length < 8) throw new Error('Password must be at least 8 characters');
   this.password = await bcrypt.hash(this.password, 10);
 });
 

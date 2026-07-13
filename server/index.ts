@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import path from 'path';
 import { connectDB } from './db';
 import apiRoutes from './routes/index';
@@ -8,7 +9,24 @@ import apiRoutes from './routes/index';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001');
 
-app.use(cors({ origin: process.env.VITE_ORIGIN || '*' }));
+// A wildcard CORS origin ('*') would let any website's script read API responses on behalf of
+// a logged-in user's browser. Restrict to an explicit allowlist instead — defaults cover the
+// Vite dev server; set ALLOWED_ORIGINS (comma-separated) in .env for any deployed frontend URL.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+// CSP is left to the frontend's own hosting (it's a separate SPA origin); disabling it here
+// only turns off the header this API server would otherwise send for its own JSON responses.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-
-const SECRET = process.env.JWT_SECRET || 'assesssphere_secret_dev_2025';
+import { JWT_SECRET } from '../config/jwtSecret';
 
 export interface AuthClaims {
   userId: string;
@@ -18,7 +17,7 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ success: false, error: 'No token provided' });
   try {
-    const decoded = jwt.verify(token, SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
     req.auth = { userId: decoded.userId, role: decoded.role, organization: decoded.organization };
     next();
   } catch {
