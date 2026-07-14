@@ -5,6 +5,16 @@ export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
 export const setToken = (token: string): void => localStorage.setItem(TOKEN_KEY, token);
 export const clearToken = (): void => localStorage.removeItem(TOKEN_KEY);
 
+// AuthContext registers a handler here so that ANY 401 from ANY request — not just the one
+// that happens to hit /auth/me on mount — logs the user out. Without this, an expired token
+// leaves the SPA in a "phantom logged-in" state: isAuthenticated stays true (nothing else
+// invalidates it) while every subsequent call silently fails, and background polls swallow
+// their errors entirely. A plain module-level callback avoids api.ts importing AuthContext.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 interface ApiEnvelope<T> {
   success: boolean;
   data?: T;
@@ -20,6 +30,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiE
 
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   const json: ApiEnvelope<T> = await res.json().catch(() => ({ success: false, error: `Request failed: ${res.status}` }));
+  if (res.status === 401 && token) onUnauthorized?.();
   if (!res.ok || json.success === false) {
     throw new Error(json.error || `Request failed: ${res.status}`);
   }

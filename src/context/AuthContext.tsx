@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { AuthUser } from '@/types';
-import { api, setToken, clearToken, getToken } from '@/lib/api';
+import { api, setToken, clearToken, getToken, setUnauthorizedHandler } from '@/lib/api';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -92,9 +92,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!getToken() || !user) return;
     api.get<any>('/auth/me')
-      .then((raw) => setUser(mapAuthUser(raw)))
+      .then((raw) => {
+        // Guard against a logout that happened while this request was in flight — without
+        // this, a slow /auth/me response can silently re-authenticate a user who already
+        // signed out, since the server still honors a token cleared only on the client.
+        if (getToken()) setUser(mapAuthUser(raw));
+      })
       .catch(() => { clearToken(); setUser(null); });
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Registered once for the lifetime of the app: any request that comes back 401 (expired or
+  // invalidated token) logs the user out immediately instead of leaving the SPA in a "phantom
+  // logged-in" state where every subsequent call just fails silently.
+  useEffect(() => {
+    setUnauthorizedHandler(() => { clearToken(); setUser(null); });
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   const login = async (email: string, password: string) => {
