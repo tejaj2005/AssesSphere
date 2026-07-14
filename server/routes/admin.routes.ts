@@ -1,10 +1,22 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import {
   User, Organization, Department, Product, Component,
   ManufacturingStage, AssemblyStage, Equipment, Material,
   MaterialType, Supplier, InspectionType, InspectionMethod, CalibrationRecord,
   SupplierEvalMethod
 } from '../models/index';
+import { AuthedRequest } from '../middleware/auth';
+
+const CERT_UPLOAD_DIR = path.join(process.cwd(), 'server', 'uploads', 'calibration-certificates');
+if (!fs.existsSync(CERT_UPLOAD_DIR)) fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
+const certStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, CERT_UPLOAD_DIR),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
+});
+const uploadCert = multer({ storage: certStorage, limits: { fileSize: (parseInt(process.env.UPLOAD_MAX_MB || '10')) * 1024 * 1024 } });
 
 const router = Router();
 
@@ -48,6 +60,23 @@ router.delete('/users/:id', async (req, res) => {
   try { await User.findByIdAndUpdate(req.params.id, { isActive: false }); res.json({ success: true }); }
   catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
+// The generic PUT above deliberately strips `password` (findByIdAndUpdate bypasses the
+// pre('save') hashing hook, so letting it through there would store a plaintext password).
+// This is the only real path to change one — verifies the current password, only allows a
+// user to change their own, and goes through .save() so the hook hashes it correctly.
+router.put('/users/:id/change-password', async (req: AuthedRequest, res: Response) => {
+  try {
+    if (req.auth?.userId !== req.params.id) return res.status(403).json({ success: false, error: 'Can only change your own password' });
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ success: false, error: 'Current and new password required' });
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, error: 'Not found' });
+    if (!(await user.comparePassword(currentPassword))) return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    user.password = newPassword;
+    await user.save();
+    res.json({ success: true });
+  } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
+});
 
 // PRODUCTS
 router.get('/products', async (req, res) => {
@@ -77,7 +106,8 @@ router.get('/products/:id', async (req, res) => {
 });
 router.put('/products/:id', async (req, res) => {
   try {
-    const p = await Product.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const p = await Product.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
+      .populate('components').populate('manufacturingStages').populate('assemblyStages');
     if (!p) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
@@ -126,9 +156,11 @@ router.delete('/equipment/:id', async (req, res) => {
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/equipment/:id/calibration', async (req, res) => {
+router.post('/equipment/:id/calibration', uploadCert.single('certificateFile'), async (req, res) => {
   try {
-    const record = await CalibrationRecord.create({ equipment: req.params.id, ...req.body });
+    const body: Record<string, any> = { equipment: req.params.id, ...req.body };
+    if (req.file) body.certificateFileUrl = `/uploads/calibration-certificates/${req.file.filename}`;
+    const record = await CalibrationRecord.create(body);
     res.status(201).json({ success: true, data: record });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -248,7 +280,9 @@ simpleRoutes.forEach(({ path: rPath, Model, populate, sort }) => {
   });
   router.put(`${rPath}/:id`, async (req, res) => {
     try {
-      const doc = await Model.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+      let q = Model.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+      populate.forEach((f: string) => { q = q.populate(f); });
+      const doc = await q;
       if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
       res.json({ success: true, data: doc });
     } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
