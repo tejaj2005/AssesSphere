@@ -190,24 +190,26 @@ export const UsersPage = () => {
     }
   };
 
+  // Promise.all would reject the whole batch (and report only a generic failure) the moment
+  // ANY single item's request fails — even though update()/remove() already applied every
+  // other item's change to local state independently. allSettled isolates each item so a
+  // one-off failure doesn't misreport already-successful changes as failed.
   const handleBulkStatus = async (status: 'Active' | 'Inactive') => {
-    try {
-      await Promise.all(selected.map((id) => update(id, { isActive: status === 'Active' })));
-      toast.success(`${selected.length} user${selected.length > 1 ? 's' : ''} marked ${status}`);
-      setSelected([]);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
-    }
+    const results = await Promise.allSettled(selected.map((id) => update(id, { isActive: status === 'Active' })));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const succeeded = results.length - failed;
+    if (succeeded) toast.success(`${succeeded} user${succeeded > 1 ? 's' : ''} marked ${status}`);
+    if (failed) toast.error(`${failed} user${failed > 1 ? 's' : ''} failed to update`);
+    setSelected([]);
   };
 
   const handleBulkDelete = async () => {
-    try {
-      await Promise.all(selected.map((id) => remove(id)));
-      toast.success(`${selected.length} users deleted`);
-      setSelected([]); setConfirmBulkDel(false);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Something went wrong');
-    }
+    const results = await Promise.allSettled(selected.map((id) => remove(id)));
+    const failed = results.filter((r) => r.status === 'rejected').length;
+    const succeeded = results.length - failed;
+    if (succeeded) toast.success(`${succeeded} user${succeeded > 1 ? 's' : ''} deleted`);
+    if (failed) toast.error(`${failed} user${failed > 1 ? 's' : ''} failed to delete`);
+    setSelected([]); setConfirmBulkDel(false);
   };
 
   const handleDelete = async () => {

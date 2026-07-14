@@ -165,21 +165,33 @@ export function DataTable<T extends { id: string }>({
             <Button variant="outline" size="icon-sm" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            {Array.from({ length: totalPages }).slice(0, 5).map((_, i) => {
-              const p = i + 1;
+            {(() => {
+              // A window of up to 5 page buttons centered on the current page — fixing 1-5
+              // regardless of `page` meant there was no way to jump directly to (or even see)
+              // a page past 5, and the active highlight vanished entirely once you paged past it.
+              const windowSize = 5;
+              let start = Math.max(1, page - Math.floor(windowSize / 2));
+              const end = Math.min(totalPages, start + windowSize - 1);
+              start = Math.max(1, end - windowSize + 1);
+              const pageNumbers = Array.from({ length: end - start + 1 }, (_, i) => start + i);
               return (
-                <Button
-                  key={p}
-                  variant={page === p ? 'accent' : 'outline'}
-                  size="icon-sm"
-                  onClick={() => setPage(p)}
-                  className="font-medium"
-                >
-                  {p}
-                </Button>
+                <>
+                  {start > 1 && <span className="px-1 text-xs text-muted-foreground">…</span>}
+                  {pageNumbers.map((p) => (
+                    <Button
+                      key={p}
+                      variant={page === p ? 'accent' : 'outline'}
+                      size="icon-sm"
+                      onClick={() => setPage(p)}
+                      className="font-medium"
+                    >
+                      {p}
+                    </Button>
+                  ))}
+                  {end < totalPages && <span className="px-1 text-xs text-muted-foreground">…</span>}
+                </>
               );
-            })}
-            {totalPages > 5 && <span className="px-1 text-xs text-muted-foreground">…</span>}
+            })()}
             <Button variant="outline" size="icon-sm" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
