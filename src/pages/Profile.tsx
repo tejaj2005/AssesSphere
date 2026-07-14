@@ -31,6 +31,7 @@ export const ProfilePage = () => {
   const [pwdErr, setPwdErr] = useState<Record<string, string>>({});
   const [showPwd, setShowPwd] = useState(false);
   const [pwdSaved, setPwdSaved] = useState(false);
+  const [changingPwd, setChangingPwd] = useState(false);
   const [twoFA, setTwoFA] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [prefs, setPrefs] = useState({
@@ -77,18 +78,26 @@ export const ProfilePage = () => {
     }
   };
 
-  const changePassword = () => {
+  const changePassword = async () => {
     const e: Record<string, string> = {};
     if (!pwd.current) e.current = 'Required';
     if (!pwd.next) e.next = 'Required';
-    else if (pwd.next.length < 6) e.next = 'Min 6 characters';
+    else if (pwd.next.length < 8) e.next = 'Min 8 characters';
     if (pwd.next !== pwd.confirm) e.confirm = "Passwords don't match";
     setPwdErr(e);
-    if (Object.keys(e).length) return;
-    toast.success('Password updated successfully');
-    setPwd({ current: '', next: '', confirm: '' });
-    setPwdSaved(true);
-    setTimeout(() => setPwdSaved(false), 2600);
+    if (Object.keys(e).length || !user) return;
+    setChangingPwd(true);
+    try {
+      await api.put(`/admin/users/${user.id}/change-password`, { currentPassword: pwd.current, newPassword: pwd.next });
+      toast.success('Password updated successfully');
+      setPwd({ current: '', next: '', confirm: '' });
+      setPwdSaved(true);
+      setTimeout(() => setPwdSaved(false), 2600);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setChangingPwd(false);
+    }
   };
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,7 +270,7 @@ export const ProfilePage = () => {
                         </motion.span>
                       )}
                     </AnimatePresence>
-                    <Button variant="accent" onClick={changePassword}>Update Password</Button>
+                    <Button variant="accent" onClick={changePassword} disabled={changingPwd}>{changingPwd ? 'Updating…' : 'Update Password'}</Button>
                   </div>
                 </div>
               </Card>
