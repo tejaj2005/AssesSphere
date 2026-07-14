@@ -99,9 +99,23 @@ export const ReviewReports = () => {
   const all = tab === 'mfg' ? mfg : tab === 'asm' ? asm : comp;
   const exportRows = all.map((r) => ({ Plan: r.title, Inspector: r.inspectorName, Date: formatDate(r.date), Variance: `${r.variance.toFixed(2)}%`, Status: r.status, Review: r.reviewStatus }));
 
-  const mfgPending = mfg.filter((r) => r.reviewStatus === 'PENDING').length;
-  const asmPending = asm.filter((r) => r.reviewStatus === 'PENDING').length;
-  const compPending = comp.filter((r) => r.reviewStatus === 'PENDING').length;
+  // Tab badges are meant to show the true review backlog, not "how many pending items match
+  // the status filter" — counting off of mfg/asm/comp (already filtered by statusFilter) would
+  // read 0 the moment someone picks a non-Pending status, even with a full backlog waiting.
+  const countPending = (planType: string) => reports.filter((r: any) => {
+    if (r.plan?.planType !== planType) return false;
+    if (planFilter !== 'all' && r.plan?._id !== planFilter) return false;
+    if (toReviewStatus(r.status) !== 'PENDING') return false;
+    const searchText = `${r.plan?.title || ''} ${r.plan?.planId || ''} ${r.inspector?.name || ''} ${(r.checklistResults || []).map((c: any) => c.parameter).join(' ')}`.toLowerCase();
+    if (search && !searchText.includes(search.toLowerCase())) return false;
+    if (from && r.inspectionDate < from) return false;
+    if (to && r.inspectionDate > to + 'T23:59:59') return false;
+    return true;
+  }).length;
+
+  const mfgPending = useMemo(() => countPending('R3_MANUFACTURING'), [reports, planFilter, search, from, to]);
+  const asmPending = useMemo(() => countPending('R4_ASSEMBLY'), [reports, planFilter, search, from, to]);
+  const compPending = useMemo(() => countPending('R2_COMPONENT'), [reports, planFilter, search, from, to]);
 
   if (loading && !reports.length) {
     return (

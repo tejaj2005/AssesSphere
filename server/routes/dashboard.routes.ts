@@ -46,12 +46,20 @@ router.get('/management', async (req, res) => {
 router.get('/production', async (req, res) => {
   try {
     const filter: any = req.query.organization ? { organization: toObjId(req.query.organization as string) } : {};
-    const [planStats, pendingReports, recentReports] = await Promise.all([
+    // pendingReports/recentReports below are capped at 10 for the dashboard's "recent items"
+    // lists — real accurate KPI numbers need their own uncapped counts, not `.length` of a
+    // capped-and-sorted list (which silently under-reports once there are more than 10).
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const [planStats, pendingReports, recentReports, pendingCount, approvedThisMonthCount] = await Promise.all([
       InspectionPlan.aggregate([{ $match: { ...filter, planType: { $in: ['R3_MANUFACTURING','R4_ASSEMBLY'] } } }, { $group: { _id: '$status', count: { $sum: 1 } } }]),
       InspectionReport.find({ ...filter, status: 'SUBMITTED' }).populate('plan','title planType').populate('inspector','name').sort({ submittedAt: -1 }).limit(10),
       InspectionReport.find({ ...filter, status: { $in: ['APPROVED','REJECTED'] } }).populate('plan','title planType').sort({ updatedAt: -1 }).limit(10),
+      InspectionReport.countDocuments({ ...filter, status: 'SUBMITTED' }),
+      InspectionReport.countDocuments({ ...filter, status: 'APPROVED', updatedAt: { $gte: startOfMonth, $lt: startOfNextMonth } }),
     ]);
-    res.json({ success: true, data: { planStats, pendingReports, recentReports } });
+    res.json({ success: true, data: { planStats, pendingReports, recentReports, pendingCount, approvedThisMonthCount } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 

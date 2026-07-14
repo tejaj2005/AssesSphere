@@ -35,6 +35,8 @@ interface ProductionDashboardData {
   planStats: PlanStatBucket[];
   pendingReports: DashboardReport[];
   recentReports: DashboardReport[];
+  pendingCount: number;
+  approvedThisMonthCount: number;
 }
 
 const planTypeLabel = (t?: string) =>
@@ -75,17 +77,14 @@ export const PMDashboard = () => {
     );
   }
 
-  const { planStats, pendingReports, recentReports } = data;
+  const { planStats, pendingReports, recentReports, pendingCount, approvedThisMonthCount } = data;
 
   const totalPlans = planStats.reduce((sum, s) => sum + s.count, 0);
   const activePlans = planStats.find((s) => s._id === 'ACTIVE')?.count || 0;
-  const pending = pendingReports.length;
-  const now = new Date();
-  const approvedThisMonth = recentReports.filter((r) => {
-    if (r.status !== 'APPROVED') return false;
-    const d = new Date(r.updatedAt || '');
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).length;
+  // True counts from the backend, not `.length` of the capped "recent items" lists below
+  // (those stay capped at 10 on purpose — they're just the preview list, not the KPI source).
+  const pending = pendingCount;
+  const approvedThisMonth = approvedThisMonthCount;
 
   return (
     <>
