@@ -13,7 +13,14 @@ interface SidebarProps { collapsed: boolean; onToggle: () => void; }
 
 export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
   const { user, hasPermission } = useAuth();
-  const visibleNav = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.permKey || hasPermission(i.permKey)) })).filter((g) => g.items.length > 0);
+  // This Sidebar (AdminLayout's) is only meant for the Admin role — but /admin/profile is
+  // deliberately reachable by every role (see App.tsx), and every non-Admin PERMS proxy in
+  // AuthContext falls through to `view: true` for any page key it doesn't explicitly list, so
+  // hasPermission() alone can't tell "genuinely allowed" apart from "just an unrecognized key
+  // defaulting open". Gate on the role directly instead of trusting that fallback — otherwise a
+  // non-Admin visiting their own profile sees the entire Admin nav (Organization, Users, Roles,
+  // ...), all of which just bounce them back out via each route's own allowedRoles guard.
+  const visibleNav = user?.role !== 'Admin' ? [] : NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.permKey || hasPermission(i.permKey)) })).filter((g) => g.items.length > 0);
 
   return (
     <motion.aside

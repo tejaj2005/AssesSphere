@@ -177,7 +177,10 @@ export const Topbar = ({ onMenuClick, onSidebarToggle, sidebarCollapsed, moduleN
           <Badge variant="accent" className="mt-1.5 text-[10px]">{formatRole(user?.role)}</Badge>
         </div>
         <DropdownItem onClick={() => navigate('/admin/profile')}><UserIcon className="h-4 w-4" /> Profile</DropdownItem>
-        <DropdownItem onClick={() => navigate('/admin/settings')}><Cog className="h-4 w-4" /> Settings</DropdownItem>
+        {/* /admin/settings is Admin-only (see App.tsx) — Topbar is shared by every module, so
+            showing this to every role means everyone else's click just silently bounces them
+            back out via ProtectedRoute. */}
+        {user?.role === 'Admin' && <DropdownItem onClick={() => navigate('/admin/settings')}><Cog className="h-4 w-4" /> Settings</DropdownItem>}
         <DropdownItem onClick={() => navigate('/')}><Home className="h-4 w-4" /> Home</DropdownItem>
         <DropdownSeparator />
         <DropdownItem onClick={toggleTheme}>
