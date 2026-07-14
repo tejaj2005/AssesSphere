@@ -43,8 +43,12 @@ export interface ReviewRecord {
 
 interface ReviewQueueProps {
   records: ReviewRecord[];
-  /** Called after a successful approve/reject/hold so the parent can refetch. */
-  onActionComplete?: () => void;
+  /** Called after a successful approve/reject/hold so the parent can refetch. Awaited before
+   * the busy lock releases, so the buttons stay disabled until `records` actually reflects the
+   * new status — otherwise a second action (or a fast double-click) could fire against the same
+   * report while the first mutation's refetch is still in flight, and whichever response lands
+   * last silently wins. */
+  onActionComplete?: () => void | Promise<unknown>;
 }
 
 export const ReviewQueue = ({ records, onActionComplete }: ReviewQueueProps) => {
@@ -59,7 +63,7 @@ export const ReviewQueue = ({ records, onActionComplete }: ReviewQueueProps) => 
     try {
       await api.put(`/inspection-reports/${rec.id}/approve`, { approvedBy: user?.id, reviewComments: '' });
       toast.success('Report approved and sent to Quality Manager');
-      onActionComplete?.();
+      await onActionComplete?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
@@ -81,7 +85,7 @@ export const ReviewQueue = ({ records, onActionComplete }: ReviewQueueProps) => 
         await api.put(`/inspection-reports/${pendingAction.rec.id}/hold`, {});
         toast.success('Information requested from inspector');
       }
-      onActionComplete?.();
+      await onActionComplete?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Something went wrong');
     } finally {
