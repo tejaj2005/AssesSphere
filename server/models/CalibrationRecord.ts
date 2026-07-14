@@ -6,6 +6,7 @@ export interface ICalibrationRecord extends Document {
   nextDueDate: Date;
   performedBy: string;
   certificate?: string;
+  certificateFileUrl?: string;
   result: 'PASS' | 'FAIL' | 'CONDITIONAL';
   notes?: string;
   organization: Types.ObjectId;
@@ -22,6 +23,7 @@ const schema = new Schema<ICalibrationRecord>({
   nextDueDate:     { type: Date, required: true },
   performedBy:     { type: String, required: true },
   certificate:     String,
+  certificateFileUrl: String,
   result:          { type: String, enum: ['PASS','FAIL','CONDITIONAL'], required: true },
   notes:           String,
   organization:    { type: Schema.Types.ObjectId, ref: 'Organization', required: true },

@@ -14,10 +14,13 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } fr
 import { ExportButtons } from '@/components/dashboard/ExportButtons';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { useApiResource } from '@/hooks/useApi';
-import { api } from '@/lib/api';
+import { api, API_BASE } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { formatDate } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
+
+// Origin the server serves uploaded files from (API_BASE minus the trailing /api).
+const FILE_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 interface EquipmentRef {
   _id: string;
@@ -38,6 +41,7 @@ interface ICalibrationRecord {
   nextDueDate: string;
   performedBy: string;
   certificate?: string;
+  certificateFileUrl?: string;
   result: 'PASS' | 'FAIL' | 'CONDITIONAL';
   notes?: string;
   organization: string;
@@ -104,6 +108,12 @@ export const CalibrationApprovals = () => {
   const exportRows = filtered.map((c) => ({ Equipment: c.equipment?.name, Code: c.equipment?.equipmentId, PerformedBy: c.performedBy, Certificate: c.certificate, Result: c.result, NextDue: formatDate(c.nextDueDate), Status: c.approvalStatus }));
 
   const downloadCertificate = (c: typeof calibrationApprovals[number]) => {
+    // If the inspector actually attached a certificate file, open that — the synthetic
+    // metadata summary below is only a fallback for records submitted before this existed.
+    if (c.certificateFileUrl) {
+      window.open(`${FILE_ORIGIN}${c.certificateFileUrl}`, '_blank', 'noopener,noreferrer');
+      return;
+    }
     const lines = [
       'EQUIPMENT CALIBRATION CERTIFICATE',
       '==================================',

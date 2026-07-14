@@ -80,6 +80,7 @@ export const CalibrationReport = () => {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState(emptyForm);
+  const [certFileObj, setCertFileObj] = useState<File | null>(null);
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<'draft' | 'submit' | null>(null);
 
@@ -89,7 +90,8 @@ export const CalibrationReport = () => {
     const f = e.target.files?.[0];
     if (!f) return;
     setForm({ ...form, certFile: f.name });
-    toast.success('Certificate uploaded');
+    setCertFileObj(f);
+    toast.success('Certificate attached');
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -108,28 +110,31 @@ export const CalibrationReport = () => {
     setBusy(action);
 
     if (action === 'draft') {
-      // CalibrationRecord has no draft state on the backend — mirrors the previous
-      // mock behavior of just acknowledging the save without persisting anywhere.
-      toast.success('Saved as draft');
+      // CalibrationRecord has no draft state on the backend, so there's genuinely nowhere to
+      // save this yet — say so plainly instead of a "Saved" toast that implies it'll still be
+      // here after a refresh or a closed tab.
+      toast.message("Draft isn't persisted — this form only clears when you Submit or navigate away.");
       setBusy(null);
       return;
     }
 
     try {
-      const notes = [`Calibration Lab: ${form.lab}`, `Standard: ${form.standard}`, form.remarks, form.certFile && `Certificate File: ${form.certFile}`]
+      const notes = [`Calibration Lab: ${form.lab}`, `Standard: ${form.standard}`, form.remarks]
         .filter(Boolean).join('\n');
-      await api.post(`/admin/equipment/${form.equipmentId}/calibration`, {
-        calibrationDate: form.calibrationDate,
-        nextDueDate: form.nextDue,
-        performedBy: user?.name || 'Inspector',
-        certificate: form.certNumber,
-        result: form.result,
-        notes,
-        submittedBy: user?.id,
-        organization: user?.organization,
-      });
+      const fd = new FormData();
+      fd.append('calibrationDate', form.calibrationDate);
+      fd.append('nextDueDate', form.nextDue);
+      fd.append('performedBy', user?.name || 'Inspector');
+      fd.append('certificate', form.certNumber);
+      fd.append('result', form.result);
+      fd.append('notes', notes);
+      if (user?.id) fd.append('submittedBy', user.id);
+      if (user?.organization) fd.append('organization', user.organization);
+      if (certFileObj) fd.append('certificateFile', certFileObj);
+      await api.post(`/admin/equipment/${form.equipmentId}/calibration`, fd);
       toast.success('Calibration report submitted for Quality Manager approval');
       setForm(emptyForm);
+      setCertFileObj(null);
       await refetchRecords();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Something went wrong');
@@ -186,7 +191,7 @@ export const CalibrationReport = () => {
               <div className="flex items-center gap-2 p-2 rounded border bg-muted/40 text-sm">
                 <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="flex-1 truncate">{form.certFile}</span>
-                <button onClick={() => setForm({ ...form, certFile: '' })}><X className="h-3.5 w-3.5 text-destructive" /></button>
+                <button onClick={() => { setForm({ ...form, certFile: '' }); setCertFileObj(null); }}><X className="h-3.5 w-3.5 text-destructive" /></button>
               </div>
             ) : <div className="p-3 border-2 border-dashed rounded text-xs text-muted-foreground text-center">No certificate uploaded</div>}
           </div>
