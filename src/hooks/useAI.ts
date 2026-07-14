@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { getToken } from '@/lib/api';
 
 export const AI_BASE = import.meta.env.VITE_AI_API_URL || 'http://localhost:3001/api/ai';
@@ -16,8 +16,14 @@ interface AIState<T> {
 
 export function useAICall<TInput = any, TOutput = any>(endpoint: string) {
   const [state, setState] = useState<AIState<TOutput>>({ data: null, loading: false, error: null });
+  // Guards against out-of-order resolution: if execute() fires again (e.g. the user switches
+  // to a different entity) before a slower in-flight call resolves, only the most recently
+  // issued call is allowed to commit its result — a stale response is dropped instead of
+  // overwriting newer state.
+  const requestIdRef = useRef(0);
 
   const execute = useCallback(async (input: TInput, formData?: FormData): Promise<TOutput | null> => {
+    const requestId = ++requestIdRef.current;
     setState({ data: null, loading: true, error: null });
     try {
       const response = formData
@@ -35,16 +41,19 @@ export function useAICall<TInput = any, TOutput = any>(endpoint: string) {
 
       const result = await response.json();
       const data = result.data as TOutput;
-      setState({ data, loading: false, error: null });
+      if (requestId === requestIdRef.current) setState({ data, loading: false, error: null });
       return data;
     } catch (error) {
       const message = error instanceof Error ? error.message : 'AI request failed';
-      setState({ data: null, loading: false, error: message });
+      if (requestId === requestIdRef.current) setState({ data: null, loading: false, error: message });
       return null;
     }
   }, [endpoint]);
 
-  const reset = useCallback(() => setState({ data: null, loading: false, error: null }), []);
+  const reset = useCallback(() => {
+    requestIdRef.current++;
+    setState({ data: null, loading: false, error: null });
+  }, []);
 
   return { ...state, execute, reset };
 }

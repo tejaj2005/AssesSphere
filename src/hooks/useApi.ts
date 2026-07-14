@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { api } from '@/lib/api';
 
 interface WithMongoId {
@@ -34,20 +34,27 @@ export function useApiResource<T extends WithMongoId>(basePath: string, query?: 
 
   const queryKey = query ? JSON.stringify(query) : '';
 
+  // Every write to `items` — a manual refetch, a background poll tick, or a create/update/remove
+  // mutation — bumps this so an older, still in-flight request can recognize it's been
+  // superseded and skip applying its (now stale) result. Without this, a poll that started
+  // before a mutation but resolves after it would silently revert the mutation's own change.
+  const versionRef = useRef(0);
+
   const refetch = useCallback(async () => {
+    const v = ++versionRef.current;
     setLoading(true);
     setError(null);
     try {
       const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query).toString()}` : '';
       const { data } = await api.getList<T>(`${basePath}${qs}`);
       const normalized = data.map(withClientId);
-      setItems(normalized);
+      if (v === versionRef.current) setItems(normalized);
       return normalized;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      if (v === versionRef.current) setError(e instanceof Error ? e.message : 'Failed to load');
       return [];
     } finally {
-      setLoading(false);
+      if (v === versionRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basePath, queryKey]);
@@ -59,11 +66,14 @@ export function useApiResource<T extends WithMongoId>(basePath: string, query?: 
   useEffect(() => {
     if (!pollMs) return;
     const id = setInterval(async () => {
+      const v = ++versionRef.current;
       try {
         const qs = query && Object.keys(query).length ? `?${new URLSearchParams(query).toString()}` : '';
         const { data } = await api.getList<T>(`${basePath}${qs}`);
         const normalized = data.map(withClientId);
-        setItems((prev) => (JSON.stringify(prev) === JSON.stringify(normalized) ? prev : normalized));
+        if (v === versionRef.current) {
+          setItems((prev) => (JSON.stringify(prev) === JSON.stringify(normalized) ? prev : normalized));
+        }
       } catch {
         // a background poll failing silently isn't worth surfacing as a page-level error
       }
@@ -74,18 +84,21 @@ export function useApiResource<T extends WithMongoId>(basePath: string, query?: 
 
   const create = useCallback(async (payload: Partial<T>): Promise<WithClientId<T>> => {
     const created = withClientId(await api.post<T>(basePath, payload));
+    versionRef.current++;
     setItems((prev) => [...prev, created]);
     return created;
   }, [basePath]);
 
   const update = useCallback(async (id: string, payload: Partial<T>): Promise<WithClientId<T>> => {
     const updated = withClientId(await api.put<T>(`${basePath}/${id}`, payload));
+    versionRef.current++;
     setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
     return updated;
   }, [basePath]);
 
   const remove = useCallback(async (id: string): Promise<void> => {
     await api.delete(`${basePath}/${id}`);
+    versionRef.current++;
     setItems((prev) => prev.filter((it) => it.id !== id));
   }, [basePath]);
 
@@ -97,17 +110,23 @@ export function useApiItem<T extends WithMongoId>(path: string | null) {
   const [item, setItem] = useState<WithClientId<T> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Guards against out-of-order responses: React Router doesn't remount this component when
+  // only a route param changes, so navigating from one record to another before the first
+  // record's slower request resolves must not let that stale response overwrite the newer one.
+  const requestIdRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     if (!path) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
-      setItem(withClientId(await api.get<T>(path)));
+      const data = withClientId(await api.get<T>(path));
+      if (requestId === requestIdRef.current) setItem(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      if (requestId === requestIdRef.current) setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) setLoading(false);
     }
   }, [path]);
 

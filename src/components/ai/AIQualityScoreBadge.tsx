@@ -40,7 +40,7 @@ const maturityVariant: Record<string, 'danger' | 'warning' | 'accent' | 'teal' |
 
 export const AIQualityScoreBadge = ({ assessmentData }: { assessmentData: QualityAssessmentData }) => {
   const local = localScore(assessmentData);
-  const { data, loading, execute } = useAIQualityScore();
+  const { data, loading, error, execute } = useAIQualityScore();
   const [open, setOpen] = useState(false);
 
   const insight = () => { setOpen(true); execute({ ...assessmentData, withNarrative: true }); };
@@ -63,6 +63,16 @@ export const AIQualityScoreBadge = ({ assessmentData }: { assessmentData: Qualit
       <button onClick={insight} className="text-accent hover:opacity-80" title="Get AI insight" aria-label="Get AI insight">
         {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
       </button>
+
+      {open && !loading && error && !data && (
+        <div className="absolute right-0 top-6 z-40 w-72 rounded-lg border border-destructive/30 bg-popover p-3 text-xs shadow-xl">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="font-semibold text-destructive">AI insight failed</span>
+            <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+          </div>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      )}
 
       {open && data && (
         <div className="absolute right-0 top-6 z-40 w-72 rounded-lg border border-border bg-popover p-3 text-xs shadow-xl">

@@ -54,10 +54,14 @@ const trendIcon = (dir?: string) =>
   : <Minus className="h-4 w-4 text-muted-foreground" />;
 
 export const AIRiskScoreCard = ({ entityType, entityId, entityName, historicalData }: Props) => {
-  const { data, loading, execute } = useAIRiskScore();
+  const { data, loading, error, execute } = useAIRiskScore();
   const [narrativeLoading, setNarrativeLoading] = useState(false);
 
   useEffect(() => {
+    // This card instance is reused (not remounted) when the caller swaps which entity is
+    // expanded, so local state from the previous entity — including a narrative fetch still
+    // in flight — has to be reset explicitly here rather than relying on unmount.
+    setNarrativeLoading(false);
     execute({ entityType, entityId, entityName, ...historicalData, withNarrative: false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityId]);
@@ -96,10 +100,11 @@ export const AIRiskScoreCard = ({ entityType, entityId, entityName, historicalDa
         <p className="mt-2 text-center text-sm font-semibold" style={{ color: scoreColor(score) }}>{level}</p>
 
         {!data?.riskNarrative ? (
-          <div className="mt-4 flex justify-center">
+          <div className="mt-4 flex flex-col items-center gap-1.5">
             <Button variant="outline" size="sm" onClick={loadNarrative} disabled={narrativeLoading}>
               {narrativeLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Get AI Narrative
             </Button>
+            {!narrativeLoading && error && <p className="text-xs text-destructive">{error}</p>}
           </div>
         ) : (
           <div className="mt-4 space-y-3 border-t border-border pt-3">
