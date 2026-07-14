@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Download, Upload, FileDown, FileUp, Printer, RefreshCw, MoreHorizontal } from 'lucide-react';
+import { Download, Upload, FileDown, Printer, RefreshCw, MoreHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropdown';
@@ -80,15 +80,6 @@ export function DataToolbar<T extends Record<string, any>>({ data, filename, hea
         <DropdownSeparator />
         <DropdownItem onClick={handlePrint}><Printer className="h-4 w-4" /> Print</DropdownItem>
       </Dropdown>
-    </div>
-  );
-}
-
-export function DataActionButtons({ onImport, onExport }: { onImport?: () => void; onExport?: () => void }) {
-  return (
-    <div className="inline-flex items-center gap-2">
-      {onImport && <Button variant="outline" size="sm" onClick={onImport}><FileUp className="h-4 w-4" /> Import</Button>}
-      {onExport && <Button variant="outline" size="sm" onClick={onExport}><FileDown className="h-4 w-4" /> Export</Button>}
     </div>
   );
 }

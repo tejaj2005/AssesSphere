@@ -38,16 +38,3 @@ export const AssessSphereLogoWhite = ({ size = 36, className }: { size?: number;
   <img src="/assesssphere-mark.svg" alt="AssessSphere" width={size} height={size}
     className={cn('object-contain max-h-10 shrink-0', className)} style={{ maxHeight: 40 }} />
 );
-
-/** Two-tone wordmark — "Assess" in #0e5467, "Sphere" in #f5af12. */
-export const AssessSphereWordmark = ({ className }: { className?: string }) => (
-  <span className={cn('font-extrabold tracking-tight italic', className)}>
-    <span className="text-[#0e5467]">Assess</span>
-    <span className="text-[#f5af12]">Sphere</span>
-  </span>
-);
-
-/** Full-width horizontal banner with mark + wordmark — use for hero areas */
-export const AssessSphereBanner = ({ height = 72, className }: { height?: number; className?: string }) => (
-  <img src="/assesssphere-logo.svg" alt="AssessSphere" style={{ height }} className={cn('w-auto object-contain', className)} />
-);

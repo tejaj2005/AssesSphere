@@ -17,14 +17,6 @@ export function nextId(prefix: string, items: { id: string }[], digits = 3): str
   return `${prefix}-${String(next).padStart(digits, '0')}`;
 }
 
-export const debounce = <T extends (...args: any[]) => void>(fn: T, ms = 250) => {
-  let t: ReturnType<typeof setTimeout>;
-  return ((...args: any[]) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  }) as T;
-};
-
 export const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
 /** 'ProductionManager' -> 'Production Manager' — for displaying backend PascalCase role enums. */
