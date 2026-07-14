@@ -18,9 +18,16 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { LoadingSkeleton } from '@/components/shared/LoadingSkeleton';
 import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
-import { ALL_PAGES } from '@/data/mockData';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { Permission } from '@/types';
+
+/** Every admin page a role's permission matrix can grant access to. */
+const ALL_PAGES = [
+  'Dashboard', 'Organization', 'Departments', 'Users', 'Roles', 'Products',
+  'Components', 'Manufacturing Stages', 'Assembling Stages', 'Inspection Types',
+  'Equipment', 'Inspection Methods', 'Documents', 'Materials', 'Material Types',
+  'Suppliers',
+];
 
 /** Backend Role shape (server/models/Role.ts) — name is a plain string, no FK to User. */
 interface Role {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Sun, Moon, Monitor, Globe, Bell, Download, Trash2, Shield, Database, Palette } from 'lucide-react';
+import { Sun, Moon, Monitor, Globe, Bell, Download, Trash2, Shield, Database, Palette, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PageWrapper } from '@/components/shared/PageWrapper';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -12,40 +12,56 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { useTheme } from '@/context/ThemeContext';
-import { useData } from '@/context/DataContext';
+import { useAuth } from '@/context/AuthContext';
+import { api } from '@/lib/api';
 import { downloadJSON } from '@/lib/exporters';
 import { cn } from '@/lib/utils';
 
+/** Every resource that makes up a full system export, fetched live at export time. */
+const EXPORT_RESOURCES: { key: string; path: string }[] = [
+  { key: 'organizations',    path: '/admin/organizations' },
+  { key: 'departments',      path: '/admin/departments' },
+  { key: 'users',            path: '/admin/users' },
+  { key: 'roles',            path: '/roles' },
+  { key: 'products',         path: '/admin/products' },
+  { key: 'components',       path: '/admin/components' },
+  { key: 'manufacturingStages', path: '/admin/manufacturing-stages' },
+  { key: 'assemblyStages',   path: '/admin/assembly-stages' },
+  { key: 'inspectionTypes',  path: '/admin/inspection-types' },
+  { key: 'equipment',        path: '/admin/equipment' },
+  { key: 'inspectionMethods',path: '/admin/inspection-methods' },
+  { key: 'documents',        path: '/documents' },
+  { key: 'materials',        path: '/admin/materials' },
+  { key: 'materialTypes',    path: '/admin/material-types' },
+  { key: 'suppliers',        path: '/admin/suppliers' },
+  { key: 'supplierEvalMethods', path: '/admin/supplier-eval-methods' },
+  { key: 'auditLog',         path: '/audit-log?limit=500' },
+];
+
 export const SettingsPage = () => {
   const { themeSetting, setThemeSetting } = useTheme();
-  const data = useData();
+  const { user } = useAuth();
   const [language, setLanguage] = useState('en-IN');
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [density, setDensity] = useState('comfortable');
   const [confirmReset, setConfirmReset] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  const exportEverything = () => {
-    downloadJSON('pqas-full-export', {
-      organization: data.organization,
-      departments: data.departments,
-      users: data.users,
-      roles: data.roles,
-      products: data.products,
-      components: data.components,
-      manufacturingStages: data.manufacturingStages,
-      assemblingStages: data.assemblingStages,
-      inspectionTypes: data.inspectionTypes,
-      equipment: data.equipment,
-      inspectionMethods: data.inspectionMethods,
-      documents: data.documents,
-      materials: data.materials,
-      materialTypes: data.materialTypes,
-      suppliers: data.suppliers,
-      evalMethods: data.evalMethods,
-      auditLog: data.auditLog,
-      exportedAt: new Date().toISOString(),
-    });
-    toast.success('System data exported');
+  const exportEverything = async () => {
+    setExporting(true);
+    try {
+      const results = await Promise.all(
+        EXPORT_RESOURCES.map((r) => api.getList<any>(r.path).then((res) => res.data).catch(() => []))
+      );
+      const payload: Record<string, any> = { exportedAt: new Date().toISOString(), organizationId: user?.organization };
+      EXPORT_RESOURCES.forEach((r, i) => { payload[r.key] = results[i]; });
+      downloadJSON('pqas-full-export', payload);
+      toast.success('System data exported');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const clearLocal = () => {
@@ -164,8 +180,9 @@ export const SettingsPage = () => {
             <Card className="p-6">
               <h3 className="font-semibold mb-1 flex items-center gap-2"><Download className="h-4 w-4" /> Export Data</h3>
               <p className="text-sm text-muted-foreground mb-4">Download all your PQAS data as a JSON file.</p>
-              <Button variant="outline" className="w-full" onClick={exportEverything}>
-                <Download className="h-4 w-4" /> Export full system
+              <Button variant="outline" className="w-full" onClick={exportEverything} disabled={exporting}>
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {exporting ? 'Exporting…' : 'Export full system'}
               </Button>
             </Card>
             <Card className="p-6">
@@ -205,7 +222,7 @@ export const SettingsPage = () => {
         open={confirmReset}
         onOpenChange={setConfirmReset}
         title="Clear local data?"
-        description="This will sign you out and reset preferences. Mock data will be reloaded fresh."
+        description="This will sign you out and reset locally saved preferences."
         onConfirm={clearLocal}
         confirmLabel="Clear & sign out"
       />

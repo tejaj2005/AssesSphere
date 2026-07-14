@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AuthProvider } from '@/context/AuthContext';
-import { DataProvider } from '@/context/DataContext';
 import { AdminLayout } from '@/layouts/AdminLayout';
 import { ModuleLayout } from '@/layouts/ModuleLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -86,123 +85,121 @@ import { CalibrationReport } from '@/pages/inspector/CalibrationReport';
 const App = () => (
   <ThemeProvider>
     <AuthProvider>
-      <DataProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/logout" element={<Logout />} />
-            <Route path="/app" element={<RoleRedirect />} />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/logout" element={<Logout />} />
+          <Route path="/app" element={<RoleRedirect />} />
 
-            {/* /admin/profile is the shared profileLink target for every module's sidebar, so it must stay
-                reachable by any authenticated role, not just Admin. */}
-            <Route element={<ProtectedRoute />}>
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route path="profile" element={<ProfilePage />} />
-              </Route>
+          {/* /admin/profile is the shared profileLink target for every module's sidebar, so it must stay
+              reachable by any authenticated role, not just Admin. */}
+          <Route element={<ProtectedRoute />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route path="profile" element={<ProfilePage />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<Dashboard />} />
-                <Route path="organization" element={<OrganizationPage />} />
-                <Route path="departments" element={<DepartmentsPage />} />
-                <Route path="users" element={<UsersPage />} />
-                <Route path="roles" element={<RolesPage />} />
-                <Route path="products" element={<ProductsPage />} />
-                <Route path="products/:id" element={<ProductDetailPage />} />
-                <Route path="components" element={<ComponentsPage />} />
-                <Route path="manufacturing-stages" element={<ManufacturingStagesPage />} />
-                <Route path="assembling-stages" element={<AssemblingStagesPage />} />
-                <Route path="inspection-types" element={<InspectionTypesPage />} />
-                <Route path="equipment" element={<EquipmentPage />} />
-                <Route path="inspection-methods" element={<InspectionMethodsPage />} />
-                <Route path="documents" element={<DocumentsPage />} />
-                <Route path="materials" element={<MaterialsPage />} />
-                <Route path="material-types" element={<MaterialTypesPage />} />
-                <Route path="suppliers" element={<SuppliersPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="ai-settings" element={<AISettingsPage />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="organization" element={<OrganizationPage />} />
+              <Route path="departments" element={<DepartmentsPage />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="roles" element={<RolesPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="products/:id" element={<ProductDetailPage />} />
+              <Route path="components" element={<ComponentsPage />} />
+              <Route path="manufacturing-stages" element={<ManufacturingStagesPage />} />
+              <Route path="assembling-stages" element={<AssemblingStagesPage />} />
+              <Route path="inspection-types" element={<InspectionTypesPage />} />
+              <Route path="equipment" element={<EquipmentPage />} />
+              <Route path="inspection-methods" element={<InspectionMethodsPage />} />
+              <Route path="documents" element={<DocumentsPage />} />
+              <Route path="materials" element={<MaterialsPage />} />
+              <Route path="material-types" element={<MaterialTypesPage />} />
+              <Route path="suppliers" element={<SuppliersPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="ai-settings" element={<AISettingsPage />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Management']} />}>
-              <Route path="/management" element={<ModuleLayout moduleName="Management" groups={MANAGEMENT_NAV} profileLink="/admin/profile" />}>
-                <Route index element={<Navigate to="product-quality" replace />} />
-                <Route path="product-quality" element={<ProductQualityDashboard />} />
-                <Route path="manufacturing-quality" element={<ManufacturingQualityDashboard />} />
-                <Route path="assembling-quality" element={<AssemblingQualityDashboard />} />
-                <Route path="material-quality" element={<MaterialQualityDashboard />} />
-                <Route path="supplier-evaluation" element={<SupplierEvalDashboard />} />
-                <Route path="ai-insights" element={<ManagementAIInsights />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['Management']} />}>
+            <Route path="/management" element={<ModuleLayout moduleName="Management" groups={MANAGEMENT_NAV} profileLink="/admin/profile" />}>
+              <Route index element={<Navigate to="product-quality" replace />} />
+              <Route path="product-quality" element={<ProductQualityDashboard />} />
+              <Route path="manufacturing-quality" element={<ManufacturingQualityDashboard />} />
+              <Route path="assembling-quality" element={<AssemblingQualityDashboard />} />
+              <Route path="material-quality" element={<MaterialQualityDashboard />} />
+              <Route path="supplier-evaluation" element={<SupplierEvalDashboard />} />
+              <Route path="ai-insights" element={<ManagementAIInsights />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['ProductionManager']} />}>
-              <Route path="/pm" element={<ModuleLayout moduleName="Production Manager" groups={PM_NAV} profileLink="/admin/profile" />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<PMDashboard />} />
-                <Route path="mfg-plans" element={<MfgInspectionPlans />} />
-                <Route path="asm-plans" element={<AsmInspectionPlans />} />
-                <Route path="mat-plans" element={<MatInspectionPlans />} />
-                <Route path="comp-plans" element={<CompInspectionPlans />} />
-                <Route path="production-plans" element={<ProductionPlans />} />
-                <Route path="review-reports" element={<ReviewReports />} />
-                <Route path="quality-plan-review" element={<QualityPlanReview />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['ProductionManager']} />}>
+            <Route path="/pm" element={<ModuleLayout moduleName="Production Manager" groups={PM_NAV} profileLink="/admin/profile" />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<PMDashboard />} />
+              <Route path="mfg-plans" element={<MfgInspectionPlans />} />
+              <Route path="asm-plans" element={<AsmInspectionPlans />} />
+              <Route path="mat-plans" element={<MatInspectionPlans />} />
+              <Route path="comp-plans" element={<CompInspectionPlans />} />
+              <Route path="production-plans" element={<ProductionPlans />} />
+              <Route path="review-reports" element={<ReviewReports />} />
+              <Route path="quality-plan-review" element={<QualityPlanReview />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['StoresManager']} />}>
-              <Route path="/sm" element={<ModuleLayout moduleName="Stores Manager" groups={SM_NAV} profileLink="/admin/profile" />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<SMDashboard />} />
-                <Route path="material-plans" element={<MaterialReceivedPlans />} />
-                <Route path="review-material-reports" element={<ReviewMaterialReports />} />
-                <Route path="supplier-evaluations" element={<SupplierEvaluations />} />
-                <Route path="approved-vendors" element={<ApprovedVendors />} />
-                <Route path="stock-statement" element={<StockStatement />} />
-                <Route path="material-quality" element={<SMMaterialQualityDash />} />
-                <Route path="supplier-performance" element={<SMSupplierDash />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['StoresManager']} />}>
+            <Route path="/sm" element={<ModuleLayout moduleName="Stores Manager" groups={SM_NAV} profileLink="/admin/profile" />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<SMDashboard />} />
+              <Route path="material-plans" element={<MaterialReceivedPlans />} />
+              <Route path="review-material-reports" element={<ReviewMaterialReports />} />
+              <Route path="supplier-evaluations" element={<SupplierEvaluations />} />
+              <Route path="approved-vendors" element={<ApprovedVendors />} />
+              <Route path="stock-statement" element={<StockStatement />} />
+              <Route path="material-quality" element={<SMMaterialQualityDash />} />
+              <Route path="supplier-performance" element={<SMSupplierDash />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['QualityManager']} />}>
-              <Route path="/qm" element={<ModuleLayout moduleName="Quality Manager" groups={QM_NAV} profileLink="/admin/profile" />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<QMDashboard />} />
-                <Route path="quality-plans" element={<ProductQualityPlans />} />
-                <Route path="assign-inspectors" element={<AssignInspectors />} />
-                <Route path="checklists" element={<InspectionChecklists />} />
-                <Route path="calibration-approvals" element={<CalibrationApprovals />} />
-                <Route path="review-reports" element={<ReviewAllReports />} />
-                <Route path="ai-gap-analysis" element={<AIGapAnalysisPage />} />
-                <Route path="ai-assistant" element={<AIAssessmentAssistantPage />} />
-                <Route path="product-quality" element={<QMProductQualityDash />} />
-                <Route path="mfg-quality" element={<QMMfgQualityDash />} />
-                <Route path="asm-quality" element={<QMAsmQualityDash />} />
-                <Route path="material-quality" element={<QMMaterialQualityDash />} />
-                <Route path="component-quality" element={<QMComponentQualityDash />} />
-                <Route path="supplier-performance" element={<QMSupplierDash />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['QualityManager']} />}>
+            <Route path="/qm" element={<ModuleLayout moduleName="Quality Manager" groups={QM_NAV} profileLink="/admin/profile" />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<QMDashboard />} />
+              <Route path="quality-plans" element={<ProductQualityPlans />} />
+              <Route path="assign-inspectors" element={<AssignInspectors />} />
+              <Route path="checklists" element={<InspectionChecklists />} />
+              <Route path="calibration-approvals" element={<CalibrationApprovals />} />
+              <Route path="review-reports" element={<ReviewAllReports />} />
+              <Route path="ai-gap-analysis" element={<AIGapAnalysisPage />} />
+              <Route path="ai-assistant" element={<AIAssessmentAssistantPage />} />
+              <Route path="product-quality" element={<QMProductQualityDash />} />
+              <Route path="mfg-quality" element={<QMMfgQualityDash />} />
+              <Route path="asm-quality" element={<QMAsmQualityDash />} />
+              <Route path="material-quality" element={<QMMaterialQualityDash />} />
+              <Route path="component-quality" element={<QMComponentQualityDash />} />
+              <Route path="supplier-performance" element={<QMSupplierDash />} />
             </Route>
+          </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['Inspector']} />}>
-              <Route path="/inspector" element={<ModuleLayout moduleName="Inspector" groups={INSPECTOR_NAV} profileLink="/admin/profile" />}>
-                <Route index element={<Navigate to="dashboard" replace />} />
-                <Route path="dashboard" element={<InspectorDashboard />} />
-                <Route path="material-reports" element={<MaterialReports />} />
-                <Route path="component-reports" element={<ComponentReports />} />
-                <Route path="assembly-reports" element={<AssemblyReports />} />
-                <Route path="final-product-reports" element={<FinalProductReports />} />
-                <Route path="calibration-report" element={<CalibrationReport />} />
-              </Route>
+          <Route element={<ProtectedRoute allowedRoles={['Inspector']} />}>
+            <Route path="/inspector" element={<ModuleLayout moduleName="Inspector" groups={INSPECTOR_NAV} profileLink="/admin/profile" />}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<InspectorDashboard />} />
+              <Route path="material-reports" element={<MaterialReports />} />
+              <Route path="component-reports" element={<ComponentReports />} />
+              <Route path="assembly-reports" element={<AssemblyReports />} />
+              <Route path="final-product-reports" element={<FinalProductReports />} />
+              <Route path="calibration-report" element={<CalibrationReport />} />
             </Route>
+          </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-          <Toaster position="top-right" toastOptions={{ classNames: { toast: 'rounded-lg !border !bg-card !text-card-foreground' } }} richColors closeButton />
-        </BrowserRouter>
-      </DataProvider>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        <Toaster position="top-right" toastOptions={{ classNames: { toast: 'rounded-lg !border !bg-card !text-card-foreground' } }} richColors closeButton />
+      </BrowserRouter>
     </AuthProvider>
   </ThemeProvider>
 );
