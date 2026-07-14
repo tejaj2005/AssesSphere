@@ -49,7 +49,11 @@ CRUD-over-REST pattern against one backend, not a complex cache-invalidation pro
 custom client (`src/lib/api.ts`) plus two hooks (`useApiResource`, `useApiItem` in
 `src/hooks/useApi.ts`) cover every list/detail/create/update/delete case the app needs, with zero
 dependency weight and a single normalization point for Mongo's `_id` → the `id` shape the UI
-components were originally written against.
+components were originally written against. `useApiResource` also takes an optional `pollMs` —
+pages where one role's changes need to show up for another role without a manual refresh (Users,
+every dashboard, the QM review queues) pass a poll interval; it re-fetches silently in the
+background and only re-renders when the data actually changed, so it won't interrupt someone
+mid-edit.
 
 **Why @dnd-kit over react-beautiful-dnd:** react-beautiful-dnd is unmaintained; @dnd-kit is the
 actively-maintained modern replacement and is what the manufacturing/assembly stage reordering
@@ -214,8 +218,10 @@ single-instance deployment, worth swapping for a shared store before scaling hor
   messages) per `userId`, fire-and-forget, same pattern.
 - **Perimeter hardening**: `helmet` for standard security headers, CORS locked to an explicit
   `ALLOWED_ORIGINS` allowlist instead of a wildcard (a wildcard would let any site's script read
-  API responses on behalf of a logged-in user's browser), and rate limiting on `/auth/login` and
-  `/auth/register` (20 requests / 15 min per IP) to slow credential-stuffing attempts.
+  API responses on behalf of a logged-in user's browser). There's no rate limiting on
+  `/auth/login` — with six fixed, seeded demo accounts and no public signup, brute-forcing
+  credentials isn't a realistic threat here, so that layer was removed rather than carried as
+  unused complexity. Worth adding back if this ever fronts real user accounts on the open internet.
 
 ---
 
@@ -255,9 +261,9 @@ persistent MongoDB connection and streams the copilot response over a long-lived
 
 ## 8. Honest trade-offs / what's not production-hardened
 
-- Rate limiting (both the AI-route limiter in §4 and the login limiter in §5) is in-memory,
-  single-instance only — resets on restart and won't hold up across multiple instances behind a
-  load balancer without moving to a shared store (Redis).
+- The AI-route rate limiter (§4) is in-memory, single-instance only — resets on restart and
+  won't hold up across multiple instances behind a load balancer without moving to a shared
+  store (Redis).
 - `npm audit` currently reports two unresolved advisories, deliberately not force-fixed mid-way
   through an unrelated set of changes:
   - `xlsx` (prototype pollution / ReDoS) — no patched version on the npm registry. Checked the

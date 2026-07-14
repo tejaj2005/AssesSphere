@@ -81,7 +81,7 @@ src/
   components/shared/          Cross-role widgets (DataTable, PageWrapper, StageTimeline, ...)
   components/layout/          Sidebar, Topbar, ModuleLayout chrome, nav configs
   layouts/                    AdminLayout, ModuleLayout
-  context/                    AuthContext (JWT), ThemeContext, DataContext
+  context/                    AuthContext (JWT), ThemeContext
   hooks/                      useApi.ts (REST client hooks), useAI.ts (AI feature hooks)
   lib/                        api.ts (REST client), utils, exporters, chart colors
 ```
