@@ -52,8 +52,8 @@ export const InlineEdit = ({ value, onSave, className, disabled, placeholder }: 
         placeholder={placeholder}
         className="h-7 rounded border border-accent bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-accent"
       />
-      <button type="button" onClick={save} className="rounded p-0.5 text-success hover:bg-success/10"><Check className="h-3.5 w-3.5" /></button>
-      <button type="button" onClick={cancel} className="rounded p-0.5 text-muted-foreground hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={save} className="rounded p-0.5 text-success hover:bg-success/10"><Check className="h-3.5 w-3.5" /></button>
+      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={cancel} className="rounded p-0.5 text-muted-foreground hover:bg-muted"><X className="h-3.5 w-3.5" /></button>
     </span>
   );
 };

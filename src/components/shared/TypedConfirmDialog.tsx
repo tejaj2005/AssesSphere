@@ -29,6 +29,12 @@ export const TypedConfirmDialog = ({ open, onOpenChange, title, description, con
     finally { setBusy(false); }
   };
 
+  // Shared by every close path (backdrop, X, Escape, and the footer Cancel button) so `typed`
+  // never survives a close — the footer button used to call the raw `onOpenChange` prop
+  // directly, skipping this reset, which left a stale typed value pre-filled (and the confirm
+  // button already enabled) the next time the dialog opened.
+  const close = () => { onOpenChange(false); setTyped(''); };
+
   return (
     <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setTyped(''); }}>
       <DialogHeader>
@@ -47,7 +53,7 @@ export const TypedConfirmDialog = ({ open, onOpenChange, title, description, con
         <Input value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={confirmationText} autoFocus error={typed.length > 0 && !matches} />
       </div>
       <DialogFooter>
-        <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
+        <Button variant="ghost" onClick={close} disabled={busy}>Cancel</Button>
         <Button variant="destructive" onClick={handle} disabled={busy || !matches}>
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}
           {confirmLabel}
