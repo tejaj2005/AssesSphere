@@ -103,7 +103,13 @@ export const AISettingsPage = () => {
       </div>
 
       <Card className="mb-6">
-        <CardHeader><CardTitle>Feature Toggles</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Feature Toggles</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">
+            Saved to this browser only — not yet enforced anywhere in the app. Toggling a
+            feature off here does not stop it from being used elsewhere.
+          </p>
+        </CardHeader>
         <CardContent className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {FEATURES.map((f) => (
             <label key={f} className="flex items-center justify-between rounded-lg border border-border px-3 py-2">

@@ -1,10 +1,18 @@
 import { useRef, useState } from 'react';
 import { Sparkles, Loader2, UploadCloud, FileCheck2, CheckCircle2, XCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AIGeneratedBadge } from './AIGeneratedBadge';
 import { useAIEvidenceValidation } from '@/hooks/useAI';
+
+// Mirrors server/ai/routes/ai.routes.ts's multer fileFilter exactly — that allow-list is
+// narrower than a plain "image/*" accept (e.g. excludes .bmp/.heic/.gif), so a wider accept
+// here just lets the user pick a file that silently fails server-side with a confusing
+// "file required" error instead of never being selectable in the first place.
+const ACCEPTED_EXTENSIONS = ['.pdf', '.docx', '.doc', '.txt', '.jpg', '.jpeg', '.png', '.webp'];
+const MAX_MB = 10;
 
 const recommendationVariant: Record<string, 'success' | 'warning' | 'danger' | 'slate'> = {
   ACCEPT: 'success',
@@ -39,6 +47,20 @@ export const AIEvidenceValidator = () => {
   const questionEmpty = assessmentQuestion.trim() === '';
   const requirementEmpty = requirement.trim() === '';
   const canSubmit = !!file && !questionEmpty && !requirementEmpty;
+
+  const acceptFile = (f: File | null | undefined) => {
+    if (!f) return;
+    const ext = `.${f.name.split('.').pop()?.toLowerCase() || ''}`;
+    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+      toast.error(`Unsupported file type. Accepted: ${ACCEPTED_EXTENSIONS.join(', ')}`);
+      return;
+    }
+    if (f.size > MAX_MB * 1024 * 1024) {
+      toast.error(`File is too large — max ${MAX_MB} MB`);
+      return;
+    }
+    setFile(f);
+  };
 
   const validate = async () => {
     setTouched({ question: true, requirement: true });
@@ -90,7 +112,7 @@ export const AIEvidenceValidator = () => {
         <div
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]); }}
+          onDrop={(e) => { e.preventDefault(); acceptFile(e.dataTransfer.files[0]); }}
           className="flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border py-5 text-center transition-colors hover:border-accent/60"
         >
           <UploadCloud className="h-6 w-6 text-muted-foreground" />
@@ -99,9 +121,9 @@ export const AIEvidenceValidator = () => {
           <input
             ref={inputRef}
             type="file"
-            accept="image/*,.pdf,.docx,.doc,.txt"
+            accept={ACCEPTED_EXTENSIONS.join(',')}
             className="hidden"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
+            onChange={(e) => acceptFile(e.target.files?.[0])}
           />
         </div>
 

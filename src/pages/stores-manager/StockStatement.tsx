@@ -165,7 +165,9 @@ export const StockStatement = () => {
       unit: mat.unit || 'units',
     };
     setRows((prev) => [newRow, ...prev]);
-    toast.success('Stock statement created');
+    // Not persisted anywhere (see file header) — say so, rather than a plain "created" that
+    // implies this survives a refresh or another visit to the page.
+    toast.success('Added to this view — not saved, will reset on refresh');
     setDrawer(false);
     setForm({ materialId: '', approved: 0, rejected: 0, pending: 0 });
   };
@@ -228,7 +230,7 @@ export const StockStatement = () => {
       </Card>
 
       <Sheet open={drawer} onOpenChange={setDrawer}>
-        <SheetHeader><SheetTitle>Create Stock Statement</SheetTitle><SheetDescription>Quantities auto-fill from inspection data; adjust if needed.</SheetDescription></SheetHeader>
+        <SheetHeader><SheetTitle>Create Stock Statement</SheetTitle><SheetDescription>Quantities auto-fill from inspection data; adjust if needed. This view isn't backed by a database table yet, so entries here only last for this visit to the page.</SheetDescription></SheetHeader>
         <SheetBody>
           <div className="space-y-4">
             <div className="space-y-1.5"><Label>Material <span className="text-destructive">*</span></Label>

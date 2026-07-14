@@ -140,7 +140,10 @@ export const DocumentsPage = () => {
     fd.append('version', form.version);
     fd.append('manufacturingStage', form.manufacturingStageId);
     if (user?.organization) fd.append('organization', user.organization);
-    if (user?.id) fd.append('uploadedBy', user.id);
+    // Only stamp uploadedBy on initial creation — editing an existing document's metadata
+    // (even just fixing a typo, no new file) shouldn't silently reassign attribution to
+    // whoever happens to be the one editing it.
+    if (!editing && user?.id) fd.append('uploadedBy', user.id);
     if (file) fd.append('file', file);
 
     setSaving(true);
