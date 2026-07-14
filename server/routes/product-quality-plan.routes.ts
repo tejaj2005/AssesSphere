@@ -40,6 +40,26 @@ router.put('/:id', async (req, res) => {
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
+// Targeted atomic update of a single materialInspections entry by array index. Deliberately
+// NOT "read the array, change one entry client-side, PUT the whole array back" (the generic
+// PUT /:id above does a full-document field replace) — two reviewers (or one reviewer clicking
+// two rows in quick succession) acting on different entries of the same plan would otherwise
+// race: whichever request's stale array snapshot lands last silently reverts the other's
+// already-saved decision. A MongoDB $set on the specific indexed path only ever touches that
+// one entry, so concurrent updates to different indices can't clobber each other.
+router.put('/:id/material-inspections/:idx', async (req, res) => {
+  try {
+    const idx = parseInt(req.params.idx, 10);
+    if (isNaN(idx) || idx < 0) return res.status(400).json({ success: false, error: 'Invalid index' });
+    const update: Record<string, any> = { [`materialInspections.${idx}.status`]: req.body.status };
+    if (req.body.notes !== undefined) update[`materialInspections.${idx}.notes`] = req.body.notes;
+    const plan = await ProductQualityPlan.findByIdAndUpdate(req.params.id, { $set: update }, { returnDocument: 'after' })
+      .populate('product', 'name productId').populate('qualityManager', 'name email');
+    if (!plan) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: plan });
+  } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
+});
+
 router.put('/:id/complete', async (req, res) => {
   try {
     const plan = await ProductQualityPlan.findByIdAndUpdate(

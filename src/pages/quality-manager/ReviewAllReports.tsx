@@ -143,8 +143,10 @@ export const ReviewAllReports = () => {
     const key = `${plan.id}-${idx}`;
     setBusy(key);
     try {
-      const entries = (plan.materialInspections || []).map((e: any, i: number) => (i === idx ? { ...e, status, ...(notes !== undefined ? { notes } : {}) } : e));
-      const updated = await api.put<any>(`/quality-plans/${plan.id}`, { materialInspections: entries });
+      // Targeted per-entry update (not a full-array PUT built from a possibly-stale local
+      // snapshot) — see server/routes/product-quality-plan.routes.ts for why: two entries on
+      // the same plan being actioned close together must not be able to revert each other.
+      const updated = await api.put<any>(`/quality-plans/${plan.id}/material-inspections/${idx}`, { status, ...(notes !== undefined ? { notes } : {}) });
       setQualityPlans((prev) => prev.map((p: any) => (p.id === plan.id ? { ...p, ...updated, id: updated._id, product: p.product, qualityManager: p.qualityManager } : p)));
       toast.success(status === 'APPROVED' ? 'Material inspection approved' : status === 'REJECTED' ? 'Material inspection rejected' : 'Information requested');
     } catch (err) {
