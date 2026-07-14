@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, Navigate, Link } from 'react-router-dom';
+import { useNavigate, Navigate, Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Mail, Lock, Sun, Moon, ChevronDown, Shield, Eye as EyeIcon, Clipboard, Warehouse, Award, HardHat } from 'lucide-react';
 import { AssessSphereLogo, AssessSphereLogoWhite } from '@/components/AssessSphereLogo';
@@ -26,6 +26,13 @@ export const Login = () => {
   const { login, isAuthenticated } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const location = useLocation();
+  // ProtectedRoute redirects here with the page the user actually tried to reach — land them
+  // back there after signing in instead of always dropping them on their role's default
+  // dashboard. If the account they sign in as can't see that page, ProtectedRoute just bounces
+  // them onward to /app as usual, so this is never worse than the previous fixed redirect.
+  const from = (location.state as { from?: { pathname: string; search?: string } } | null)?.from;
+  const redirectTo = from ? `${from.pathname}${from.search || ''}` : '/app';
   const [email, setEmail] = useState('admin@qmics.com');
   const [password, setPassword] = useState('Admin@2025');
   const [show, setShow] = useState(false);
@@ -49,7 +56,7 @@ export const Login = () => {
     setBusy(false);
     if (!res.success) { toast.error(res.error || 'Login failed'); return; }
     toast.success('Welcome back!');
-    navigate('/app');
+    navigate(redirectTo, { replace: true });
   };
 
   const selectRole = async (acc: typeof DEMO_ACCOUNTS[0]) => {
@@ -60,7 +67,7 @@ export const Login = () => {
     setBusy(false);
     if (!res.success) { toast.error(res.error || 'Login failed'); return; }
     toast.success(`Welcome, ${acc.name}`);
-    navigate('/app');
+    navigate(redirectTo, { replace: true });
   };
 
   return (
