@@ -65,9 +65,12 @@ const toView = (raw: any): ProductView => ({
   notes: raw.specifications?.notes,
   attachments: raw.specifications?.attachments || [],
   status: raw.status === 'ACTIVE',
-  manufacturingStageIds: (raw.manufacturingStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
-  assemblingStageIds: (raw.assemblyStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
-  componentsCount: Array.isArray(raw.components) ? raw.components.length : 0,
+  // A referenced stage/component can be deleted elsewhere while still assigned to this
+  // product — Mongoose's populate() leaves a `null` in that array slot rather than removing
+  // it, so dangling refs must be filtered out before mapping or this throws on every render.
+  manufacturingStageIds: (raw.manufacturingStages || []).filter(Boolean).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  assemblingStageIds: (raw.assemblyStages || []).filter(Boolean).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  componentsCount: Array.isArray(raw.components) ? raw.components.filter(Boolean).length : 0,
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,
 });
@@ -90,6 +93,7 @@ const toPayload = (form: any) => ({
 
 interface ComponentView { id: string; name: string; code: string; }
 const toComponentView = (raw: any): ComponentView => ({ id: raw._id, name: raw.name, code: raw.componentId || '' });
+const toComponentViews = (raw: any[] | undefined): ComponentView[] => (raw || []).filter(Boolean).map(toComponentView);
 
 export const ProductDetailPage = () => {
   const { id } = useParams();
@@ -129,7 +133,7 @@ export const ProductDetailPage = () => {
   );
 
   const product = toView(rawProduct);
-  const prodComps: ComponentView[] = (rawProduct.components || []).map(toComponentView);
+  const prodComps: ComponentView[] = toComponentViews(rawProduct.components);
   const mfgStages = manufacturingStages.filter((s: any) => product.manufacturingStageIds.includes(s.id)).sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
   const asmStages = assemblingStages.filter((s: any) => product.assemblingStageIds.includes(s.id)).sort((a: any, b: any) => (a.sequence ?? 0) - (b.sequence ?? 0));
 
@@ -155,7 +159,7 @@ export const ProductDetailPage = () => {
           componentId: compCode.trim(),
           organization: user?.organization,
         });
-        const existingIds = (rawProduct.components || []).map((c: any) => c._id);
+        const existingIds = (rawProduct.components || []).filter(Boolean).map((c: any) => c._id);
         await api.put(`/admin/products/${rawProduct.id}`, { components: [...existingIds, created._id] });
       }
       await refetch();
@@ -169,7 +173,7 @@ export const ProductDetailPage = () => {
   const PRODUCT_FIELDS = buildProductFields(manufacturingStages, assemblingStages);
 
   const openEditProduct = () => {
-    setProdForm({ ...PRODUCT_INITIAL_FORM, ...product, status: true });
+    setProdForm({ ...PRODUCT_INITIAL_FORM, ...product, status: !!product.status });
     setProdErrs({});
     setProdDrawer(true);
   };
@@ -368,7 +372,7 @@ export const ProductDetailPage = () => {
           try {
             // Detach the component from this product (Component docs have no
             // productId — membership lives only in Product.components).
-            const remainingIds = (rawProduct.components || []).map((c: any) => c._id).filter((cid: string) => cid !== confirmComp.id);
+            const remainingIds = (rawProduct.components || []).filter(Boolean).map((c: any) => c._id).filter((cid: string) => cid !== confirmComp.id);
             await api.put(`/admin/products/${rawProduct.id}`, { components: remainingIds });
             await refetch();
             toast.success('Component deleted');

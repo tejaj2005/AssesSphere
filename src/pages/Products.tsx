@@ -66,9 +66,12 @@ const toView = (raw: any): ProductView => ({
   notes: raw.specifications?.notes,
   attachments: raw.specifications?.attachments || [],
   status: raw.status === 'ACTIVE',
-  manufacturingStageIds: (raw.manufacturingStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
-  assemblingStageIds: (raw.assemblyStages || []).map((s: any) => (typeof s === 'string' ? s : s._id)),
-  componentsCount: Array.isArray(raw.components) ? raw.components.length : 0,
+  // A referenced stage/component can be deleted elsewhere while still assigned to this
+  // product — Mongoose's populate() leaves a `null` in that array slot rather than removing
+  // it, so dangling refs must be filtered out before mapping or this throws on every render.
+  manufacturingStageIds: (raw.manufacturingStages || []).filter(Boolean).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  assemblingStageIds: (raw.assemblyStages || []).filter(Boolean).map((s: any) => (typeof s === 'string' ? s : s._id)),
+  componentsCount: Array.isArray(raw.components) ? raw.components.filter(Boolean).length : 0,
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,
 });
@@ -149,15 +152,13 @@ export const ProductsPage = () => {
     }
   };
 
-  const archiveProduct = (p: ProductView) => {
-    toast.success(`${p.name} archived (soft delete)`);
-  };
-
-  const handleDelete = async () => {
-    if (!confirmDel) return;
+  // A real soft delete: flips status to DISCONTINUED instead of removing the document, so
+  // "Archive" actually matches what its confirmation dialog promises (hidden, restorable via
+  // Edit Product) instead of silently performing the same permanent DELETE as "Delete Forever".
+  const archiveProduct = async (p: ProductView) => {
     try {
-      await remove(confirmDel.id);
-      toast.success(`${confirmDel.name} deleted`);
+      await update(p.id, { status: 'DISCONTINUED' });
+      toast.success(`${p.name} archived`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Something went wrong');
     }
@@ -328,9 +329,9 @@ export const ProductsPage = () => {
         onOpenChange={(o) => !o && setConfirmDel(null)}
         entityName={confirmDel?.name}
         title="Archive product?"
-        description="Archived products are hidden but can be restored. To permanently delete, use Delete Forever from the action menu."
+        description="Archived products are marked discontinued and hidden from active use, but can be restored any time from Edit Product. To permanently delete, use Delete Forever from the action menu."
         confirmLabel="Archive"
-        onConfirm={handleDelete}
+        onConfirm={() => { if (confirmDel) archiveProduct(confirmDel); }}
       />
 
       <TypedConfirmDialog
