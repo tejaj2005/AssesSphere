@@ -17,9 +17,4 @@ router.get('/', async (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await AuditLogEntry.create(req.body) }); }
-  catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
-});
-
 export default router;
