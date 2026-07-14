@@ -58,6 +58,11 @@ export const AssignInspectors = () => {
       .catch(() => {});
   }, [user?.organization]);
 
+  // Selections are scoped to whichever plan-type tab is showing — without this, ids checked
+  // on one tab silently ride along (invisible, since they don't match the new tab's rows) into
+  // a bulk assignment triggered from a different tab.
+  useEffect(() => { setSelected([]); }, [tab]);
+
   // No per-assignment "date" exists on a plan (only a single dueDate for the whole plan), so
   // workload is simplified to "how many ACTIVE plans (of any type) is this inspector on".
   const inspectorLoad = (id: string) =>
