@@ -50,6 +50,12 @@ export const ReportListPage = ({ type, title, description, prominentBadge }: Rep
 
   const [openReport, setOpenReport] = useState<any | null>(null);
   const [formKey, setFormKey] = useState(0);
+  // Passed straight through to InspectionForm, which appends the text to its own local
+  // observations state — deliberately NOT done by bumping formKey to remount the form, which
+  // used to wipe every unsaved parameter reading, checklist mark and evidence file, and also
+  // reset InspectionForm's internal "already saved as draft" id, causing the next save to
+  // create a duplicate report instead of updating the existing one.
+  const [aiInjection, setAiInjection] = useState<{ text: string; nonce: number } | null>(null);
 
   const myReports = useMemo(() => reports.filter((r) => r.plan?.planType === planType), [reports, planType]);
 
@@ -107,8 +113,7 @@ export const ReportListPage = ({ type, title, description, prominentBadge }: Rep
             (f.nonConformities || []).forEach((nc: any) =>
               parts.push(`[${nc.severity}] ${nc.findingId}: ${nc.description}${nc.immediateAction ? ` — Action: ${nc.immediateAction}` : ''}`));
             const text = parts.join('\n');
-            setOpenReport((prev: any) => (prev ? { ...prev, observations: [prev.observations, text].filter(Boolean).join('\n\n') } : prev));
-            setFormKey((k) => k + 1);
+            setAiInjection({ text, nonce: Date.now() });
             toast.success('AI findings added to observations');
           };
           return (
@@ -120,7 +125,7 @@ export const ReportListPage = ({ type, title, description, prominentBadge }: Rep
         <div className="mb-4">
           <AIEvidenceValidator />
         </div>
-        <InspectionForm key={`${openReport.id}-${formKey}`} type={type} report={openReport} />
+        <InspectionForm key={`${openReport.id}-${formKey}`} type={type} report={openReport} appendObservation={aiInjection} />
       </PageWrapper>
     );
   }

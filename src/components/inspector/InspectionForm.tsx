@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Loader2, Upload, X, FileText, Save, Send } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,12 +27,16 @@ interface InspectionFormProps {
    * type-modeling exercise.
    */
   report?: any;
+  /** Text to append to the Observations field — e.g. AI-generated findings the inspector just
+   * accepted — without remounting this form and losing every other unsaved field. Bumps its
+   * `nonce` to signal a new append even if the text string is identical to a previous one. */
+  appendObservation?: { text: string; nonce: number } | null;
 }
 
 const calcVar = (target: number, actual: number) => target === 0 ? 0 : ((actual - target) / target) * 100;
 const ragOf = (v: number): 'GREEN' | 'AMBER' | 'RED' => { const x = Math.abs(v); return x <= 2 ? 'GREEN' : x <= 5 ? 'AMBER' : 'RED'; };
 
-export const InspectionForm = ({ type, report }: InspectionFormProps) => {
+export const InspectionForm = ({ type, report, appendObservation }: InspectionFormProps) => {
   const { user } = useAuth();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -62,7 +66,13 @@ export const InspectionForm = ({ type, report }: InspectionFormProps) => {
     note: row.observations,
   }));
 
-  const [observations, setObservations] = useState(isNew ? '' : (report?.observations || ''));
+  const [observations, setObservations] = useState<string>(isNew ? '' : (report?.observations || ''));
+
+  useEffect(() => {
+    if (!appendObservation) return;
+    setObservations((prev) => [prev, appendObservation.text].filter(Boolean).join('\n\n'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appendObservation?.nonce]);
   const [evidence, setEvidence] = useState<string[]>(isNew ? [] : (report?.evidenceFiles || []).map((f: any) => f?.fileName || f));
   const [overallStatus, setOverallStatus] = useState<'APPROVED' | 'REJECTED' | 'HOLD'>(
     !isNew && report?.status === 'REJECTED' ? 'REJECTED' : !isNew && report?.status === 'ON_HOLD' ? 'HOLD' : 'APPROVED'

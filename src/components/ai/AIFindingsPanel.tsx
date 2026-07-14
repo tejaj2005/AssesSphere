@@ -189,7 +189,11 @@ export const AIFindingsPanel = ({ inspectionData, onAccepted }: Props) => {
                           <AlertTriangle className="h-3.5 w-3.5" /> Non-Conformities
                         </p>
                         {ncs.map((nc, i) => (
-                          <NonConformityCard key={i} nc={nc} productName={inspectionData.productName} stage={inspectionData.stage} />
+                          // Keyed by findingId, not array index — Re-analyze can put a totally
+                          // different finding at the same position, and an index key would let
+                          // React reuse that slot's NonConformityCard instance (and its stale
+                          // useAICapa() result) under the new finding's header.
+                          <NonConformityCard key={nc.findingId || i} nc={nc} productName={inspectionData.productName} stage={inspectionData.stage} />
                         ))}
                       </div>
                     )}
