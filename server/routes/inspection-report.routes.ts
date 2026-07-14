@@ -12,6 +12,16 @@ router.get('/', async (req, res) => {
     if (req.query.inspector)     filter.inspector     = req.query.inspector;
     if (req.query.plan)          filter.plan          = req.query.plan;
     if (req.query.overallResult) filter.overallResult = req.query.overallResult;
+    // InspectionReport has no planType of its own (only the referenced plan does) — resolve
+    // matching plan ids first. Without this, a type-specific dashboard fetching reports under
+    // a shared organization-wide limit can have its type's reports crowded out of that window
+    // by a more frequent report type, silently understating its own counts.
+    if (req.query.planType) {
+      const planFilter: Record<string, any> = { planType: req.query.planType };
+      if (req.query.organization) planFilter.organization = req.query.organization;
+      const matchingPlans = await InspectionPlan.find(planFilter).select('_id');
+      filter.plan = { $in: matchingPlans.map((p) => p._id) };
+    }
     if (req.query.dateFrom || req.query.dateTo) {
       filter.inspectionDate = {};
       if (req.query.dateFrom) filter.inspectionDate.$gte = new Date(req.query.dateFrom as string);
