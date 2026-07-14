@@ -73,6 +73,8 @@ export async function streamCopilot(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let finished = false;
+  const finish = () => { if (!finished) { finished = true; handlers.onDone?.(); } };
 
   while (true) {
     const { done, value } = await reader.read();
@@ -91,13 +93,14 @@ export async function streamCopilot(
         const parsed = JSON.parse(json);
         if (parsed.type === 'text') handlers.onToken(parsed.content);
         else if (parsed.type === 'error') handlers.onError?.(parsed.message || 'Copilot error');
-        else if (parsed.type === 'done') handlers.onDone?.();
+        else if (parsed.type === 'done') finish();
       } catch {
         /* ignore partial/non-JSON frames */
       }
     }
   }
-  handlers.onDone?.();
+  // Fallback for a connection that ends without ever sending an explicit 'done' frame.
+  finish();
 }
 
 export const useAIFindings = () => useAICall('findings');
