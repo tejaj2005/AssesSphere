@@ -24,3 +24,17 @@ export function requireAuth(req: AuthedRequest, res: Response, next: NextFunctio
     res.status(401).json({ success: false, error: 'Invalid or expired token' });
   }
 }
+
+// Every route so far only checked "is this a valid token" — never "is this token's role actually
+// allowed to be here." The frontend hides pages by role (ProtectedRoute allowedRoles in
+// src/App.tsx), but that's a UI convenience, not a security boundary: any authenticated user of
+// any role could call e.g. POST /api/admin/users directly and it would succeed. Mount this after
+// requireAuth on routes where only specific roles should be able to act.
+export function requireRole(...roles: string[]) {
+  return (req: AuthedRequest, res: Response, next: NextFunction) => {
+    if (!req.auth || !roles.includes(req.auth.role)) {
+      return res.status(403).json({ success: false, error: 'You do not have permission to perform this action' });
+    }
+    next();
+  };
+}
