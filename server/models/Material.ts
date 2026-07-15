@@ -13,7 +13,7 @@ export interface IMaterial extends Document {
 
 const schema = new Schema<IMaterial>({
   name:               { type: String, required: true, trim: true },
-  materialId:         { type: String, unique: true, sparse: true },
+  materialId:         String,
   materialType:       { type: Schema.Types.ObjectId, ref: 'MaterialType' },
   description:        String,
   specifications:     { type: Schema.Types.Mixed, default: {} },
@@ -27,5 +27,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1 });
+schema.index({ organization: 1, materialId: 1 }, { unique: true, sparse: true });
 
 export const Material = model<IMaterial>('Material', schema);

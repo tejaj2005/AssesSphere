@@ -52,7 +52,7 @@ const stageRefSchema = new Schema({
 }, { _id: false });
 
 const schema = new Schema<IProductQualityPlan>({
-  pqpId:                    { type: String, unique: true, sparse: true },
+  pqpId:                    String,
   product:                  { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   manufacturingInspections: [stageRefSchema],
   assemblyInspections:      [stageRefSchema],
@@ -86,5 +86,6 @@ schema.pre('save', function () {
 schema.index({ organization: 1, status: 1 });
 schema.index({ product: 1 });
 schema.index({ qualityManager: 1 });
+schema.index({ organization: 1, pqpId: 1 }, { unique: true, sparse: true });
 
 export const ProductQualityPlan = model<IProductQualityPlan>('ProductQualityPlan', schema);

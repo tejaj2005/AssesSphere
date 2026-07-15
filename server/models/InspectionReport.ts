@@ -78,7 +78,7 @@ const evidenceSchema = new Schema<IEvidenceFile>({
 }, { _id: true });
 
 const schema = new Schema<IInspectionReport>({
-  reportId:        { type: String, unique: true, sparse: true },
+  reportId:        String,
   plan:            { type: Schema.Types.ObjectId, ref: 'InspectionPlan', required: true },
   inspectionDate:  { type: Date, required: true },
   inspector:       { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -124,5 +124,6 @@ schema.index({ inspector: 1, status: 1 });
 schema.index({ plan: 1 });
 schema.index({ inspectionDate: -1 });
 schema.index({ overallResult: 1, organization: 1 });
+schema.index({ organization: 1, reportId: 1 }, { unique: true, sparse: true });
 
 export const InspectionReport = model<IInspectionReport>('InspectionReport', schema);

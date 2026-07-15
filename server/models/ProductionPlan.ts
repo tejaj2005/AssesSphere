@@ -41,7 +41,7 @@ const stageAssignmentSchema = new Schema<IProductionStageAssignment>({
 }, { _id: false });
 
 const schema = new Schema<IProductionPlan>({
-  planId:              { type: String, unique: true, sparse: true },
+  planId:              String,
   product:             { type: Schema.Types.ObjectId, ref: 'Product', required: true },
   targetQuantity:      { type: Number, required: true },
   plannedStartDate:    { type: Date, required: true },
@@ -60,5 +60,6 @@ schema.pre('save', function () {
 
 schema.index({ organization: 1, status: 1 });
 schema.index({ product: 1 });
+schema.index({ organization: 1, planId: 1 }, { unique: true, sparse: true });
 
 export const ProductionPlan = model<IProductionPlan>('ProductionPlan', schema);

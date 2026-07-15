@@ -1,7 +1,8 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IAIGapAnalysis extends Document {
   documentName: string;
+  organization: Types.ObjectId;
   standard: string;
   complianceScore: number;
   analysis: Record<string, any>;
@@ -11,6 +12,7 @@ export interface IAIGapAnalysis extends Document {
 
 const schema = new Schema<IAIGapAnalysis>({
   documentName: { type: String, required: true },
+  organization: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
   standard: { type: String, required: true },
   complianceScore: Number,
   analysis: { type: Schema.Types.Mixed, required: true },
@@ -18,6 +20,6 @@ const schema = new Schema<IAIGapAnalysis>({
   analyzedAt: { type: Date, default: Date.now },
 }, { timestamps: true });
 
-schema.index({ analyzedAt: -1 });
+schema.index({ organization: 1, analyzedAt: -1 });
 
 export const AIGapAnalysis = model<IAIGapAnalysis>('AIGapAnalysis', schema);

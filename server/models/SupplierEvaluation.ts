@@ -20,7 +20,7 @@ export interface ISupplierEvaluation extends Document {
 }
 
 const schema = new Schema<ISupplierEvaluation>({
-  evaluationId:     { type: String, unique: true, sparse: true },
+  evaluationId:     String,
   supplier:         { type: Schema.Types.ObjectId, ref: 'Supplier', required: true },
   evaluationDate:   { type: Date, required: true },
   evaluatedBy:      { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -47,5 +47,6 @@ schema.pre('save', function () {
 
 schema.index({ organization: 1, supplier: 1, evaluationDate: -1 });
 schema.index({ reviewStatus: 1, organization: 1 });
+schema.index({ organization: 1, evaluationId: 1 }, { unique: true, sparse: true });
 
 export const SupplierEvaluation = model<ISupplierEvaluation>('SupplierEvaluation', schema);

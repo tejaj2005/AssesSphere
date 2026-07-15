@@ -27,7 +27,7 @@ export interface ISupplier extends Document {
 
 const schema = new Schema<ISupplier>({
   name:               { type: String, required: true, trim: true },
-  supplierId:         { type: String, unique: true, sparse: true },
+  supplierId:         String,
   contactPerson:      String,
   email:              { type: String, lowercase: true, trim: true },
   phone:              String,
@@ -54,5 +54,8 @@ schema.pre('save', function () {
 
 schema.index({ organization: 1, approvalStatus: 1 });
 schema.index({ overallRating: -1 });
+// Scoped per-org, not globally — two different organizations' first suppliers can both
+// legitimately end up "SUP-..." from the same auto-generated fallback.
+schema.index({ organization: 1, supplierId: 1 }, { unique: true, sparse: true });
 
 export const Supplier = model<ISupplier>('Supplier', schema);

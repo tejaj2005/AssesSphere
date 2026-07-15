@@ -11,7 +11,7 @@ export interface IDepartment extends Document {
 
 const schema = new Schema<IDepartment>({
   name:           { type: String, required: true, trim: true },
-  departmentId:   { type: String, unique: true, sparse: true },
+  departmentId:   String,
   organization:   { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
   head:           { type: Schema.Types.ObjectId, ref: 'User' },
   description:    String,
@@ -23,5 +23,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1 });
+schema.index({ organization: 1, departmentId: 1 }, { unique: true, sparse: true });
 
 export const Department = model<IDepartment>('Department', schema);

@@ -18,7 +18,7 @@ export interface IProduct extends Document {
 
 const schema = new Schema<IProduct>({
   name:               { type: String, required: true, trim: true },
-  productId:          { type: String, unique: true, sparse: true },
+  productId:          String,
   description:        String,
   category:           String,
   specifications:     { type: Schema.Types.Mixed, default: {} },
@@ -39,5 +39,9 @@ schema.pre('save', function () {
 
 schema.index({ organization: 1, status: 1 });
 schema.index({ name: 'text', description: 'text' });
+// Auto-generated codes are only unique within their own org's sequence (see the frontend's
+// nextId() helper) — a global unique index would reject a second organization's first product
+// the moment it also happened to be assigned "PRD-..." matching another org's existing code.
+schema.index({ organization: 1, productId: 1 }, { unique: true, sparse: true });
 
 export const Product = model<IProduct>('Product', schema);

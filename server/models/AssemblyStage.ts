@@ -14,7 +14,7 @@ export interface IAssemblyStage extends Document {
 
 const schema = new Schema<IAssemblyStage>({
   name:              { type: String, required: true, trim: true },
-  stageId:           { type: String, unique: true, sparse: true },
+  stageId:           String,
   sequence:          { type: Number, default: 0 },
   description:       String,
   organization:      { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
@@ -29,5 +29,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1, sequence: 1 });
+schema.index({ organization: 1, stageId: 1 }, { unique: true, sparse: true });
 
 export const AssemblyStage = model<IAssemblyStage>('AssemblyStage', schema);

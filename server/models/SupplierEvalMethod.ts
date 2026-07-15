@@ -10,7 +10,7 @@ export interface ISupplierEvalMethod extends Document {
 
 const schema = new Schema<ISupplierEvalMethod>({
   name:         { type: String, required: true, trim: true },
-  methodId:     { type: String, unique: true, sparse: true },
+  methodId:     String,
   description:  String,
   isSystem:     { type: Boolean, default: false },
   organization: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
@@ -19,5 +19,7 @@ const schema = new Schema<ISupplierEvalMethod>({
 schema.pre('save', function () {
   if (!this.methodId) this.methodId = `SEM-${Date.now().toString().slice(-6)}`;
 });
+
+schema.index({ organization: 1, methodId: 1 }, { unique: true, sparse: true });
 
 export const SupplierEvalMethod = model<ISupplierEvalMethod>('SupplierEvalMethod', schema);

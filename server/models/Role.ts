@@ -25,7 +25,7 @@ const permissionSchema = new Schema<IPermission>({
 
 const schema = new Schema<IRole>({
   name:         { type: String, required: true, trim: true },
-  roleId:       { type: String, unique: true, sparse: true },
+  roleId:       String,
   description:  String,
   isSystem:     { type: Boolean, default: false },
   permissions:  { type: Map, of: permissionSchema, default: {} },
@@ -37,5 +37,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1 });
+schema.index({ organization: 1, roleId: 1 }, { unique: true, sparse: true });
 
 export const Role = model<IRole>('Role', schema);

@@ -17,7 +17,7 @@ export interface IInspectionMethod extends Document {
 
 const schema = new Schema<IInspectionMethod>({
   name:               { type: String, required: true },
-  methodId:           { type: String, unique: true, sparse: true },
+  methodId:           String,
   description:        String,
   equipmentRequired:  [String],
   standard:           String,
@@ -33,5 +33,7 @@ const schema = new Schema<IInspectionMethod>({
 schema.pre('save', function () {
   if (!this.methodId) this.methodId = `IM-${Date.now().toString().slice(-6)}`;
 });
+
+schema.index({ organization: 1, methodId: 1 }, { unique: true, sparse: true });
 
 export const InspectionMethod = model<IInspectionMethod>('InspectionMethod', schema);

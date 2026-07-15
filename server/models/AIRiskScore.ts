@@ -1,8 +1,9 @@
-import { Schema, model, Document } from 'mongoose';
+import { Schema, model, Document, Types } from 'mongoose';
 
 export interface IAIRiskScore extends Document {
   entityType: string;
   entityId: string;
+  organization: Types.ObjectId;
   entityName: string;
   overallScore: number;
   riskLevel: string;
@@ -14,6 +15,7 @@ export interface IAIRiskScore extends Document {
 const schema = new Schema<IAIRiskScore>({
   entityType: { type: String, required: true },
   entityId: { type: String, required: true },
+  organization: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
   entityName: String,
   overallScore: { type: Number, required: true },
   riskLevel: { type: String, required: true },
@@ -22,6 +24,6 @@ const schema = new Schema<IAIRiskScore>({
   validUntil: { type: Date, default: () => new Date(Date.now() + 7 * 86400000) },
 }, { timestamps: true });
 
-schema.index({ entityType: 1, entityId: 1 });
+schema.index({ organization: 1, entityType: 1, entityId: 1 }, { unique: true });
 
 export const AIRiskScore = model<IAIRiskScore>('AIRiskScore', schema);

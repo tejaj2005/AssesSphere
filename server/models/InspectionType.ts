@@ -12,7 +12,7 @@ export interface IInspectionType extends Document {
 
 const schema = new Schema<IInspectionType>({
   name:         { type: String, required: true, trim: true },
-  typeId:       { type: String, unique: true, sparse: true },
+  typeId:       String,
   category:     { type: String, enum: ['INCOMING_MATERIAL','IN_PROCESS','FINAL_PRODUCT','COMPONENT','CALIBRATION'], required: true },
   description:  String,
   organization: { type: Schema.Types.ObjectId, ref: 'Organization', required: true },
@@ -23,5 +23,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1, category: 1 });
+schema.index({ organization: 1, typeId: 1 }, { unique: true, sparse: true });
 
 export const InspectionType = model<IInspectionType>('InspectionType', schema);

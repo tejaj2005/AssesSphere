@@ -13,7 +13,7 @@ export interface IComponent extends Document {
 
 const schema = new Schema<IComponent>({
   name:               { type: String, required: true, trim: true },
-  componentId:        { type: String, unique: true, sparse: true },
+  componentId:        String,
   description:        String,
   specifications:     { type: Schema.Types.Mixed, default: {} },
   material:           { type: Schema.Types.ObjectId, ref: 'Material' },
@@ -27,5 +27,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1 });
+schema.index({ organization: 1, componentId: 1 }, { unique: true, sparse: true });
 
 export const Component = model<IComponent>('Component', schema);

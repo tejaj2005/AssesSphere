@@ -52,7 +52,7 @@ const checklistItemSchema = new Schema<IChecklistItem>({
 }, { _id: false });
 
 const schema = new Schema<IInspectionPlan>({
-  planId:            { type: String, unique: true, sparse: true },
+  planId:            String,
   planType:          { type: String, enum: ['R1_MATERIAL','R2_COMPONENT','R3_MANUFACTURING','R4_ASSEMBLY','R5_FINAL'], required: true },
   title:             { type: String, required: true, trim: true },
   product:           { type: Schema.Types.ObjectId, ref: 'Product' },
@@ -83,5 +83,6 @@ schema.pre('save', function () {
 schema.index({ organization: 1, planType: 1, status: 1 });
 schema.index({ assignedInspectors: 1, status: 1 });
 schema.index({ dueDate: 1, status: 1 });
+schema.index({ organization: 1, planId: 1 }, { unique: true, sparse: true });
 
 export const InspectionPlan = model<IInspectionPlan>('InspectionPlan', schema);

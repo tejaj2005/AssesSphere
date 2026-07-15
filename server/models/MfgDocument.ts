@@ -22,7 +22,7 @@ export interface IMfgDocument extends Document {
 
 const schema = new Schema<IMfgDocument>({
   name:               { type: String, required: true, trim: true },
-  documentId:         { type: String, unique: true, sparse: true },
+  documentId:         String,
   description:        String,
   category:           { type: String, enum: ['Procedure','Policy','Guideline','Checklist','Template','Design','Report','Certificate'] },
   fileType:           { type: String, enum: ['PDF','DOCX','XLSX','DWG','IMAGE'] },
@@ -40,5 +40,6 @@ schema.pre('save', function () {
 });
 
 schema.index({ organization: 1, category: 1 });
+schema.index({ organization: 1, documentId: 1 }, { unique: true, sparse: true });
 
 export const MfgDocument = model<IMfgDocument>('MfgDocument', schema);
