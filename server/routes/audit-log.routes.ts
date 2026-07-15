@@ -1,12 +1,12 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { AuditLogEntry } from '../models/AuditLogEntry';
+import { AuthedRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: req.auth!.organization };
     if (req.query.entityType) filter.entityType = req.query.entityType;
     const limit = parseInt(req.query.limit as string) || 100;
     const data = await AuditLogEntry.find(filter)

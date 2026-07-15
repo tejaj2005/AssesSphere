@@ -22,12 +22,20 @@ const router = Router();
 
 const pg = (req: Request) => ({ page: parseInt(req.query.page as string)||1, limit: parseInt(req.query.limit as string)||20 });
 
+// Every route below is mounted behind requireAuth (see routes/index.ts), so req.auth is always
+// populated. The organization claim in the verified JWT — never a client-suppliable query
+// param or body field — is what scopes every read/write to the caller's own tenant. Before this,
+// list routes only filtered by organization if the client bothered to pass it as a query string,
+// and every single-record GET/PUT/DELETE did a bare findById with no ownership check at all —
+// any authenticated user, regardless of org or role, could read/edit/delete any other
+// organization's products, equipment, suppliers, users, etc. just by knowing or guessing the id.
+const orgOf = (req: AuthedRequest) => req.auth!.organization;
+
 // USERS
-router.get('/users', async (req, res) => {
+router.get('/users', async (req: AuthedRequest, res: Response) => {
   try {
     const { page, limit } = pg(req);
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: orgOf(req) };
     if (req.query.role) filter.role = req.query.role;
     if (req.query.isActive !== undefined) filter.isActive = req.query.isActive === 'true';
     const [data, total] = await Promise.all([
@@ -37,28 +45,31 @@ router.get('/users', async (req, res) => {
     res.json({ success: true, data, pagination: { page, limit, total, pages: Math.ceil(total/limit) } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/users', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await User.create(req.body) }); }
+router.post('/users', async (req: AuthedRequest, res: Response) => {
+  try { res.status(201).json({ success: true, data: await User.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.get('/users/:id', async (req, res) => {
+router.get('/users/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const u = await User.findById(req.params.id).select('-password').populate('organization');
+    const u = await User.findOne({ _id: req.params.id, organization: orgOf(req) }).select('-password').populate('organization');
     if (!u) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: u });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const { password, ...rest } = req.body;
-    const u = await User.findByIdAndUpdate(req.params.id, rest, { returnDocument: 'after' }).select('-password');
+    const { password, organization, ...rest } = req.body;
+    const u = await User.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' }).select('-password');
     if (!u) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: u });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/users/:id', async (req, res) => {
-  try { await User.findByIdAndUpdate(req.params.id, { isActive: false }); res.json({ success: true }); }
-  catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+router.delete('/users/:id', async (req: AuthedRequest, res: Response) => {
+  try {
+    const u = await User.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, { isActive: false });
+    if (!u) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 // The generic PUT above deliberately strips `password` (findByIdAndUpdate bypasses the
 // pre('save') hashing hook, so letting it through there would store a plaintext password).
@@ -79,11 +90,10 @@ router.put('/users/:id/change-password', async (req: AuthedRequest, res: Respons
 });
 
 // PRODUCTS
-router.get('/products', async (req, res) => {
+router.get('/products', async (req: AuthedRequest, res: Response) => {
   try {
     const { page, limit } = pg(req);
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: orgOf(req) };
     if (req.query.status) filter.status = req.query.status;
     if (req.query.search) filter.$text = { $search: req.query.search as string };
     const [data, total] = await Promise.all([
@@ -93,85 +103,101 @@ router.get('/products', async (req, res) => {
     res.json({ success: true, data, pagination: { page, limit, total } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/products', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await Product.create(req.body) }); }
+router.post('/products', async (req: AuthedRequest, res: Response) => {
+  try { res.status(201).json({ success: true, data: await Product.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.get('/products/:id', async (req, res) => {
+router.get('/products/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const p = await Product.findById(req.params.id).populate('components').populate('manufacturingStages').populate('assemblyStages');
+    const p = await Product.findOne({ _id: req.params.id, organization: orgOf(req) }).populate('components').populate('manufacturingStages').populate('assemblyStages');
     if (!p) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/products/:id', async (req, res) => {
+router.put('/products/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const p = await Product.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' })
+    const { organization, ...rest } = req.body;
+    const p = await Product.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' })
       .populate('components').populate('manufacturingStages').populate('assemblyStages');
     if (!p) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/products/:id', async (req, res) => {
+router.delete('/products/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const p = await Product.findByIdAndDelete(req.params.id);
+    const p = await Product.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!p) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 // EQUIPMENT + CALIBRATION
-router.get('/equipment', async (req, res) => {
+router.get('/equipment', async (req: AuthedRequest, res: Response) => {
   try {
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: orgOf(req) };
     if (req.query.calibrationStatus) filter.calibrationStatus = req.query.calibrationStatus;
     if (req.query.isActive !== undefined) filter.isActive = req.query.isActive === 'true';
     res.json({ success: true, data: await Equipment.find(filter).sort({ name: 1 }) });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/equipment', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await Equipment.create(req.body) }); }
+router.post('/equipment', async (req: AuthedRequest, res: Response) => {
+  try { res.status(201).json({ success: true, data: await Equipment.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.get('/equipment/:id', async (req, res) => {
+router.get('/equipment/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const eq = await Equipment.findById(req.params.id);
+    const eq = await Equipment.findOne({ _id: req.params.id, organization: orgOf(req) });
     if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: eq });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/equipment/:id', async (req, res) => {
+router.put('/equipment/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const eq = await Equipment.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const { organization, ...rest } = req.body;
+    const eq = await Equipment.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
     if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: eq });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/equipment/:id', async (req, res) => {
+router.delete('/equipment/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const eq = await Equipment.findByIdAndDelete(req.params.id);
+    const eq = await Equipment.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
     await CalibrationRecord.deleteMany({ equipment: req.params.id });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/equipment/:id/calibration', uploadCert.single('certificateFile'), async (req, res) => {
+router.post('/equipment/:id/calibration', uploadCert.single('certificateFile'), async (req: AuthedRequest, res: Response) => {
   try {
-    const body: Record<string, any> = { equipment: req.params.id, ...req.body };
+    const eq = await Equipment.findOne({ _id: req.params.id, organization: orgOf(req) });
+    if (!eq) return res.status(404).json({ success: false, error: 'Equipment not found' });
+    const body: Record<string, any> = { ...req.body, equipment: req.params.id, organization: orgOf(req), submittedBy: req.auth!.userId };
     if (req.file) body.certificateFileUrl = `/uploads/calibration-certificates/${req.file.filename}`;
     const record = await CalibrationRecord.create(body);
     res.status(201).json({ success: true, data: record });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
+// Streams the certificate file after verifying the caller's organization owns this record —
+// mirrors the same fix in document.routes.ts (these used to be served by a plain, unauthenticated
+// express.static mount).
+router.get('/calibration-records/:id/certificate', async (req: AuthedRequest, res: Response) => {
+  try {
+    const record = await CalibrationRecord.findOne({ _id: req.params.id, organization: orgOf(req) });
+    if (!record || !record.certificateFileUrl) return res.status(404).json({ success: false, error: 'No certificate file attached' });
+    const filename = path.basename(record.certificateFileUrl);
+    const filePath = path.join(CERT_UPLOAD_DIR, filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'File not found' });
+    res.download(filePath, filename);
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // CALIBRATION RECORDS — submitted by inspectors, approved/rejected by QM.
 // Approval only patches Equipment.calibrationStatus once APPROVED, so a pending/rejected
 // submission never silently marks equipment as calibrated.
-router.get('/calibration-records', async (req, res) => {
+router.get('/calibration-records', async (req: AuthedRequest, res: Response) => {
   try {
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: orgOf(req) };
     if (req.query.approvalStatus) filter.approvalStatus = req.query.approvalStatus;
     if (req.query.equipment) filter.equipment = req.query.equipment;
     const data = await CalibrationRecord.find(filter)
@@ -181,15 +207,17 @@ router.get('/calibration-records', async (req, res) => {
     res.json({ success: true, data });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/calibration-records/:id/approve', async (req, res) => {
+router.put('/calibration-records/:id/approve', async (req: AuthedRequest, res: Response) => {
   try {
-    const record = await CalibrationRecord.findByIdAndUpdate(
-      req.params.id,
-      { approvalStatus: 'APPROVED', reviewedBy: req.body.reviewedBy, reviewedAt: new Date() },
+    // reviewedBy comes from the authenticated session, not the request body — otherwise any
+    // caller could forge who approved a calibration in what's meant to be an audit trail.
+    const record = await CalibrationRecord.findOneAndUpdate(
+      { _id: req.params.id, organization: orgOf(req) },
+      { approvalStatus: 'APPROVED', reviewedBy: req.auth!.userId, reviewedAt: new Date() },
       { returnDocument: 'after' }
     );
     if (!record) return res.status(404).json({ success: false, error: 'Not found' });
-    await Equipment.findByIdAndUpdate(record.equipment, {
+    await Equipment.findOneAndUpdate({ _id: record.equipment, organization: orgOf(req) }, {
       calibrationStatus: record.result === 'PASS' ? 'COMPLETED' : 'PENDING',
       lastCalibrationDate: record.calibrationDate,
       nextCalibrationDate: record.nextDueDate,
@@ -197,11 +225,11 @@ router.put('/calibration-records/:id/approve', async (req, res) => {
     res.json({ success: true, data: record });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/calibration-records/:id/reject', async (req, res) => {
+router.put('/calibration-records/:id/reject', async (req: AuthedRequest, res: Response) => {
   try {
-    const record = await CalibrationRecord.findByIdAndUpdate(
-      req.params.id,
-      { approvalStatus: 'REJECTED', reviewedBy: req.body.reviewedBy, reviewedAt: new Date(), rejectionReason: req.body.rejectionReason },
+    const record = await CalibrationRecord.findOneAndUpdate(
+      { _id: req.params.id, organization: orgOf(req) },
+      { approvalStatus: 'REJECTED', reviewedBy: req.auth!.userId, reviewedAt: new Date(), rejectionReason: req.body.rejectionReason },
       { returnDocument: 'after' }
     );
     if (!record) return res.status(404).json({ success: false, error: 'Not found' });
@@ -210,11 +238,10 @@ router.put('/calibration-records/:id/reject', async (req, res) => {
 });
 
 // SUPPLIERS
-router.get('/suppliers', async (req, res) => {
+router.get('/suppliers', async (req: AuthedRequest, res: Response) => {
   try {
     const { page, limit } = pg(req);
-    const filter: any = {};
-    if (req.query.organization) filter.organization = req.query.organization;
+    const filter: any = { organization: orgOf(req) };
     if (req.query.approvalStatus) filter.approvalStatus = req.query.approvalStatus;
     const [data, total] = await Promise.all([
       Supplier.find(filter).sort({ name: 1 }).skip((page-1)*limit).limit(limit),
@@ -223,30 +250,62 @@ router.get('/suppliers', async (req, res) => {
     res.json({ success: true, data, pagination: { page, limit, total } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/suppliers', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await Supplier.create(req.body) }); }
+router.post('/suppliers', async (req: AuthedRequest, res: Response) => {
+  try { res.status(201).json({ success: true, data: await Supplier.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.get('/suppliers/:id', async (req, res) => {
+router.get('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const s = await Supplier.findById(req.params.id);
+    const s = await Supplier.findOne({ _id: req.params.id, organization: orgOf(req) });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: s });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/suppliers/:id', async (req, res) => {
+router.put('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const s = await Supplier.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const { organization, ...rest } = req.body;
+    const s = await Supplier.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: s });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/suppliers/:id', async (req, res) => {
+router.delete('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const s = await Supplier.findByIdAndDelete(req.params.id);
+    const s = await Supplier.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ORGANIZATION — unlike every other entity, an Organization document *is* the tenant boundary,
+// so it can't be scoped by its own "organization" field. A caller may only ever see/edit their
+// own organization; creating or deleting a tenant isn't a self-service operation this app
+// exposes (new orgs are seeded directly, never via this API), so those are blocked outright.
+router.get('/organizations', async (req: AuthedRequest, res: Response) => {
+  try { res.json({ success: true, data: await Organization.find({ _id: orgOf(req) }) }); }
+  catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+router.get('/organizations/:id', async (req: AuthedRequest, res: Response) => {
+  try {
+    if (req.params.id !== String(orgOf(req))) return res.status(403).json({ success: false, error: 'Cannot view another organization' });
+    const org = await Organization.findById(req.params.id);
+    if (!org) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: org });
+  } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+});
+router.put('/organizations/:id', async (req: AuthedRequest, res: Response) => {
+  try {
+    if (req.params.id !== String(orgOf(req))) return res.status(403).json({ success: false, error: 'Cannot edit another organization' });
+    const org = await Organization.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    if (!org) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: org });
+  } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
+});
+router.post('/organizations', async (_req: AuthedRequest, res: Response) => {
+  res.status(403).json({ success: false, error: 'Creating organizations is not available through this API' });
+});
+router.delete('/organizations/:id', async (_req: AuthedRequest, res: Response) => {
+  res.status(403).json({ success: false, error: 'Deleting organizations is not available through this API' });
 });
 
 // COMPONENTS / MATERIALS / STAGES / TYPES — compact pattern
@@ -259,37 +318,39 @@ const simpleRoutes: { path: string; Model: any; populate: string[]; sort?: Recor
   { path: '/inspection-types',     Model: InspectionType,     populate: [] },
   { path: '/inspection-methods',   Model: InspectionMethod,   populate: [] },
   { path: '/departments',          Model: Department,         populate: ['head'] },
-  { path: '/organizations',        Model: Organization,       populate: [] },
   { path: '/supplier-eval-methods',Model: SupplierEvalMethod, populate: [] },
 ];
 
 simpleRoutes.forEach(({ path: rPath, Model, populate, sort }) => {
-  router.get(rPath, async (req, res) => {
+  router.get(rPath, async (req: AuthedRequest, res: Response) => {
     try {
-      const filter: any = {};
-      if (req.query.organization) filter.organization = req.query.organization;
+      const filter: any = { organization: orgOf(req) };
       let q = Model.find(filter);
       populate.forEach((f: string) => { q = q.populate(f); });
       if (sort) q = q.sort(sort);
       res.json({ success: true, data: await q });
     } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
   });
-  router.post(rPath, async (req, res) => {
-    try { res.status(201).json({ success: true, data: await Model.create(req.body) }); }
+  router.post(rPath, async (req: AuthedRequest, res: Response) => {
+    try { res.status(201).json({ success: true, data: await Model.create({ ...req.body, organization: orgOf(req) }) }); }
     catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
   });
-  router.put(`${rPath}/:id`, async (req, res) => {
+  router.put(`${rPath}/:id`, async (req: AuthedRequest, res: Response) => {
     try {
-      let q = Model.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+      const { organization, ...rest } = req.body;
+      let q = Model.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
       populate.forEach((f: string) => { q = q.populate(f); });
       const doc = await q;
       if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
       res.json({ success: true, data: doc });
     } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
   });
-  router.delete(`${rPath}/:id`, async (req, res) => {
-    try { await Model.findByIdAndDelete(req.params.id); res.json({ success: true }); }
-    catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
+  router.delete(`${rPath}/:id`, async (req: AuthedRequest, res: Response) => {
+    try {
+      const doc = await Model.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
+      if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
+      res.json({ success: true });
+    } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
   });
 });
 

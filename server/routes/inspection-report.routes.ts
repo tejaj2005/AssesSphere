@@ -1,13 +1,13 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { InspectionReport } from '../models/InspectionReport';
 import { InspectionPlan }   from '../models/InspectionPlan';
+import { AuthedRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
-    const filter: any = {};
-    if (req.query.organization)  filter.organization  = req.query.organization;
+    const filter: any = { organization: req.auth!.organization };
     if (req.query.status)        filter.status        = req.query.status;
     if (req.query.inspector)     filter.inspector     = req.query.inspector;
     if (req.query.plan)          filter.plan          = req.query.plan;
@@ -17,8 +17,7 @@ router.get('/', async (req, res) => {
     // a shared organization-wide limit can have its type's reports crowded out of that window
     // by a more frequent report type, silently understating its own counts.
     if (req.query.planType) {
-      const planFilter: Record<string, any> = { planType: req.query.planType };
-      if (req.query.organization) planFilter.organization = req.query.organization;
+      const planFilter: Record<string, any> = { planType: req.query.planType, organization: req.auth!.organization };
       const matchingPlans = await InspectionPlan.find(planFilter).select('_id');
       filter.plan = { $in: matchingPlans.map((p) => p._id) };
     }
@@ -40,9 +39,9 @@ router.get('/', async (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const report = await InspectionReport.findById(req.params.id)
+    const report = await InspectionReport.findOne({ _id: req.params.id, organization: req.auth!.organization })
       .populate('plan').populate('inspector','name email role')
       .populate('reviewedBy','name').populate('approvedBy','name')
       .populate('aiFindings').populate('checklistResults.equipment');
@@ -51,52 +50,63 @@ router.get('/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', async (req: AuthedRequest, res: Response) => {
   try {
-    const report = await InspectionReport.create(req.body);
-    await InspectionPlan.findByIdAndUpdate(report.plan, { status: 'ACTIVE' });
+    const report = await InspectionReport.create({ ...req.body, organization: req.auth!.organization });
+    await InspectionPlan.findOneAndUpdate({ _id: report.plan, organization: req.auth!.organization }, { status: 'ACTIVE' });
     res.status(201).json({ success: true, data: report });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const report = await InspectionReport.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after', runValidators: true });
+    const { organization, ...rest } = req.body;
+    const report = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, rest, { returnDocument: 'after', runValidators: true });
     if (!report) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: report });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/submit', async (req, res) => {
+router.put('/:id/submit', async (req: AuthedRequest, res: Response) => {
   try {
-    const r = await InspectionReport.findByIdAndUpdate(req.params.id, { status: 'SUBMITTED', submittedAt: new Date() }, { returnDocument: 'after' });
+    const r = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { status: 'SUBMITTED', submittedAt: new Date() }, { returnDocument: 'after' });
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: r });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/approve', async (req, res) => {
+router.put('/:id/approve', async (req: AuthedRequest, res: Response) => {
   try {
-    const { approvedBy, reviewComments } = req.body;
-    const r = await InspectionReport.findByIdAndUpdate(req.params.id, { status: 'APPROVED', approvedBy, approvedAt: new Date(), reviewComments }, { returnDocument: 'after' });
+    const { reviewComments } = req.body;
+    // approvedBy is the authenticated caller, not a client-supplied id — otherwise anyone could
+    // forge who approved a report in what's meant to be a compliance record.
+    const r = await InspectionReport.findOneAndUpdate(
+      { _id: req.params.id, organization: req.auth!.organization },
+      { status: 'APPROVED', approvedBy: req.auth!.userId, approvedAt: new Date(), reviewComments },
+      { returnDocument: 'after' }
+    );
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });
-    await InspectionPlan.findByIdAndUpdate(r.plan, { status: 'COMPLETED' });
+    await InspectionPlan.findOneAndUpdate({ _id: r.plan, organization: req.auth!.organization }, { status: 'COMPLETED' });
     res.json({ success: true, data: r });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/reject', async (req, res) => {
+router.put('/:id/reject', async (req: AuthedRequest, res: Response) => {
   try {
-    const { reviewedBy, rejectionReason } = req.body;
-    const r = await InspectionReport.findByIdAndUpdate(req.params.id, { status: 'REJECTED', reviewedBy, reviewedAt: new Date(), rejectionReason }, { returnDocument: 'after' });
+    const { rejectionReason } = req.body;
+    const r = await InspectionReport.findOneAndUpdate(
+      { _id: req.params.id, organization: req.auth!.organization },
+      { status: 'REJECTED', reviewedBy: req.auth!.userId, reviewedAt: new Date(), rejectionReason },
+      { returnDocument: 'after' }
+    );
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: r });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/hold', async (req, res) => {
+router.put('/:id/hold', async (req: AuthedRequest, res: Response) => {
   try {
-    const r = await InspectionReport.findByIdAndUpdate(req.params.id, { status: 'ON_HOLD' }, { returnDocument: 'after' });
+    const r = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { status: 'ON_HOLD' }, { returnDocument: 'after' });
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: r });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }

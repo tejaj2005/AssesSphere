@@ -1,12 +1,12 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { ProductQualityPlan } from '../models/ProductQualityPlan';
+import { AuthedRequest } from '../middleware/auth';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
-    const filter: any = {};
-    if (req.query.organization)   filter.organization   = req.query.organization;
+    const filter: any = { organization: req.auth!.organization };
     if (req.query.status)         filter.status         = req.query.status;
     if (req.query.product)        filter.product        = req.query.product;
     if (req.query.qualityManager) filter.qualityManager = req.query.qualityManager;
@@ -17,9 +17,9 @@ router.get('/', async (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const plan = await ProductQualityPlan.findById(req.params.id)
+    const plan = await ProductQualityPlan.findOne({ _id: req.params.id, organization: req.auth!.organization })
       .populate('product').populate('qualityManager','name email')
       .populate('manufacturingInspections.plan').populate('assemblyInspections.plan');
     if (!plan) return res.status(404).json({ success: false, error: 'Not found' });
@@ -27,14 +27,15 @@ router.get('/:id', async (req, res) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
-  try { res.status(201).json({ success: true, data: await ProductQualityPlan.create(req.body) }); }
+router.post('/', async (req: AuthedRequest, res: Response) => {
+  try { res.status(201).json({ success: true, data: await ProductQualityPlan.create({ ...req.body, organization: req.auth!.organization }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const plan = await ProductQualityPlan.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
+    const { organization, ...rest } = req.body;
+    const plan = await ProductQualityPlan.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, rest, { returnDocument: 'after' });
     if (!plan) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: plan });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
@@ -47,23 +48,23 @@ router.put('/:id', async (req, res) => {
 // race: whichever request's stale array snapshot lands last silently reverts the other's
 // already-saved decision. A MongoDB $set on the specific indexed path only ever touches that
 // one entry, so concurrent updates to different indices can't clobber each other.
-router.put('/:id/material-inspections/:idx', async (req, res) => {
+router.put('/:id/material-inspections/:idx', async (req: AuthedRequest, res: Response) => {
   try {
-    const idx = parseInt(req.params.idx, 10);
+    const idx = parseInt(req.params.idx as string, 10);
     if (isNaN(idx) || idx < 0) return res.status(400).json({ success: false, error: 'Invalid index' });
     const update: Record<string, any> = { [`materialInspections.${idx}.status`]: req.body.status };
     if (req.body.notes !== undefined) update[`materialInspections.${idx}.notes`] = req.body.notes;
-    const plan = await ProductQualityPlan.findByIdAndUpdate(req.params.id, { $set: update }, { returnDocument: 'after' })
+    const plan = await ProductQualityPlan.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { $set: update }, { returnDocument: 'after' })
       .populate('product', 'name productId').populate('qualityManager', 'name email');
     if (!plan) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: plan });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/complete', async (req, res) => {
+router.put('/:id/complete', async (req: AuthedRequest, res: Response) => {
   try {
-    const plan = await ProductQualityPlan.findByIdAndUpdate(
-      req.params.id,
+    const plan = await ProductQualityPlan.findOneAndUpdate(
+      { _id: req.params.id, organization: req.auth!.organization },
       { status: 'COMPLETED', reviewStatus: 'COMPLETED', completedAt: new Date(), overallStatus: 'GREEN' },
       { returnDocument: 'after' }
     );
