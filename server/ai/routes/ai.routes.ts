@@ -68,13 +68,14 @@ async function logAI(feature: string, provider: string, success: boolean, durati
 }
 
 // ── FINDINGS ─────────────────────────────────────────────────────────────────
-router.post('/findings', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/findings', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateFindings(req.body);
+    const organization = req.auth!.organization;
+    const result = await generateFindings({ ...req.body, organization });
     await AIFinding.findOneAndUpdate(
-      { inspectionReportId: req.body.inspectionReportId },
-      { inspectionReportId: req.body.inspectionReportId, findings: result, generatedAt: new Date() },
+      { inspectionReportId: req.body.inspectionReportId, organization },
+      { inspectionReportId: req.body.inspectionReportId, organization, findings: result, generatedAt: new Date() },
       { upsert: true }
     );
     await logAI('findings', 'gemini', true, Date.now() - start);
@@ -86,13 +87,14 @@ router.post('/findings', rateLimit(10), async (req: Request, res: Response) => {
 });
 
 // ── CAPA ──────────────────────────────────────────────────────────────────────
-router.post('/capa', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/capa', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateCapa(req.body);
+    const organization = req.auth!.organization;
+    const result = await generateCapa({ ...req.body, organization });
     await AICapa.findOneAndUpdate(
-      { findingId: req.body.findingId },
-      { findingId: req.body.findingId, recommendation: result, generatedAt: new Date() },
+      { findingId: req.body.findingId, organization },
+      { findingId: req.body.findingId, organization, recommendation: result, generatedAt: new Date() },
       { upsert: true }
     );
     await logAI('capa', 'gemini', true, Date.now() - start);
@@ -111,7 +113,7 @@ router.post('/copilot', rateLimit(30), async (req: AuthedRequest, res: Response)
 
 // ── GAP ANALYSIS ──────────────────────────────────────────────────────────────
 router.post('/gap-analysis', rateLimit(5), upload.single('document'),
-  async (req: Request, res: Response) => {
+  async (req: AuthedRequest, res: Response) => {
     if (!req.file) return res.status(400).json({ error: 'Document file required' });
     const start = Date.now();
     try {
@@ -120,6 +122,7 @@ router.post('/gap-analysis', rateLimit(5), upload.single('document'),
       const result = await performGapAnalysis(doc, standard);
       await AIGapAnalysis.create({
         documentName: req.file.originalname,
+        organization: req.auth!.organization,
         standard,
         complianceScore: result.overallComplianceScore,
         analysis: result,
@@ -178,16 +181,18 @@ router.post('/document-intel', rateLimit(10), upload.single('document'),
 );
 
 // ── RISK SCORING ──────────────────────────────────────────────────────────────
-router.post('/risk-score', rateLimit(20), async (req: Request, res: Response) => {
+router.post('/risk-score', rateLimit(20), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
+    const organization = req.auth!.organization;
     const withNarrative = req.body.withNarrative === true;
-    const result = await generateRiskScore(req.body, withNarrative);
+    const result = await generateRiskScore({ ...req.body, organization }, withNarrative);
     await AIRiskScore.findOneAndUpdate(
-      { entityType: req.body.entityType, entityId: req.body.entityId },
+      { entityType: req.body.entityType, entityId: req.body.entityId, organization },
       {
         entityType: req.body.entityType,
         entityId: req.body.entityId,
+        organization,
         entityName: result.entityName,
         overallScore: result.overallScore,
         riskLevel: result.riskLevel,
@@ -205,13 +210,14 @@ router.post('/risk-score', rateLimit(20), async (req: Request, res: Response) =>
 });
 
 // ── QUALITY SCORE ─────────────────────────────────────────────────────────────
-router.post('/quality-score', rateLimit(20), async (req: Request, res: Response) => {
+router.post('/quality-score', rateLimit(20), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
+    const input = { ...req.body, organization: req.auth!.organization };
     const withNarrative = req.body.withNarrative === true;
     const result = withNarrative
-      ? await scoreAssessmentWithNarrative(req.body)
-      : calculateQualityScore(req.body);
+      ? await scoreAssessmentWithNarrative(input)
+      : calculateQualityScore(input);
     await logAI('quality-score', withNarrative ? 'gemini' : 'formula', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -231,10 +237,10 @@ router.post('/scheduling', rateLimit(20), async (req: Request, res: Response) =>
 });
 
 // ── REPORT GENERATION ─────────────────────────────────────────────────────────
-router.post('/report', rateLimit(5), async (req: Request, res: Response) => {
+router.post('/report', rateLimit(5), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateReport(req.body);
+    const result = await generateReport({ ...req.body, organization: req.auth!.organization });
     await logAI('report', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -244,10 +250,10 @@ router.post('/report', rateLimit(5), async (req: Request, res: Response) => {
 });
 
 // ── MATURITY MODEL ────────────────────────────────────────────────────────────
-router.post('/maturity', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/maturity', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await assessMaturity(req.body);
+    const result = await assessMaturity({ ...req.body, organizationId: req.auth!.organization });
     await logAI('maturity', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -257,10 +263,10 @@ router.post('/maturity', rateLimit(10), async (req: Request, res: Response) => {
 });
 
 // ── PREDICTIVE INTELLIGENCE ───────────────────────────────────────────────────
-router.post('/predict', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/predict', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generatePredictions(req.body);
+    const result = await generatePredictions({ ...req.body, organization: req.auth!.organization });
     await logAI('prediction', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -270,11 +276,11 @@ router.post('/predict', rateLimit(10), async (req: Request, res: Response) => {
 });
 
 // ── BENCHMARKING ──────────────────────────────────────────────────────────────
-router.post('/benchmark', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/benchmark', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
     const { entities, entityType } = req.body;
-    const result = await generateBenchmarkSummary(entities, entityType);
+    const result = await generateBenchmarkSummary(entities, entityType, req.auth!.organization);
     await logAI('benchmarking', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -284,10 +290,10 @@ router.post('/benchmark', rateLimit(10), async (req: Request, res: Response) => 
 });
 
 // ── EXECUTIVE DASHBOARD ───────────────────────────────────────────────────────
-router.post('/executive-summary', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/executive-summary', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateExecutiveSummary(req.body);
+    const result = await generateExecutiveSummary({ ...req.body, organizationId: req.auth!.organization });
     await logAI('executive-summary', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -297,11 +303,11 @@ router.post('/executive-summary', rateLimit(10), async (req: Request, res: Respo
 });
 
 // ── ASSESSMENT ASSISTANT ──────────────────────────────────────────────────────
-router.post('/checklist', rateLimit(10), async (req: Request, res: Response) => {
+router.post('/checklist', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
     const { standard, productType, processType } = req.body;
-    const result = await generateAssessmentChecklist(standard, productType, processType);
+    const result = await generateAssessmentChecklist(standard, req.auth!.organization, productType, processType);
     await logAI('assessment-assist', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
