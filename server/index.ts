@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
 import { connectDB } from './db';
 import apiRoutes from './routes/index';
 
@@ -30,7 +29,11 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { poli
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/uploads', express.static(path.join(process.cwd(), 'server', 'uploads')));
+// Uploaded documents and calibration certificates are served through their own authenticated,
+// organization-scoped routes (GET /api/documents/:id/file and
+// GET /api/admin/calibration-records/:id/certificate) instead of a static mount here — a plain
+// express.static on /uploads would let anyone with a guessed URL download any org's files with
+// no login at all.
 app.use('/api', apiRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));

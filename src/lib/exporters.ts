@@ -66,6 +66,28 @@ export function parseCSV(text: string): Record<string, string>[] {
   });
 }
 
+/** Downloads a file from an authenticated API route (not a plain static URL) — the route
+ * itself verifies the caller's session and organization own the file, so the request has to
+ * carry the bearer token, which a plain `<a href>`/window.open navigation can't do. */
+export async function downloadAuthenticatedFile(path: string, fallbackFilename: string): Promise<void> {
+  const { API_BASE, getToken } = await import('@/lib/api');
+  const token = getToken();
+  const res = await fetch(`${API_BASE}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = /filename="?([^"]+)"?/.exec(disposition);
+  const filename = match?.[1] || fallbackFilename;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 export async function readFileAsText(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

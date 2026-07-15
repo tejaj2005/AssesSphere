@@ -22,13 +22,10 @@ import { Dropdown, DropdownItem, DropdownSeparator } from '@/components/ui/dropd
 import { AIDocumentAnalyzer } from '@/components/ai/AIDocumentAnalyzer';
 import { useApiResource } from '@/hooks/useApi';
 import { useAuth } from '@/context/AuthContext';
-import { API_BASE } from '@/lib/api';
+import { downloadAuthenticatedFile } from '@/lib/exporters';
 import { cn } from '@/lib/utils';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DocumentCategory, DocumentFileType } from '@/types';
-
-// Origin the server serves uploaded files from (API_BASE minus the trailing /api).
-const FILE_ORIGIN = API_BASE.replace(/\/api\/?$/, '');
 
 const CATEGORY_VARIANT: Record<DocumentCategory, any> = {
   Procedure: 'accent', Policy: 'purple', Guideline: 'teal', Checklist: 'success',
@@ -49,19 +46,15 @@ const humanSize = (bytes: number): string => {
   return `${(kb / 1024).toFixed(1)} MB`;
 };
 
-/** Uploaded documents now have real bytes on the server — download by pointing
- *  the browser at the file's server-side URL rather than fabricating content. */
-const downloadFile = (doc: any) => {
+/** Uploaded documents have real bytes on the server, served through an authenticated,
+ *  organization-scoped route rather than a plain public static URL. */
+const downloadFile = async (doc: any) => {
   if (!doc.fileUrl) { toast.error('No file attached to this document'); return; }
-  const href = `${FILE_ORIGIN}${doc.fileUrl}`;
-  const a = document.createElement('a');
-  a.href = href;
-  a.download = doc.fileName || doc.documentId || doc.name;
-  a.target = '_blank';
-  a.rel = 'noopener noreferrer';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  try {
+    await downloadAuthenticatedFile(`/documents/${doc.id}/file`, doc.fileName || doc.documentId || doc.name);
+  } catch (err) {
+    toast.error(err instanceof Error ? err.message : 'Download failed');
+  }
 };
 
 export const DocumentsPage = () => {
