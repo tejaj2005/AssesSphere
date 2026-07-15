@@ -27,18 +27,39 @@ function startOfToday(): Date {
   return d;
 }
 
+// A plain "count from the DB, then decide" check has a TOCTOU race: several requests arriving
+// close together (e.g. a page that fires off 3-4 AI panels at once) all read the same "17 used"
+// count, all pass the `< limit` check, and all proceed — since the audit-log write only happens
+// after each call's own Gemini round trip finishes, none of them can see each other's in-flight
+// usage. That can burn several requests past the free-tier cap in one burst. Track an in-memory
+// counter instead and reserve a slot synchronously (no `await` between the check and the
+// increment) — safe because this process is single-threaded, so nothing else can interleave
+// between reading and bumping the counter.
+let countedDay = '';
+let reserved = 0;
+
+async function syncFromDB(): Promise<void> {
+  const used = await AIAuditLog.countDocuments({
+    provider: 'gemini',
+    createdAt: { $gte: startOfToday() },
+  });
+  reserved = Math.max(reserved, used);
+}
+
 /** Throws GeminiQuotaError instead of letting the caller burn a network round trip that will just fail. */
 export async function assertGeminiQuotaAvailable(): Promise<void> {
-  try {
-    const used = await AIAuditLog.countDocuments({
-      provider: 'gemini',
-      createdAt: { $gte: startOfToday() },
-    });
-    if (used >= DAILY_LIMIT - BUFFER) {
-      throw new GeminiQuotaError(used, DAILY_LIMIT);
+  const today = startOfToday().toISOString();
+  if (today !== countedDay) {
+    countedDay = today;
+    reserved = 0;
+    try {
+      await syncFromDB();
+    } catch {
+      // If the audit-log count itself fails (e.g. DB hiccup), don't block real requests over it.
     }
-  } catch (err) {
-    if (err instanceof GeminiQuotaError) throw err;
-    // If the audit-log count itself fails (e.g. DB hiccup), don't block real requests over it.
   }
+  if (reserved >= DAILY_LIMIT - BUFFER) {
+    throw new GeminiQuotaError(reserved, DAILY_LIMIT);
+  }
+  reserved++;
 }
