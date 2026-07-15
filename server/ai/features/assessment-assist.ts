@@ -14,10 +14,16 @@ const STANDARD_LABELS: Record<string, string> = {
 
 export async function generateAssessmentChecklist(
   standard: string,
+  organization: string,
   productType?: string,
   processType?: string
 ): Promise<Record<string, any>> {
-  const cacheKey = buildCacheKey('checklist', standard, productType || '', processType || '');
+  // Without this, a request that drops `standard` (e.g. an unselected dropdown) silently
+  // generated and cached a checklist "for undefined" for a full week (this feature uses the
+  // longer checklist TTL), and every later caller that also omitted the field got that same
+  // garbage result back as a normal 200 success.
+  if (!standard) throw new Error('standard is required');
+  const cacheKey = buildCacheKey('checklist', organization, standard, productType || '', processType || '');
   // A standard's checklist is effectively static reference material — cache it much longer
   // (default 1 week) than narrative content that should track changing business data.
   const checklistMaxAgeHours = parseInt(process.env.AI_CACHE_TTL_CHECKLIST_HOURS || '168');

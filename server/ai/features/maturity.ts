@@ -14,15 +14,19 @@ export async function assessMaturity(orgData: {
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 
+  // Each dimension's worst tier contributes 0, not 1 — with a minimum of 1 per dimension the
+  // total could never drop below 3, making levelIndex 0 ("INITIAL") literally unreachable: even
+  // an organization with the worst possible compliance, CAPA closure, and inspection volume
+  // would always be classified as at least "MANAGED".
   let score = 0;
   if (orgData.averageComplianceScore >= 90) score += 3;
   else if (orgData.averageComplianceScore >= 70) score += 2;
-  else score += 1;
+  else if (orgData.averageComplianceScore >= 40) score += 1;
   if (orgData.capaClosureRate >= 90) score += 3;
   else if (orgData.capaClosureRate >= 70) score += 2;
-  else score += 1;
+  else if (orgData.capaClosureRate >= 40) score += 1;
   if (orgData.totalInspections >= 100) score += 2;
-  else score += 1;
+  else if (orgData.totalInspections >= 20) score += 1;
 
   const maturityLevels = ['INITIAL', 'MANAGED', 'DEFINED', 'QUANTITATIVELY_MANAGED', 'OPTIMIZING'];
   const levelIndex = Math.min(Math.floor(score / 2), 4);
@@ -49,6 +53,17 @@ Return JSON:
 }`;
 
   const result = await geminiGenerateJSON(QUALITY_EXPERT, prompt);
-  await setCached(cacheKey, result);
-  return result;
+  // Unlike risk-score.ts/quality-score.ts, this used to return the raw LLM JSON with nothing
+  // computed locally merged back in — if the model didn't faithfully echo the prompt's
+  // pre-filled currentLevel/levelScore (or dropped a field), that became the maturity
+  // assessment with no way to detect the mismatch. Force the deterministically-computed values
+  // back over whatever the model returned.
+  const merged = {
+    ...result,
+    currentLevel: maturityLevels[levelIndex],
+    levelScore: score,
+    nextLevelName: maturityLevels[Math.min(levelIndex + 1, 4)],
+  };
+  await setCached(cacheKey, merged);
+  return merged;
 }

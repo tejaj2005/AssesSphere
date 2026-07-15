@@ -60,6 +60,7 @@ const CAPA_TOOL: FunctionDeclaration = {
 
 export async function generateCapa(input: {
   findingId: string;
+  organization: string;
   severity: string;
   description: string;
   affectedParameter: string;
@@ -67,7 +68,10 @@ export async function generateCapa(input: {
   stage?: string;
   frequency?: number;
 }): Promise<Record<string, any>> {
-  const cacheKey = buildCacheKey('capa', input.findingId);
+  // Scoped by organization and severity, not just findingId — a finding that recurs and gets
+  // escalated to a higher severity needs a fresh, urgency-appropriate CAPA rather than the
+  // stale recommendation generated back when it was minor.
+  const cacheKey = buildCacheKey('capa', input.organization, input.findingId, input.severity);
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 

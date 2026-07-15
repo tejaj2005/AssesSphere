@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { geminiGenerateJSON } from '../adapters/gemini';
 import { getCached, setCached, buildCacheKey } from '../cache';
 import { REPORT_WRITER } from '../system-prompts';
@@ -13,13 +14,18 @@ const REPORT_TYPES: Record<string, string> = {
 
 export async function generateReport(data: {
   reportType: string;
+  organization: string;
   period: { from: string; to: string };
-  organization?: string;
   kpis?: Record<string, any>;
   summaryData?: any;
 }): Promise<Record<string, any>> {
-  const dataHash = JSON.stringify(data).substring(0, 100).replace(/\s/g, '');
-  const cacheKey = buildCacheKey('report', data.reportType, dataHash);
+  // A substring of the stringified payload only ever captures whatever fits in the first N
+  // characters — for a report body, that's reportType/period/organization before kpis/
+  // summaryData (the fields that actually distinguish one report from another) ever appear, so
+  // two materially different reports for the same type/period/org would hash identically and
+  // collide. Hash the full payload instead, so every byte of it affects the key.
+  const dataHash = crypto.createHash('sha256').update(JSON.stringify(data)).digest('hex').slice(0, 24);
+  const cacheKey = buildCacheKey('report', data.organization, data.reportType, dataHash);
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 

@@ -4,6 +4,7 @@ import { QUALITY_EXPERT } from '../system-prompts';
 
 export interface AssessmentInput {
   assessmentId: string;
+  organization: string;
   totalQuestions: number;
   answeredQuestions: number;
   evidenceCount: number;
@@ -19,7 +20,11 @@ export function calculateQualityScore(input: AssessmentInput): Record<string, an
   const capaRatio = Math.min(input.capaCount / Math.max(input.findingsCount, 1), 1);
   const evidenceScore = Math.round(Math.min(evidenceRatio * 50, 100));
   const capaScore = Math.round(capaRatio * 100);
-  const overall = Math.round((completeness * 0.4) + (evidenceScore * 0.35) + (capaScore * 0.25));
+  // completeness has no upper bound of its own (answeredQuestions can exceed totalQuestions on
+  // a data-entry mistake, since nothing upstream validates that) — clamp the final weighted
+  // score the same way calculateFormulaScore in risk-score.ts already does, so a bad input can't
+  // produce a "quality score" outside the documented 0-100 range.
+  const overall = Math.min(Math.round((completeness * 0.4) + (evidenceScore * 0.35) + (capaScore * 0.25)), 100);
 
   let maturityLevel = 'INITIAL';
   if (overall >= 85) maturityLevel = 'OPTIMIZING';
@@ -42,9 +47,18 @@ export async function scoreAssessmentWithNarrative(
 ): Promise<Record<string, any>> {
   const formulaResult = calculateQualityScore(input);
 
-  const cacheKey = buildCacheKey('quality-score', input.assessmentId);
+  const cacheKey = buildCacheKey('quality-score', input.organization, input.assessmentId);
+  // Only these fields ever come from the LLM — its JSON is otherwise unconstrained, and the
+  // prompt below restates the formula score/maturity as context, which models commonly echo
+  // straight back into structured output. Without a whitelist that would silently overwrite the
+  // deterministically-computed overallScore/maturityLevel with an unvalidated LLM value.
+  const pickNarrative = (n: Record<string, any>) => ({
+    strengths: n.strengths,
+    areasForImprovement: n.areasForImprovement,
+    benchmarkNote: n.benchmarkNote,
+  });
   const cached = await getCached<Record<string, any>>(cacheKey);
-  if (cached) return { ...formulaResult, ...cached };
+  if (cached) return { ...formulaResult, ...pickNarrative(cached) };
 
   const prompt = `Evaluate this assessment quality:
 
@@ -58,5 +72,5 @@ Return JSON: { "strengths": [string], "areasForImprovement": [string], "benchmar
 
   const narrative = await geminiGenerateJSON(QUALITY_EXPERT, prompt, 1024);
   await setCached(cacheKey, narrative);
-  return { ...formulaResult, ...narrative };
+  return { ...formulaResult, ...pickNarrative(narrative) };
 }

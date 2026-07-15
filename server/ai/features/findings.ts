@@ -13,6 +13,7 @@ export interface InspectionChecklistItem {
 
 export interface InspectionInput {
   inspectionReportId: string;
+  organization: string;
   productName: string;
   inspectionType: string;
   stage: string;
@@ -64,7 +65,9 @@ const FINDINGS_TOOL: FunctionDeclaration = {
 };
 
 export async function generateFindings(input: InspectionInput): Promise<Record<string, any>> {
-  const cacheKey = buildCacheKey('findings', input.inspectionReportId);
+  // Scoped by organization, not just inspectionReportId — two different organizations (or two
+  // different draft reports before either is saved) must never collide on the same cache entry.
+  const cacheKey = buildCacheKey('findings', input.organization, input.inspectionReportId);
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 

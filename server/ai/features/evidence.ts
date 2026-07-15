@@ -1,4 +1,4 @@
-import { geminiGenerateJSON, geminiGenerateWithImage } from '../adapters/gemini';
+import { geminiGenerateJSON, geminiGenerateWithImage, extractJSON } from '../adapters/gemini';
 import { QUALITY_EXPERT } from '../system-prompts';
 import { ProcessedDocument } from '../document-processor';
 
@@ -27,8 +27,11 @@ Requirement: ${requirement}
 Return exactly this JSON: ${jsonSchema}`;
 
     const text = await geminiGenerateWithImage(QUALITY_EXPERT, prompt, file.base64, file.mimeType);
-    const clean = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
+    // geminiGenerateWithImage doesn't force JSON output mode the way geminiGenerateJSON does,
+    // so the model is more likely to prepend prose before the JSON — a bare JSON.parse threw on
+    // that instead of falling back the way extractJSON (used by every other text-path feature)
+    // already does, by locating the first/last brace instead of assuming the string is pure JSON.
+    return extractJSON(text);
   }
 
   const prompt = `Validate the following evidence document.

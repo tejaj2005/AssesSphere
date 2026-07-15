@@ -33,9 +33,16 @@ export function rankEntities(entities: BenchmarkEntity[]): Array<BenchmarkEntity
 
 export async function generateBenchmarkSummary(
   entities: BenchmarkEntity[],
-  entityType: string
+  entityType: string,
+  organization: string
 ): Promise<Record<string, any>> {
-  const cacheKey = buildCacheKey('benchmark', entityType, entities.map(e => e.id).join(','));
+  // An empty (or missing) entities array used to reach the prompt-building code below and
+  // crash with a raw TypeError on `top.name`/`bottom.name` (both undefined once ranked is
+  // empty) — surfaced to the caller as a generic 500 instead of a clear validation error.
+  if (!Array.isArray(entities) || entities.length === 0) {
+    throw new Error('At least one entity is required to generate a benchmark summary');
+  }
+  const cacheKey = buildCacheKey('benchmark', organization, entityType, entities.map(e => e.id).join(','));
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 

@@ -44,10 +44,15 @@ export async function streamCopilotResponse(
 ): Promise<void> {
   const systemMessage = buildSystemMessage(context);
 
+  // `as 'user' | 'assistant'` is a compile-time-only assertion — it does nothing at runtime, so
+  // a client sending role: 'system' (or anything else) would land a second, attacker-controlled
+  // system message right alongside COPILOT_BASE, letting any authenticated user override the
+  // assistant's guardrails via simple role spoofing. Force anything that isn't 'assistant' to
+  // 'user' instead of trusting the client's value.
   const messages: GroqMessage[] = [
     { role: 'system', content: systemMessage },
     ...conversationHistory.slice(-10).map(m => ({
-      role: m.role as 'user' | 'assistant',
+      role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
       content: m.content,
     })),
   ];

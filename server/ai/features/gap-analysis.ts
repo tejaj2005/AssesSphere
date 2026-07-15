@@ -1,4 +1,4 @@
-import { geminiGenerateJSON } from '../adapters/gemini';
+import { geminiGenerateJSON, geminiGenerateWithImage, extractJSON } from '../adapters/gemini';
 import { QUALITY_EXPERT } from '../system-prompts';
 import { ProcessedDocument } from '../document-processor';
 
@@ -18,17 +18,7 @@ export async function performGapAnalysis(
 ): Promise<Record<string, any>> {
   const standardLabel = STANDARDS[standard] || standard;
 
-  const prompt = `Perform a comprehensive gap analysis of the following document against ${standardLabel}.
-
-Document: ${document.fileName} (${document.wordCount} words${document.pageCount ? `, ${document.pageCount} pages` : ''})
-
-DOCUMENT CONTENT:
----
-${document.text}
----
-
-Analyze every section for compliance gaps. Return this exact JSON structure:
-{
+  const schema = `{
   "standard": "${standard}",
   "overallComplianceScore": <number 0-100>,
   "missingControls": [
@@ -46,6 +36,27 @@ Analyze every section for compliance gaps. Return this exact JSON structure:
   ],
   "documentSummary": "<string>"
 }`;
+
+  // Image uploads (accepted by the same multer filter as any other document) have no extracted
+  // text — document.text is always '' for them — so this used to send an empty CONTENT block to
+  // Gemini and get back a hallucinated compliance score/gap analysis with no indication that
+  // nothing was actually read, and that fabricated score gets persisted to AIGapAnalysis.
+  if (document.isImage && document.base64 && document.mimeType) {
+    const prompt = `Perform a comprehensive gap analysis of this document image against ${standardLabel}.\n\nReturn this exact JSON structure: ${schema}`;
+    const text = await geminiGenerateWithImage(QUALITY_EXPERT, prompt, document.base64, document.mimeType);
+    return extractJSON(text);
+  }
+
+  const prompt = `Perform a comprehensive gap analysis of the following document against ${standardLabel}.
+
+Document: ${document.fileName} (${document.wordCount} words${document.pageCount ? `, ${document.pageCount} pages` : ''})
+
+DOCUMENT CONTENT:
+---
+${document.text}
+---
+
+Analyze every section for compliance gaps. Return this exact JSON structure: ${schema}`;
 
   return await geminiGenerateJSON(QUALITY_EXPERT, prompt, 4096);
 }

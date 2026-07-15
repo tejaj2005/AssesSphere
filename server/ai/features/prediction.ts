@@ -5,11 +5,16 @@ import { QUALITY_EXPERT } from '../system-prompts';
 export async function generatePredictions(data: {
   entityId: string;
   entityType: string;
+  organization: string;
   entityName: string;
   historicalTrend: Array<{ period: string; score: number; findings: number }>;
   currentRiskScore: number;
 }): Promise<Record<string, any>> {
-  const cacheKey = buildCacheKey('prediction', data.entityId);
+  // entityId alone isn't a safe cache key — the frontend derives it by slugifying the entity
+  // name, not a DB id, so two differently-typed entities that happen to share a name (e.g. a
+  // SUPPLIER and a PROCESS both called "Line 1") would collide and one gets served the other's
+  // predictions. entityType and organization both have to be part of the key.
+  const cacheKey = buildCacheKey('prediction', data.organization, data.entityType, data.entityId);
   const cached = await getCached<Record<string, any>>(cacheKey);
   if (cached) return cached;
 

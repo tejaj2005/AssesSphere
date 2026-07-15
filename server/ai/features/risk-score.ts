@@ -5,6 +5,7 @@ import { QUALITY_EXPERT } from '../system-prompts';
 export interface RiskInput {
   entityType: 'SUPPLIER' | 'PRODUCT' | 'PROCESS' | 'DEPARTMENT' | 'SITE';
   entityId: string;
+  organization: string;
   entityName: string;
   totalInspections: number;
   failedInspections: number;
@@ -26,7 +27,10 @@ export function calculateFormulaScore(input: RiskInput): number {
   const minorWeight = input.minorFindings * 1;
   const totalFindingWeight = Math.min(criticalWeight + majorWeight + minorWeight, 30);
   const capaOverdueRatio = input.capaOpenCount > 0 ? input.capaOverdueCount / input.capaOpenCount : 0;
-  const compliancePenalty = input.complianceScore ? (100 - input.complianceScore) * 0.1 : 5;
+  // A truthy check on complianceScore treats 0 — the worst possible compliance score — as "not
+  // provided" and silently applies the smaller default penalty instead of the correct maximum
+  // one, understating risk for exactly the entities that most need to be flagged.
+  const compliancePenalty = typeof input.complianceScore === 'number' ? (100 - input.complianceScore) * 0.1 : 5;
 
   const score = (failureRate * 40) + totalFindingWeight + (capaOverdueRatio * 20) + compliancePenalty;
   return Math.min(Math.round(score), 100);
@@ -61,9 +65,20 @@ export async function generateRiskScore(
 
   if (!withNarrative) return baseResult;
 
-  const cacheKey = buildCacheKey('risk-narrative', input.entityType, input.entityId);
+  const cacheKey = buildCacheKey('risk-narrative', input.organization, input.entityType, input.entityId);
+  // Only these narrative-specific fields are ever taken from the LLM response — the model's
+  // JSON is otherwise unconstrained, so without a whitelist here it could include a stray
+  // "overallScore"/"riskLevel" key (the prompt below even restates them as context) and silently
+  // clobber the deterministically-computed, audit-relevant score with an unvalidated LLM value.
+  const pickNarrative = (n: Record<string, any>) => ({
+    trendDirection: n.trendDirection,
+    riskNarrative: n.riskNarrative,
+    topRiskFactors: n.topRiskFactors,
+    mitigationPriorities: n.mitigationPriorities,
+    nextReviewRecommendation: n.nextReviewRecommendation,
+  });
   const cached = await getCached<Record<string, any>>(cacheKey);
-  if (cached) return { ...baseResult, ...cached, formulaBased: false };
+  if (cached) return { ...baseResult, ...pickNarrative(cached), formulaBased: false };
 
   const prompt = `Provide a concise risk narrative for this ${input.entityType}:
 
@@ -84,5 +99,5 @@ Return JSON:
 
   const narrative = await geminiGenerateJSON(QUALITY_EXPERT, prompt);
   await setCached(cacheKey, narrative);
-  return { ...baseResult, ...narrative, formulaBased: false };
+  return { ...baseResult, ...pickNarrative(narrative), formulaBased: false };
 }
