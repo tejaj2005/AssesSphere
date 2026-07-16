@@ -8,7 +8,7 @@ import {
   MaterialType, Supplier, InspectionType, InspectionMethod, CalibrationRecord,
   SupplierEvalMethod
 } from '../models/index';
-import { AuthedRequest } from '../middleware/auth';
+import { AuthedRequest, requireRole } from '../middleware/auth';
 
 const CERT_UPLOAD_DIR = path.join(process.cwd(), 'server', 'uploads', 'calibration-certificates');
 if (!fs.existsSync(CERT_UPLOAD_DIR)) fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
@@ -31,6 +31,15 @@ const pg = (req: Request) => ({ page: parseInt(req.query.page as string)||1, lim
 // organization's products, equipment, suppliers, users, etc. just by knowing or guessing the id.
 const orgOf = (req: AuthedRequest) => req.auth!.organization;
 
+// Master-data (products, equipment, suppliers, materials, stages, types, methods, departments,
+// user administration, org config) is created/edited/deleted only by Admins. The GET routes are
+// left open to any authenticated org member on purpose — every module's forms pull this data as
+// reference/dropdown options (an inspector picking equipment, a QM listing inspectors), and
+// org-scoping already confines those reads to the caller's own tenant. Only the mutations, and
+// the two workflow actions that belong to specific non-admin roles (inspectors submitting a
+// calibration, QMs approving/rejecting one), carry role checks.
+const adminOnly = requireRole('Admin');
+
 // USERS
 router.get('/users', async (req: AuthedRequest, res: Response) => {
   try {
@@ -45,7 +54,7 @@ router.get('/users', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data, pagination: { page, limit, total, pages: Math.ceil(total/limit) } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/users', async (req: AuthedRequest, res: Response) => {
+router.post('/users', adminOnly, async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await User.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -56,15 +65,29 @@ router.get('/users/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: u });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
+// This route serves two very different callers: the Admin Users page (full edit of anyone in
+// the org) and the shared Profile page, where every role edits their own name/email. Without
+// the branch below, that second use case meant ANY authenticated user could PUT any org
+// user's record — including setting their own `role` to 'Admin' or reactivating a disabled
+// account. Non-admins are now limited to their own record and to non-privileged fields.
 router.put('/users/:id', async (req: AuthedRequest, res: Response) => {
   try {
     const { password, organization, ...rest } = req.body;
-    const u = await User.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' }).select('-password');
+    let update: Record<string, any> = rest;
+    if (req.auth!.role !== 'Admin') {
+      if (req.auth!.userId !== req.params.id) {
+        return res.status(403).json({ success: false, error: 'You can only edit your own profile' });
+      }
+      const { name, email, department, employeeId } = rest;
+      update = { name, email, department, employeeId };
+      Object.keys(update).forEach(k => update[k] === undefined && delete update[k]);
+    }
+    const u = await User.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, update, { returnDocument: 'after' }).select('-password');
     if (!u) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: u });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/users/:id', async (req: AuthedRequest, res: Response) => {
+router.delete('/users/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const u = await User.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, { isActive: false });
     if (!u) return res.status(404).json({ success: false, error: 'Not found' });
@@ -103,7 +126,7 @@ router.get('/products', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data, pagination: { page, limit, total } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/products', async (req: AuthedRequest, res: Response) => {
+router.post('/products', adminOnly, async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await Product.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -114,7 +137,7 @@ router.get('/products/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/products/:id', async (req: AuthedRequest, res: Response) => {
+router.put('/products/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const { organization, ...rest } = req.body;
     const p = await Product.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' })
@@ -123,7 +146,7 @@ router.put('/products/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: p });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/products/:id', async (req: AuthedRequest, res: Response) => {
+router.delete('/products/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const p = await Product.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!p) return res.status(404).json({ success: false, error: 'Not found' });
@@ -140,7 +163,7 @@ router.get('/equipment', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: await Equipment.find(filter).sort({ name: 1 }) });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/equipment', async (req: AuthedRequest, res: Response) => {
+router.post('/equipment', adminOnly, async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await Equipment.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -151,7 +174,7 @@ router.get('/equipment/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: eq });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/equipment/:id', async (req: AuthedRequest, res: Response) => {
+router.put('/equipment/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const { organization, ...rest } = req.body;
     const eq = await Equipment.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
@@ -159,7 +182,7 @@ router.put('/equipment/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: eq });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/equipment/:id', async (req: AuthedRequest, res: Response) => {
+router.delete('/equipment/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const eq = await Equipment.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!eq) return res.status(404).json({ success: false, error: 'Not found' });
@@ -167,7 +190,9 @@ router.delete('/equipment/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/equipment/:id/calibration', uploadCert.single('certificateFile'), async (req: AuthedRequest, res: Response) => {
+// Submitting a calibration record (with its certificate) is the inspector's job; QMs approve
+// or reject them further down. Equipment CRUD above stays Admin-only.
+router.post('/equipment/:id/calibration', requireRole('Inspector'), uploadCert.single('certificateFile'), async (req: AuthedRequest, res: Response) => {
   try {
     const eq = await Equipment.findOne({ _id: req.params.id, organization: orgOf(req) });
     if (!eq) return res.status(404).json({ success: false, error: 'Equipment not found' });
@@ -207,7 +232,7 @@ router.get('/calibration-records', async (req: AuthedRequest, res: Response) => 
     res.json({ success: true, data });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/calibration-records/:id/approve', async (req: AuthedRequest, res: Response) => {
+router.put('/calibration-records/:id/approve', requireRole('QualityManager'), async (req: AuthedRequest, res: Response) => {
   try {
     // reviewedBy comes from the authenticated session, not the request body — otherwise any
     // caller could forge who approved a calibration in what's meant to be an audit trail.
@@ -225,7 +250,7 @@ router.put('/calibration-records/:id/approve', async (req: AuthedRequest, res: R
     res.json({ success: true, data: record });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/calibration-records/:id/reject', async (req: AuthedRequest, res: Response) => {
+router.put('/calibration-records/:id/reject', requireRole('QualityManager'), async (req: AuthedRequest, res: Response) => {
   try {
     const record = await CalibrationRecord.findOneAndUpdate(
       { _id: req.params.id, organization: orgOf(req) },
@@ -250,7 +275,7 @@ router.get('/suppliers', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data, pagination: { page, limit, total } });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.post('/suppliers', async (req: AuthedRequest, res: Response) => {
+router.post('/suppliers', adminOnly, async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await Supplier.create({ ...req.body, organization: orgOf(req) }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
@@ -261,7 +286,7 @@ router.get('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: s });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
+router.put('/suppliers/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const { organization, ...rest } = req.body;
     const s = await Supplier.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
@@ -269,7 +294,7 @@ router.put('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: s });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
-router.delete('/suppliers/:id', async (req: AuthedRequest, res: Response) => {
+router.delete('/suppliers/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     const s = await Supplier.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
@@ -293,7 +318,7 @@ router.get('/organizations/:id', async (req: AuthedRequest, res: Response) => {
     res.json({ success: true, data: org });
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
-router.put('/organizations/:id', async (req: AuthedRequest, res: Response) => {
+router.put('/organizations/:id', adminOnly, async (req: AuthedRequest, res: Response) => {
   try {
     if (req.params.id !== String(orgOf(req))) return res.status(403).json({ success: false, error: 'Cannot edit another organization' });
     const org = await Organization.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' });
@@ -331,11 +356,11 @@ simpleRoutes.forEach(({ path: rPath, Model, populate, sort }) => {
       res.json({ success: true, data: await q });
     } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
   });
-  router.post(rPath, async (req: AuthedRequest, res: Response) => {
+  router.post(rPath, adminOnly, async (req: AuthedRequest, res: Response) => {
     try { res.status(201).json({ success: true, data: await Model.create({ ...req.body, organization: orgOf(req) }) }); }
     catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
   });
-  router.put(`${rPath}/:id`, async (req: AuthedRequest, res: Response) => {
+  router.put(`${rPath}/:id`, adminOnly, async (req: AuthedRequest, res: Response) => {
     try {
       const { organization, ...rest } = req.body;
       let q = Model.findOneAndUpdate({ _id: req.params.id, organization: orgOf(req) }, rest, { returnDocument: 'after' });
@@ -345,7 +370,7 @@ simpleRoutes.forEach(({ path: rPath, Model, populate, sort }) => {
       res.json({ success: true, data: doc });
     } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
   });
-  router.delete(`${rPath}/:id`, async (req: AuthedRequest, res: Response) => {
+  router.delete(`${rPath}/:id`, adminOnly, async (req: AuthedRequest, res: Response) => {
     try {
       const doc = await Model.findOneAndDelete({ _id: req.params.id, organization: orgOf(req) });
       if (!doc) return res.status(404).json({ success: false, error: 'Not found' });
