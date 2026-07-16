@@ -85,7 +85,11 @@ import { CalibrationReport } from '@/pages/inspector/CalibrationReport';
 const App = () => (
   <ThemeProvider>
     <AuthProvider>
-      <BrowserRouter>
+      {/* Opt into the two React Router v7 behaviours now, while still on v6: wrap navigation
+          state updates in React.startTransition, and use v7's relative-splat-path resolution.
+          Besides silencing the console future-flag warnings, this means the eventual v7 upgrade
+          is a no-op for routing behaviour instead of a surprise. */}
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
