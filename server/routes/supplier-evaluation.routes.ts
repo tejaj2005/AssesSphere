@@ -1,9 +1,14 @@
 import { Router, Response } from 'express';
 import { SupplierEvaluation } from '../models/SupplierEvaluation';
 import { Supplier }           from '../models/Supplier';
-import { AuthedRequest } from '../middleware/auth';
+import { AuthedRequest, requireRole } from '../middleware/auth';
 
 const router = Router();
+
+// The Stores manager records supplier evaluations; the Quality manager approves them (which is
+// what rolls the approved scores up into the supplier's overall rating). Reads — the evaluation
+// list and the approved-vendors list — stay open to any authenticated org member, since Admin,
+// Management, Stores and Quality dashboards all consume them, org-scoped.
 
 router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
@@ -19,12 +24,12 @@ router.get('/', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req: AuthedRequest, res: Response) => {
+router.post('/', requireRole('StoresManager'), async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await SupplierEvaluation.create({ ...req.body, organization: req.auth!.organization }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/approve', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/approve', requireRole('QualityManager'), async (req: AuthedRequest, res: Response) => {
   try {
     // reviewedBy is the authenticated caller, not a client-supplied id — otherwise anyone could
     // forge who approved an evaluation in what's meant to be a compliance record.

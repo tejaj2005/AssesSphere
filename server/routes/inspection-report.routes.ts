@@ -1,9 +1,16 @@
 import { Router, Response } from 'express';
 import { InspectionReport } from '../models/InspectionReport';
 import { InspectionPlan }   from '../models/InspectionPlan';
-import { AuthedRequest } from '../middleware/auth';
+import { AuthedRequest, requireRole } from '../middleware/auth';
 
 const router = Router();
+
+// Inspectors author and submit reports; the three managers who own a review queue (Production
+// for R3/R4, Stores for R1_MATERIAL, Quality across the board) are the ones who approve, reject
+// or hold them. Reads are open to any authenticated org member — every dashboard and timeline
+// lists reports, org-scoped.
+const reportAuthor = requireRole('Inspector');
+const reportReviewers = requireRole('ProductionManager', 'QualityManager', 'StoresManager');
 
 router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
@@ -50,7 +57,7 @@ router.get('/:id', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req: AuthedRequest, res: Response) => {
+router.post('/', reportAuthor, async (req: AuthedRequest, res: Response) => {
   try {
     const report = await InspectionReport.create({ ...req.body, organization: req.auth!.organization });
     await InspectionPlan.findOneAndUpdate({ _id: report.plan, organization: req.auth!.organization }, { status: 'ACTIVE' });
@@ -58,16 +65,24 @@ router.post('/', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
+// The generic edit path — used by the inspector to save a draft and by a reviewer to put a
+// report ON_HOLD. It must NOT be a back door around the role-guarded approve/reject endpoints:
+// without stripping the approver/reviewer identity fields and blocking a direct move to
+// APPROVED/REJECTED, the report's own author could PUT { status: 'APPROVED', approvedBy: <self> }
+// here and sign off on their own work, forging who approved it in a compliance record.
 router.put('/:id', async (req: AuthedRequest, res: Response) => {
   try {
-    const { organization, ...rest } = req.body;
+    const { organization, approvedBy, reviewedBy, approvedAt, reviewedAt, ...rest } = req.body;
+    if (rest.status === 'APPROVED' || rest.status === 'REJECTED') {
+      return res.status(400).json({ success: false, error: 'Use the approve or reject endpoint to change approval status' });
+    }
     const report = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, rest, { returnDocument: 'after', runValidators: true });
     if (!report) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: report });
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/submit', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/submit', reportAuthor, async (req: AuthedRequest, res: Response) => {
   try {
     const r = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { status: 'SUBMITTED', submittedAt: new Date() }, { returnDocument: 'after' });
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });
@@ -75,7 +90,7 @@ router.put('/:id/submit', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/approve', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/approve', reportReviewers, async (req: AuthedRequest, res: Response) => {
   try {
     const { reviewComments } = req.body;
     // approvedBy is the authenticated caller, not a client-supplied id — otherwise anyone could
@@ -91,7 +106,7 @@ router.put('/:id/approve', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/reject', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/reject', reportReviewers, async (req: AuthedRequest, res: Response) => {
   try {
     const { rejectionReason } = req.body;
     const r = await InspectionReport.findOneAndUpdate(
@@ -104,7 +119,7 @@ router.put('/:id/reject', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/hold', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/hold', reportReviewers, async (req: AuthedRequest, res: Response) => {
   try {
     const r = await InspectionReport.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { status: 'ON_HOLD' }, { returnDocument: 'after' });
     if (!r) return res.status(404).json({ success: false, error: 'Not found' });

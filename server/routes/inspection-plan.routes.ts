@@ -1,8 +1,15 @@
 import { Router, Response } from 'express';
 import { InspectionPlan } from '../models/InspectionPlan';
-import { AuthedRequest } from '../middleware/auth';
+import { AuthedRequest, requireRole } from '../middleware/auth';
 
 const router = Router();
+
+// Reads stay open to any authenticated org member (dashboards, timelines and the inspector's
+// own queue all list plans, org-scoped). Writes are split by workflow role: Production and
+// Stores managers author/edit/cancel plans (R3/R4 and R1_MATERIAL respectively), while the
+// Quality manager is the one who activates a plan and assigns inspectors to it.
+const planAuthors = requireRole('ProductionManager', 'StoresManager');
+const planScheduler = requireRole('QualityManager');
 
 router.get('/', async (req: AuthedRequest, res: Response) => {
   try {
@@ -36,12 +43,12 @@ router.get('/:id', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.post('/', async (req: AuthedRequest, res: Response) => {
+router.post('/', planAuthors, async (req: AuthedRequest, res: Response) => {
   try { res.status(201).json({ success: true, data: await InspectionPlan.create({ ...req.body, organization: req.auth!.organization }) }); }
   catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id', async (req: AuthedRequest, res: Response) => {
+router.put('/:id', planAuthors, async (req: AuthedRequest, res: Response) => {
   try {
     const { organization, ...rest } = req.body;
     const plan = await InspectionPlan.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, rest, { returnDocument: 'after' });
@@ -50,7 +57,7 @@ router.put('/:id', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(400).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/activate', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/activate', planScheduler, async (req: AuthedRequest, res: Response) => {
   try {
     const plan = await InspectionPlan.findOneAndUpdate({ _id: req.params.id, organization: req.auth!.organization }, { status: 'ACTIVE' }, { returnDocument: 'after' });
     if (!plan) return res.status(404).json({ success: false, error: 'Not found' });
@@ -58,7 +65,7 @@ router.put('/:id/activate', async (req: AuthedRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-router.put('/:id/assign-inspector', async (req: AuthedRequest, res: Response) => {
+router.put('/:id/assign-inspector', planScheduler, async (req: AuthedRequest, res: Response) => {
   try {
     const plan = await InspectionPlan.findOneAndUpdate(
       { _id: req.params.id, organization: req.auth!.organization },
