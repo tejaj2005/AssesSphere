@@ -16,10 +16,22 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,ht
   .map((o) => o.trim())
   .filter(Boolean);
 
+// In development, Vite doesn't always get port 5173 — if it's already taken it silently moves to
+// 5174, 5175, ... and the page origin changes with it. Pinning CORS to one port meant the very
+// common "second dev server" case failed every request with a CORS error the browser surfaces as
+// a bare "Failed to fetch" on sign-in. So outside production we accept any localhost / 127.0.0.1
+// / [::1] origin on any port; production still honours only the explicit ALLOWED_ORIGINS list.
+const isProduction = process.env.NODE_ENV === 'production';
+const localhostOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    callback(new Error('Not allowed by CORS'));
+    if (!origin) return callback(null, true); // curl / same-origin / server-to-server
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (!isProduction && localhostOrigin.test(origin)) return callback(null, true);
+    // Reject cleanly (no Access-Control-Allow-Origin header) instead of throwing — a thrown
+    // error here turned every disallowed preflight into a 500 rather than a normal CORS block.
+    callback(null, false);
   },
   credentials: true,
 }));
