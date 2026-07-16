@@ -7,7 +7,9 @@ import { AuthedRequest } from '../middleware/auth';
 
 const router = Router();
 
-const UPLOAD_DIR = path.join(process.cwd(), 'server', 'uploads', 'documents');
+// Resolved against the backend package root (npm runs scripts with cwd = this folder), so
+// uploads land in backend/uploads/documents.
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documents');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -59,7 +61,7 @@ router.put('/:id', upload.single('file'), async (req: AuthedRequest, res: Respon
 });
 
 // Streams the actual file after verifying the caller's organization owns this document —
-// the file itself lives under server/uploads/documents, which used to be served directly via
+// the file itself lives under backend/uploads/documents, which used to be served directly via
 // a static express.static mount with no auth at all, making every uploaded document (policies,
 // certificates, design docs) downloadable by anyone with the URL, logged in or not.
 router.get('/:id/file', async (req: AuthedRequest, res: Response) => {

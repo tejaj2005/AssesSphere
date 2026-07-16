@@ -81,8 +81,9 @@ CRUD plus one AI router — there's no need for NestJS's DI/module ceremony, and
 built-in async error handling (no more `express-async-errors` shim) removes the one real gap
 Express used to have versus Fastify for this kind of code.
 
-**Why tsx over ts-node:** `tsx` runs and hot-reloads (`server:dev` uses `tsx watch`) TypeScript
-under ESM with no separate build step and no `tsconfig` ceremony beyond `server/tsconfig.json`.
+**Why tsx over ts-node:** `tsx` runs and hot-reloads (the backend's `dev` script uses `tsx watch`)
+TypeScript under ESM with no separate build step and no `tsconfig` ceremony beyond
+`backend/tsconfig.json`.
 The whole project is `"type": "module"`, and tsx's ESM support is simpler to keep working than
 ts-node's.
 
@@ -97,7 +98,7 @@ codegen step didn't buy anything a hand-written Mongoose schema doesn't already 
 seeded demo roles with no self-service signup, password reset flows, or SSO requirement — a
 hosted provider would add an external dependency and a network hop to every request for a
 problem that `jsonwebtoken` + `bcryptjs` solve in about 100 lines
-(`server/middleware/auth.ts`, `server/routes/auth.routes.ts`).
+(`backend/middleware/auth.ts`, `backend/routes/auth.routes.ts`).
 
 **Why multer + mammoth + pdf-parse:** the AI Gap Analysis, Evidence Validation, and Document
 Intelligence features all accept an uploaded QMS document (PDF/DOCX/TXT/image) that needs its
@@ -110,9 +111,9 @@ as inline image data, since Gemini can read images natively.
 
 ## 3. Database
 
-**MongoDB (Atlas)**, accessed via Mongoose. `server/db.ts` connects once at boot using
+**MongoDB (Atlas)**, accessed via Mongoose. `backend/db.ts` connects once at boot using
 `MONGODB_URI`; there's no separate migration tool — schema changes are just edits to the
-Mongoose schema files under `server/models/`, since the whole project is still pre-production
+Mongoose schema files under `backend/models/`, since the whole project is still pre-production
 demo data seeded via `npm run seed`.
 
 **29 models**, split into two groups:
@@ -126,7 +127,7 @@ demo data seeded via `npm run seed`.
   `AIRiskScore` — these persist AI outputs (so a finding/risk score survives a page refresh) and
   log every AI call for the usage stats on the AI Settings page.
 
-A separate `AICacheEntry` model (`server/ai/cache.ts`) backs a lightweight response cache keyed
+A separate `AICacheEntry` model (`backend/ai/cache.ts`) backs a lightweight response cache keyed
 by a hash of each feature's input, with a Mongo TTL index for physical cleanup and a
 per-feature "max age" check in application code (72h default, 168h/1 week for the mostly-static
 assessment checklist feature) — see §4 for why this exists.
@@ -142,7 +143,7 @@ Two providers, split by what each is actually good at:
 | Google Gemini | `gemini-flash-latest` | 13 of the 15 AI features — structured JSON generation | Native `responseMimeType: 'application/json'` support and a generous context window for feeding in full inspection/checklist data; Flash tier is fast and cheap enough for a demo-scale system |
 | Groq | `llama-3.3-70b-versatile` | The AI Compliance Copilot chat only | Groq's inference is dramatically lower-latency than Gemini for streamed conversational text, which matters for a chat UI where perceived responsiveness is the whole point — Gemini is used instead everywhere the point is a structured one-shot result, not a live conversation |
 
-**The 15 AI features** (`server/ai/features/*.ts`, mounted in `server/ai/routes/ai.routes.ts`):
+**The 15 AI features** (`backend/ai/features/*.ts`, mounted in `backend/ai/routes/ai.routes.ts`):
 
 | Endpoint | Feature | Provider |
 |---|---|---|
@@ -175,22 +176,22 @@ uses the Groq SDK directly instead, for the same reason: it's already the minima
 hard project-level cap distinct from the usual per-minute rate limit. Three things exist
 specifically to live within that:
 
-1. **`server/ai/quotaGuard.ts`** — counts today's Gemini calls from `AIAuditLog` and short-circuits
+1. **`backend/ai/quotaGuard.ts`** — counts today's Gemini calls from `AIAuditLog` and short-circuits
    locally once within a small buffer of the daily cap, so a caller fails in milliseconds instead
    of after a slow network round trip (sometimes preceded by a 503 retry) that was always going
    to fail anyway.
-2. **`server/ai/cache.ts`** — every Gemini-backed feature response is cached in Mongo, keyed by a
+2. **`backend/ai/cache.ts`** — every Gemini-backed feature response is cached in Mongo, keyed by a
    hash of its input. Reference-style content (an assessment checklist for a given standard) is
    treated as fresh for a week; everything else for 72 hours — cutting repeat/demo traffic down
    to near-zero fresh Gemini calls.
-3. **`thinkingConfig: { thinkingBudget: 0 }`** on every Gemini call (`server/ai/adapters/gemini.ts`)
+3. **`thinkingConfig: { thinkingBudget: 0 }`** on every Gemini call (`backend/ai/adapters/gemini.ts`)
    — the 2.5-era Flash models spend "thinking" tokens against `maxOutputTokens` by default, which
    was silently truncating JSON responses before this was added.
 
 Groq has no such constraint in practice (no quota issues observed), which is the other reason the
 copilot chat is routed there rather than through Gemini.
 
-**Rate limiting** (`server/ai/routes/ai.routes.ts`) is a simple in-memory per-IP, per-minute
+**Rate limiting** (`backend/ai/routes/ai.routes.ts`) is a simple in-memory per-IP, per-minute
 counter — intentionally not Redis-backed, since this runs as a single Node process. It resets on
 every server restart and won't hold up across multiple instances; fine for the current
 single-instance deployment, worth swapping for a shared store before scaling horizontally.
@@ -200,9 +201,9 @@ single-instance deployment, worth swapping for a shared store before scaling hor
 ## 5. Auth, authorization & audit
 
 - **JWT bearer tokens** (`jsonwebtoken`), issued on `POST /api/auth/login`, verified by
-  `server/middleware/auth.ts` (`requireAuth`) on every route group including `/ai` (everything
+  `backend/middleware/auth.ts` (`requireAuth`) on every route group including `/ai` (everything
   except `/auth`, which has to be reachable pre-login). `JWT_SECRET` has no hardcoded fallback —
-  `server/config/jwtSecret.ts` throws at boot if it's unset, since a fallback baked into source
+  `backend/config/jwtSecret.ts` throws at boot if it's unset, since a fallback baked into source
   is a secret anyone reading the repo already has.
 - **bcrypt** password hashing (`bcryptjs`) on the `User` model, with an 8-character minimum
   enforced in the same pre-save hook that does the hashing.
@@ -210,7 +211,7 @@ single-instance deployment, worth swapping for a shared store before scaling hor
   `QualityManager`, `Inspector` — enforced twice: server-side via `req.auth.role` checks where
   relevant, and client-side via `<ProtectedRoute allowedRoles={[...]} />` wrapping each module's
   routes in `src/App.tsx`.
-- **Audit logging** — `server/middleware/auditLogger.ts` wraps `res.json` on every protected
+- **Audit logging** — `backend/middleware/auditLogger.ts` wraps `res.json` on every protected
   route and fire-and-forget writes a Created/Updated/Deleted `AuditLogEntry` after a successful
   mutation, keyed off the route path to a human label (`ENTITY_LABELS` map). This is what backs
   the Dashboard activity feed and the standalone Audit Log page. The AI Compliance Copilot gets
@@ -227,24 +228,37 @@ single-instance deployment, worth swapping for a shared store before scaling hor
 
 ## 6. Dev tooling & scripts
 
+The two apps are installed and run independently. Start the backend first, then the frontend, in
+separate terminals — `cd backend && npm install && npm run dev`, then
+`cd frontend && npm install && npm run dev`. Each has its own scripts.
+
+**backend/** — `tsx`, no build step, run from inside `backend/`:
+
 | Script | Command | Purpose |
 |---|---|---|
-| `npm run dev` | `vite` | Frontend only, `:5173` |
-| `npm run server:dev` | `tsx watch server/index.ts` | Backend only, `:3001`, auto-restart |
-| `npm run dev:all` | `concurrently ... "dev" "server:dev"` | Both, one terminal |
-| `npm run build` | `tsc -b && vite build` | Type-check + production frontend bundle |
-| `npm run typecheck` | `tsc --noEmit -p server/tsconfig.json` | Backend type-check only |
-| `npm run seed` | `tsx server/seed.ts` | Populate MongoDB with demo org/users/catalog data |
-| `npm run verify:ai` | `tsx server/verify-ai.ts` | Smoke-test all 15 AI features end to end |
+| `npm run dev` | `tsx watch index.ts` | API on `:3001`, auto-restart on change |
+| `npm start` | `tsx index.ts` | API on `:3001`, no watch |
+| `npm run seed` | `tsx seed.ts` | Populate MongoDB with demo org/users/catalog data |
+| `npm run verify:ai` | `tsx verify-ai.ts` | Smoke-test all 15 AI features end to end |
+| `npm run typecheck` | `tsc --noEmit -p tsconfig.json` | Backend type-check only |
 
-`concurrently` (10.0.3) just runs the two dev processes with labeled, colored output in one
-terminal — there's no inter-process coordination needed since they only talk over HTTP.
+**frontend/** — `vite`, run from inside `frontend/`:
 
-The project is split into two independent TypeScript configs on purpose:
-`tsconfig.json`/`tsconfig.node.json` (frontend, bundler-mode resolution, DOM lib) and
-`server/tsconfig.json` (backend, Node types only) — the frontend and server share no source
-files, so there's no benefit to a single project-wide config, and keeping them separate avoids
-DOM types leaking into server code or vice versa.
+| Script | Command | Purpose |
+|---|---|---|
+| `npm run dev` | `vite` | SPA on `:5173` |
+| `npm run build` | `tsc -b && vite build` | Type-check + production bundle |
+| `npm run preview` | `vite preview` | Serve the production build locally |
+| `npm run typecheck` | `tsc -b` | Frontend type-check |
+
+These were previously one root `package.json` with `concurrently` running both dev servers; they
+were split into `backend/` and `frontend/` so each can be installed, versioned, and deployed on
+its own. They still only ever talk over HTTP, so no inter-process coordination is needed.
+
+The two TypeScript configs stay separate on purpose: `frontend/tsconfig.json` +
+`frontend/tsconfig.node.json` (bundler-mode resolution, DOM lib) and `backend/tsconfig.json`
+(Node types only) — the frontend and backend share no source files, so keeping them separate
+avoids DOM types leaking into backend code or vice versa.
 
 ---
 

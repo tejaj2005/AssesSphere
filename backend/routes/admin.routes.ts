@@ -10,7 +10,9 @@ import {
 } from '../models/index';
 import { AuthedRequest, requireRole } from '../middleware/auth';
 
-const CERT_UPLOAD_DIR = path.join(process.cwd(), 'server', 'uploads', 'calibration-certificates');
+// Resolved against the backend package root (npm runs scripts with cwd = this folder), so
+// certificates land in backend/uploads/calibration-certificates.
+const CERT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'calibration-certificates');
 if (!fs.existsSync(CERT_UPLOAD_DIR)) fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
 const certStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, CERT_UPLOAD_DIR),

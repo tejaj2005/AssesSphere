@@ -23,17 +23,32 @@ React SPA (Vite, :5173)  ──HTTP──▶  Express API (:3001)  ──▶  Mo
 
 ## Quick start
 
+The repo is two independent apps in their own folders. Start the **backend** first (the frontend
+just talks to it over HTTP), each in its own terminal.
+
+**1. Backend** — Express API on :3001
+
 ```bash
+cd backend
 npm install
-cp .env.example .env      # then fill in GEMINI_API_KEY, GROQ_API_KEY, MONGODB_URI
+cp .env.example .env       # then fill in GEMINI_API_KEY, GROQ_API_KEY, MONGODB_URI, JWT_SECRET
 npm run seed               # populates MongoDB with the demo organization, users & catalog data
-npm run dev:all            # runs the Vite frontend (:5173) and Express API (:3001) together
+npm run dev                # API on http://localhost:3001 (auto-restart on change)
+```
+
+**2. Frontend** — React SPA on :5173, in a second terminal
+
+```bash
+cd frontend
+npm install
+cp .env.example .env       # VITE_API_URL / VITE_AI_API_URL already point at localhost:3001
+npm run dev                # SPA on http://localhost:5173
 ```
 
 Frontend: http://localhost:5173 · API: http://localhost:3001/api
 
-Run `npm run verify:ai` any time after the server is up to smoke-test all 15 AI features end to
-end (mind the free-tier Gemini quota — see [TECH_STACK.md §4](./TECH_STACK.md#4-ai-integration)).
+Run `npm run verify:ai` from `backend/` any time the API is up to smoke-test all 15 AI features
+end to end (mind the free-tier Gemini quota — see [TECH_STACK.md §4](./TECH_STACK.md#4-ai-integration)).
 
 ## Demo credentials
 
@@ -50,17 +65,22 @@ Seeded by `npm run seed`, one account per role:
 
 ## Project structure
 
+Two self-contained apps, each with its own `package.json`, `.env`, and `node_modules`:
+
 ```
-server/
+backend/                      Express + MongoDB API — install & run this first
+  package.json                Backend deps + scripts (dev, start, seed, verify:ai, typecheck)
+  .env(.example)              DB URI, JWT secret, AI keys, cache TTLs, quotas, allowed origins
+  tsconfig.json
   index.ts                    Express app entry (CORS, JSON body limit, mounts /api)
   db.ts                       MongoDB connection
   seed.ts                     Demo data seeder
   verify-ai.ts                End-to-end smoke test for all 15 AI features
-  models/                     29 Mongoose models (23 core domain + 6 AI-specific)
+  models/                     Mongoose models (core domain + AI-specific)
   routes/                     Core CRUD routes: admin, inspection-plan, inspection-report,
                                product-quality-plan, supplier-evaluation, dashboard, role,
                                document, production-plan, audit-log, auth
-  middleware/                 auth.ts (JWT guard), auditLogger.ts (auto audit-trail writes)
+  middleware/                 auth.ts (JWT guard + requireRole), auditLogger.ts (audit trail)
   ai/
     adapters/                 gemini.ts, groq.ts — thin wrappers over each provider's SDK
     features/                 One file per AI feature (findings, capa, gap-analysis, ...)
@@ -68,22 +88,27 @@ server/
     quotaGuard.ts             Fails fast once the Gemini free-tier daily cap is close
     cache.ts                  Mongo-backed response cache for Gemini-backed features
     system-prompts.ts         Shared system prompts per feature domain
+  uploads/                    Uploaded documents & calibration certs (gitignored, runtime)
 
-src/
-  pages/                      Admin module pages (flat, role-gated by ProtectedRoute)
-  pages/admin/                AI Settings page
-  pages/management/           Management role dashboards
-  pages/production-manager/   Production Manager pages
-  pages/stores-manager/       Stores Manager pages
-  pages/quality-manager/      Quality Manager pages
-  pages/inspector/            Inspector pages
-  components/ai/              AI Copilot panel, findings panel, gap analysis page, badges
-  components/shared/          Cross-role widgets (DataTable, PageWrapper, StageTimeline, ...)
-  components/layout/          Sidebar, Topbar, ModuleLayout chrome, nav configs
-  layouts/                    AdminLayout, ModuleLayout
-  context/                    AuthContext (JWT), ThemeContext
-  hooks/                      useApi.ts (REST client hooks), useAI.ts (AI feature hooks)
-  lib/                        api.ts (REST client), utils, exporters, chart colors
+frontend/                     React + Vite SPA — install & run second
+  package.json                Frontend deps + scripts (dev, build, preview, typecheck)
+  .env(.example)              VITE_API_URL / VITE_AI_API_URL — where to reach the backend
+  index.html, vite.config.ts, tailwind.config.ts, postcss.config.js, tsconfig*.json
+  src/
+    pages/                    Admin module pages (flat, role-gated by ProtectedRoute)
+    pages/admin/              AI Settings page
+    pages/management/         Management role dashboards
+    pages/production-manager/ Production Manager pages
+    pages/stores-manager/     Stores Manager pages
+    pages/quality-manager/    Quality Manager pages
+    pages/inspector/          Inspector pages
+    components/ai/            AI Copilot panel, findings panel, gap analysis page, badges
+    components/shared/        Cross-role widgets (DataTable, PageWrapper, StageTimeline, ...)
+    components/layout/        Sidebar, Topbar, ModuleLayout chrome, nav configs
+    layouts/                  AdminLayout, ModuleLayout
+    context/                  AuthContext (JWT), ThemeContext
+    hooks/                    useApi.ts (REST client hooks), useAI.ts (AI feature hooks)
+    lib/                      api.ts (REST client), utils, exporters, chart colors
 ```
 
 ## Role-based modules
@@ -115,17 +140,33 @@ stats, and lets you toggle features off client-side.
 
 ## Scripts
 
+Run each inside the folder that owns it.
+
+**backend/**
+
 | Command | What it does |
 |---|---|
-| `npm run dev` | Frontend dev server only |
-| `npm run server:dev` | Backend dev server only (auto-restart on change) |
-| `npm run dev:all` | Both, in one terminal |
-| `npm run build` | Type-check + production frontend build |
-| `npm run typecheck` | Type-check the backend |
+| `npm run dev` | Start the API with auto-restart on change |
+| `npm start` | Start the API once (no watch) |
 | `npm run seed` | Seed MongoDB with demo data |
 | `npm run verify:ai` | Smoke-test every AI feature end to end |
+| `npm run typecheck` | Type-check the backend |
+
+**frontend/**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on :5173 |
+| `npm run build` | Type-check + production build |
+| `npm run preview` | Serve the production build locally |
+| `npm run typecheck` | Type-check the frontend |
 
 ## Environment variables
 
-See `.env.example`. Required: `GEMINI_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI`. Everything else
-(`PORT`, cache TTLs, model names, upload size limit, quota buffer) has a sensible default.
+Each app has its own `.env`, copied from the adjacent `.env.example`:
+
+- **backend/.env** — required: `GEMINI_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI`, `JWT_SECRET`.
+  Everything else (`PORT`, cache TTLs, model names, upload size limit, quota buffer,
+  `ALLOWED_ORIGINS`) has a sensible default.
+- **frontend/.env** — `VITE_API_URL` and `VITE_AI_API_URL` tell the SPA where the backend is
+  (default `http://localhost:3001`).

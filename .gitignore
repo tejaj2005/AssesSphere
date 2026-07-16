@@ -7,4 +7,4 @@ dist-node
 .env*
 !.env.example
 *.tsbuildinfo
-server/uploads
+backend/uploads
