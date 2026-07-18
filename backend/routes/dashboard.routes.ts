@@ -14,7 +14,8 @@ const router = Router();
 // verified JWT) rather than a client-suppliable `?organization=` query param — otherwise any
 // authenticated user could pull another organization's KPIs, risk scores, and pending-approval
 // lists just by changing the query string.
-const orgFilterOf = (req: AuthedRequest) => ({ organization: req.auth!.organization });
+const orgFilterOf = (req: AuthedRequest) => ({ organization: new mongoose.Types.ObjectId(req.auth!.organization) });
+
 
 router.get('/management', async (req: AuthedRequest, res: Response) => {
   try {
@@ -45,6 +46,8 @@ router.get('/management', async (req: AuthedRequest, res: Response) => {
         equipmentCalibration: calibSummary, productQualityStatus: pqpStatus,
       },
     });
+
+
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
 
