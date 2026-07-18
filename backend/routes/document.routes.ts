@@ -67,13 +67,24 @@ router.put('/:id', upload.single('file'), async (req: AuthedRequest, res: Respon
 router.get('/:id/file', async (req: AuthedRequest, res: Response) => {
   try {
     const doc = await MfgDocument.findOne({ _id: req.params.id, organization: req.auth!.organization });
-    if (!doc || !doc.fileUrl) return res.status(404).json({ success: false, error: 'No file attached' });
+    if (!doc) return res.status(404).json({ success: false, error: 'Document not found' });
+
+    // Seeded demo documents have no physical file — they exist as reference data only.
+    // Return a clear 404 with guidance rather than a confusing blank error.
+    if (!doc.fileUrl || doc.fileUrl === 'SEED_PLACEHOLDER') {
+      return res.status(404).json({
+        success: false,
+        error: `"${doc.name}" is a demo/seed document with no physical file attached. To make it downloadable, open it in the Documents page and upload a real file.`,
+      });
+    }
+
     const filename = path.basename(doc.fileUrl);
     const filePath = path.join(UPLOAD_DIR, filename);
-    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'File not found' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, error: 'File not found on server' });
     res.download(filePath, doc.fileName || filename);
   } catch (e: any) { res.status(500).json({ success: false, error: e.message }); }
 });
+
 
 router.delete('/:id', async (req: AuthedRequest, res: Response) => {
   try {

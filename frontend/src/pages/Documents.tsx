@@ -49,7 +49,10 @@ const humanSize = (bytes: number): string => {
 /** Uploaded documents have real bytes on the server, served through an authenticated,
  *  organization-scoped route rather than a plain public static URL. */
 const downloadFile = async (doc: any) => {
-  if (!doc.fileUrl) { toast.error('No file attached to this document'); return; }
+  if (!doc.fileUrl || doc.fileUrl === 'SEED_PLACEHOLDER') {
+    toast.info(`"${doc.name}" is a demo document. Open it and upload a real file to enable download.`);
+    return;
+  }
   try {
     await downloadAuthenticatedFile(`/documents/${doc.id}/file`, doc.fileName || doc.documentId || doc.name);
   } catch (err) {

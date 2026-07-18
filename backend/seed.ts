@@ -141,22 +141,31 @@ async function seed() {
   for (const s of suppliers) {
     await Supplier.findOneAndUpdate({ name: s.name, organization: org._id }, { ...s, organization: org._id }, { upsert: true });
   }
+  // After materials are created (below) we'll link them back to suppliers.
   console.log(`✓ Suppliers: ${suppliers.length}`);
 
   const matTypes = ['Steel','Aluminium','Rubber','Chemical','Electrical','Composite'];
   for (const name of matTypes) {
     await MaterialType.findOneAndUpdate({ name, organization: org._id }, { name, organization: org._id }, { upsert: true });
   }
+  const matTypeBy = Object.fromEntries((await MaterialType.find({ organization: org._id })).map((t) => [t.name, t]));
 
-  const materials = [
-    { name: 'Carbon Steel Grade 1045', unit: 'kg' }, { name: 'Stainless Steel SS316', unit: 'kg' },
-    { name: 'Aluminium Alloy 6061',    unit: 'kg' }, { name: 'Rubber Compound RC-45', unit: 'liters' },
-    { name: 'Bearing Steel AISI 52100',unit: 'kg' },
+  // Materials — each linked to a MaterialType and assigned a meaningful materialType ref.
+  const materialDefs = [
+    { name: 'Carbon Steel Grade 1045', unit: 'kg',    typeName: 'Steel' },
+    { name: 'Stainless Steel SS316',   unit: 'kg',    typeName: 'Steel' },
+    { name: 'Aluminium Alloy 6061',    unit: 'kg',    typeName: 'Aluminium' },
+    { name: 'Rubber Compound RC-45',   unit: 'liters',typeName: 'Rubber' },
+    { name: 'Bearing Steel AISI 52100',unit: 'kg',    typeName: 'Steel' },
   ];
-  for (const m of materials) {
-    await Material.findOneAndUpdate({ name: m.name, organization: org._id }, { ...m, inspectionRequired: true, organization: org._id }, { upsert: true });
+  for (const m of materialDefs) {
+    await Material.findOneAndUpdate(
+      { name: m.name, organization: org._id },
+      { name: m.name, unit: m.unit, materialType: matTypeBy[m.typeName]?._id, inspectionRequired: true, organization: org._id },
+      { upsert: true }
+    );
   }
-  console.log(`✓ Materials: ${materials.length}`);
+  console.log(`✓ Materials: ${materialDefs.length}`);
 
   const methods = [
     { name: 'Visual Inspection',       standard: 'ISO 2859' },
@@ -437,9 +446,9 @@ async function seed() {
       approvedBy: quality, reviewedBy: quality,
     },
     {
-      plan: 'Industrial Pump IP-750 Assembly Inspection', status: 'SUBMITTED', daysBack: 1,
+      plan: 'Industrial Pump IP-750 Assembly Inspection', status: 'ON_HOLD', daysBack: 1,
       results: [
-        { parameter: 'Seal Integrity', specificationValue: 'No leakage @ 10 bar', actualValue: 'No leakage', result: 'PASS' },
+        { parameter: 'Seal Integrity', specificationValue: 'No leakage @ 10 bar', actualValue: 'Slight seep at flange', result: 'MARGINAL', observations: 'Requires retorque and retest' },
         { parameter: 'Visual Inspection', specificationValue: 'No visible defects', actualValue: 'No defects', result: 'PASS' },
       ],
     },
@@ -459,7 +468,62 @@ async function seed() {
       ],
       approvedBy: quality, reviewedBy: stores,
     },
+    // ── Additional SUBMITTED reports so review queues have pending data ──────
+    {
+      plan: 'Precision Valve PV-450 Manufacturing Inspection', status: 'SUBMITTED', daysBack: 1,
+      results: [
+        { parameter: 'Bore Diameter', specificationValue: '25.00mm', actualValue: '25.05mm', result: 'MARGINAL', observations: 'Near upper tolerance limit, acceptable for this batch' },
+        { parameter: 'Surface Finish', specificationValue: 'Ra 0.8 μm max', actualValue: 'Ra 0.9 μm', result: 'MARGINAL', observations: 'Slightly above limit' },
+        { parameter: 'Visual Inspection', specificationValue: 'No visible defects', actualValue: 'No defects', result: 'PASS' },
+      ],
+    },
+    {
+      plan: 'GearBox GX-200 Manufacturing Inspection', status: 'SUBMITTED', daysBack: 1,
+      results: [
+        { parameter: 'Housing Bore', specificationValue: '80.00mm ±0.02', actualValue: '79.99mm', result: 'PASS' },
+        { parameter: 'Surface Hardness', specificationValue: '55 HRC min', actualValue: '54 HRC', result: 'MARGINAL', observations: 'Slightly below minimum, re-treatment recommended' },
+        { parameter: 'Weld Quality', specificationValue: 'Visual + UT - No porosity', actualValue: 'Minor porosity on seam weld', result: 'FAIL', observations: 'Requires repair weld and retest' },
+      ],
+    },
+    {
+      plan: 'Steel Shaft Dimensional Inspection', status: 'SUBMITTED', daysBack: 2,
+      results: [
+        { parameter: 'Alloy Composition', specificationValue: 'Al 6061-T6', actualValue: 'Al 6061-T6 confirmed', result: 'PASS' },
+        { parameter: 'Tensile Strength', specificationValue: '310 MPa min', actualValue: '295 MPa', result: 'FAIL', observations: 'Below minimum tensile strength - batch from new supplier' },
+        { parameter: 'Dimensional Check', specificationValue: 'Per drawing', actualValue: 'Conforms', result: 'PASS' },
+      ],
+    },
+
+    {
+      plan: 'Carbon Steel Incoming Inspection', status: 'SUBMITTED', daysBack: 1,
+      results: [
+        { parameter: 'Chemical Composition', specificationValue: 'Per ASTM A29', actualValue: 'Conforms', result: 'PASS' },
+        { parameter: 'Hardness', specificationValue: '160-200 HB', actualValue: '188 HB', result: 'PASS' },
+        { parameter: 'Surface Condition', specificationValue: 'No corrosion or pitting', actualValue: 'Light mill scale — acceptable', result: 'PASS' },
+        { parameter: 'Dimensional Check', specificationValue: 'Length ±5mm', actualValue: 'Conforms', result: 'PASS' },
+      ],
+    },
+    {
+      plan: 'Precision Valve PV-450 Final Inspection', status: 'SUBMITTED', daysBack: 1,
+      results: [
+        { parameter: 'Pressure Test', specificationValue: 'Hold 15 bar / 5 min', actualValue: 'Held, no drop', result: 'PASS' },
+        { parameter: 'Leakage Test', specificationValue: 'Zero leakage', actualValue: 'Zero leakage confirmed', result: 'PASS' },
+        { parameter: 'Visual/Cosmetic Check', specificationValue: 'No visible defects', actualValue: 'Hairline mark on body (cosmetic)', result: 'MARGINAL', observations: 'Cosmetic only, functionality unaffected' },
+        { parameter: 'Marking & Identification', specificationValue: 'Per Part No. PV-450-B', actualValue: 'Conforms', result: 'PASS' },
+      ],
+    },
+    {
+      plan: 'GearBox GX-200 Assembly Inspection', status: 'UNDER_REVIEW', daysBack: 1,
+      results: [
+        { parameter: 'Torque - Cover Bolts', specificationValue: '60 Nm', actualValue: '58 Nm', result: 'MARGINAL', observations: 'Slightly below spec, re-torque recommended' },
+        { parameter: 'Backlash Measurement', specificationValue: '0.05-0.10 mm', actualValue: '0.12 mm', result: 'FAIL', observations: 'Gear backlash exceeds upper limit - gear set adjustment needed' },
+        { parameter: 'Oil Seal Check', specificationValue: 'No leakage', actualValue: 'No leakage', result: 'PASS' },
+        { parameter: 'Vibration Test', specificationValue: '< 2.0 mm/s RMS', actualValue: '1.8 mm/s RMS', result: 'PASS' },
+      ],
+      l1ReviewedBy: production,
+    },
   ];
+
 
   for (const r of reportDefs) {
     const plan = planBy[r.plan];
@@ -581,14 +645,37 @@ async function seed() {
   }
   console.log(`✓ Production Plans: ${productionPlanDefs.length}`);
 
+  // ── Supplier ↔ Material links (set after materials exist) ────────────────────
+  const reloadedMats = await Material.find({ organization: org._id });
+  const matByName2 = Object.fromEntries(reloadedMats.map((m) => [m.name, m]));
+  const supplierMaterialMap: Record<string, string[]> = {
+    'SteelTech Metals Pvt Ltd':  ['Carbon Steel Grade 1045', 'Stainless Steel SS316', 'Bearing Steel AISI 52100'],
+    'Precision Components Ltd':  ['Aluminium Alloy 6061'],
+    'FastFix Hardware':          ['Carbon Steel Grade 1045'],
+    'ChemPro Coatings':          [],
+    'RubberTech Seals':          ['Rubber Compound RC-45'],
+  };
+  for (const [supName, matNames] of Object.entries(supplierMaterialMap)) {
+    const matIds = matNames.map((n) => matByName2[n]?._id).filter(Boolean);
+    await Supplier.findOneAndUpdate(
+      { name: supName, organization: org._id },
+      { $set: { materials: matIds } }
+    );
+  }
+  console.log(`✓ Supplier-Material links updated`);
+
   // ── Manufacturing Documents ──────────────────────────────────────────────────
+  // fileUrl is set to a sentinel value so the download route can detect the file
+  // is seeded (not physically uploaded) and respond with a descriptive placeholder
+  // instead of a 404. Real uploads will overwrite fileUrl with a real path.
+  const SEED_DOC_URL = 'SEED_PLACEHOLDER';
   const docDefs = [
-    { name: 'GearBox Assembly SOP',            category: 'Procedure',  fileType: 'PDF',  stage: 'Final Assembly' in asmBy ? undefined : undefined },
-    { name: 'Heat Treatment Work Instruction', category: 'Guideline',  fileType: 'PDF',  stage: 'Heat Treatment' },
-    { name: 'Incoming Material Checklist',     category: 'Checklist',  fileType: 'XLSX', stage: 'Raw Material Preparation' },
-    { name: 'Machining Tolerance Standard',    category: 'Template',   fileType: 'DWG',  stage: 'Machining' },
-    { name: 'Quality Policy Manual',           category: 'Policy',     fileType: 'PDF',  stage: undefined },
-    { name: 'Supplier Quality Agreement',      category: 'Certificate',fileType: 'PDF',  stage: undefined },
+    { name: 'GearBox Assembly SOP',            category: 'Procedure',   fileType: 'PDF',  stage: undefined as string | undefined },
+    { name: 'Heat Treatment Work Instruction', category: 'Guideline',   fileType: 'PDF',  stage: 'Heat Treatment' },
+    { name: 'Incoming Material Checklist',     category: 'Checklist',   fileType: 'XLSX', stage: 'Raw Material Preparation' },
+    { name: 'Machining Tolerance Standard',    category: 'Template',    fileType: 'DWG',  stage: 'Machining' },
+    { name: 'Quality Policy Manual',           category: 'Policy',      fileType: 'PDF',  stage: undefined as string | undefined },
+    { name: 'Supplier Quality Agreement',      category: 'Certificate', fileType: 'PDF',  stage: undefined as string | undefined },
   ];
   for (const d of docDefs) {
     const stageDoc = d.stage ? mfgBy[d.stage] : undefined;
@@ -602,6 +689,7 @@ async function seed() {
         description: `${d.name} for QMICS manufacturing operations.`,
         manufacturingStage: stageDoc?._id,
         uploadedBy: quality._id,
+        fileUrl: SEED_DOC_URL,
         organization: org._id,
       },
       { upsert: true }

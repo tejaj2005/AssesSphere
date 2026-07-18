@@ -99,6 +99,7 @@ export const MaterialTypesPage = () => {
 
   const columns: Column<ApiMaterialType>[] = [
     { key: 'name', header: 'Type', sortable: true, sortValue: (t) => t.name, cell: (t) => <InlineEdit value={t.name} onSave={(v) => rename(t, v)} className="font-medium" /> },
+    { key: 'typeId', header: 'Code', cell: (t) => <span className="text-xs font-mono text-muted-foreground">{t.typeId || '—'}</span> },
     { key: 'count', header: 'Materials', cell: (t) => <Badge variant="outline">{countFor(t.id)}</Badge> },
     { key: 'actions', header: '', width: 'w-12', cell: (t) => (
       <Dropdown trigger={<button className="p-1.5 rounded hover:bg-muted"><MoreHorizontal className="h-4 w-4" /></button>}>
