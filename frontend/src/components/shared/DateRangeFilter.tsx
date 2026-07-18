@@ -45,10 +45,12 @@ export const DateRangeFilter = ({ from, to = '', onChange, singleDate, className
         {!singleDate && (
           <>
             <span className="text-xs text-muted-foreground">to</span>
+            <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
             <DatePicker bare value={to} onChange={(v) => onChange(from, v)} placeholder="To" className="w-[110px]" />
           </>
         )}
       </div>
+
       <div className="flex flex-wrap items-center gap-1">
         {PRESETS.map((p) => (
           <button
