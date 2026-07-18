@@ -25,15 +25,64 @@ export function extractJSON(text: string): Record<string, any> {
   const clean = text.replace(/```json|```/g, '').trim();
   try {
     return JSON.parse(clean);
-  } catch {
+  } catch (err: any) {
     const start = clean.search(/[[{]/);
-    const end = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
-    if (start !== -1 && end > start) {
-      return JSON.parse(clean.slice(start, end + 1));
+    if (start === -1) {
+      throw new Error(`Model did not return valid JSON structure: ${clean.substring(0, 200)}`);
     }
+
+    const isObject = clean[start] === '{';
+    const openChar = clean[start];
+    const closeChar = isObject ? '}' : ']';
+
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    let end = -1;
+
+    for (let i = start; i < clean.length; i++) {
+      const char = clean[i];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+
+      if (char === '\\') {
+        escaped = true;
+        continue;
+      }
+
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+
+      if (!inString) {
+        if (char === openChar) {
+          depth++;
+        } else if (char === closeChar) {
+          depth--;
+          if (depth === 0) {
+            end = i;
+            break;
+          }
+        }
+      }
+    }
+
+    if (end !== -1) {
+      try {
+        return JSON.parse(clean.slice(start, end + 1));
+      } catch (parseErr: any) {
+        throw new Error(`Failed to parse balanced JSON: ${parseErr.message}\nContent: ${clean.slice(start, end + 1).substring(0, 200)}`);
+      }
+    }
+
     throw new Error(`Model did not return valid JSON: ${clean.substring(0, 200)}`);
   }
 }
+
 
 export async function geminiGenerate(
   systemPrompt: string,

@@ -25,6 +25,13 @@ import { AIFinding } from '../../models/AIFinding';
 import { AICapa } from '../../models/AICapa';
 import { AIRiskScore } from '../../models/AIRiskScore';
 import { AIGapAnalysis } from '../../models/AIGapAnalysis';
+import { AIChecklist } from '../../models/AIChecklist';
+import { AIReport } from '../../models/AIReport';
+import { AIQualityScoreAssessment } from '../../models/AIQualityScoreAssessment';
+import { AIMaturityAssessment } from '../../models/AIMaturityAssessment';
+import { AIPrediction } from '../../models/AIPrediction';
+import { AIBenchmark } from '../../models/AIBenchmark';
+import { AIExecutiveSummary } from '../../models/AIExecutiveSummary';
 
 const router = Router();
 
@@ -108,8 +115,9 @@ router.post('/capa', rateLimit(10), async (req: AuthedRequest, res: Response) =>
 // ── COPILOT (Groq streaming) ──────────────────────────────────────────────────
 router.post('/copilot', rateLimit(30), async (req: AuthedRequest, res: Response) => {
   const { messages, context } = req.body;
-  await streamCopilotResponse(messages || [], context || { userRole: 'User' }, res, req.auth?.userId);
+  await streamCopilotResponse(messages || [], context || { userRole: 'User' }, res, req.auth?.userId, req.auth?.organization);
 });
+
 
 // ── GAP ANALYSIS ──────────────────────────────────────────────────────────────
 router.post('/gap-analysis', rateLimit(5), upload.single('document'),
@@ -213,15 +221,32 @@ router.post('/risk-score', rateLimit(20), async (req: AuthedRequest, res: Respon
 router.post('/quality-score', rateLimit(20), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const input = { ...req.body, organization: req.auth!.organization };
+    const organization = req.auth!.organization;
+    const input = { ...req.body, organization };
     const withNarrative = req.body.withNarrative === true;
     const result = withNarrative
       ? await scoreAssessmentWithNarrative(input)
       : calculateQualityScore(input);
+    await AIQualityScoreAssessment.create({
+      organization, assessmentId: req.body.assessmentId, result, generatedBy: req.auth!.userId,
+    });
     await logAI('quality-score', withNarrative ? 'gemini' : 'formula', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
     await logAI('quality-score', 'formula', false, Date.now() - start, String(error));
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
+router.get('/quality-scores', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const filter: Record<string, any> = { organization };
+    if (req.query.assessmentId) filter.assessmentId = String(req.query.assessmentId);
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIQualityScoreAssessment.find(filter).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
     res.status(500).json({ success: false, error: String(error) });
   }
 });
@@ -240,7 +265,11 @@ router.post('/scheduling', rateLimit(20), async (req: Request, res: Response) =>
 router.post('/report', rateLimit(5), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateReport({ ...req.body, organization: req.auth!.organization });
+    const organization = req.auth!.organization;
+    const result = await generateReport({ ...req.body, organization });
+    await AIReport.create({
+      organization, reportType: req.body.reportType, period: req.body.period, result, generatedBy: req.auth!.userId,
+    });
     await logAI('report', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -249,11 +278,26 @@ router.post('/report', rateLimit(5), async (req: AuthedRequest, res: Response) =
   }
 });
 
+router.get('/reports', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const filter: Record<string, any> = { organization };
+    if (req.query.reportType) filter.reportType = String(req.query.reportType);
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIReport.find(filter).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
 // ── MATURITY MODEL ────────────────────────────────────────────────────────────
 router.post('/maturity', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await assessMaturity({ ...req.body, organizationId: req.auth!.organization });
+    const organization = req.auth!.organization;
+    const result = await assessMaturity({ ...req.body, organizationId: organization });
+    await AIMaturityAssessment.create({ organization, result, generatedBy: req.auth!.userId });
     await logAI('maturity', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -262,11 +306,27 @@ router.post('/maturity', rateLimit(10), async (req: AuthedRequest, res: Response
   }
 });
 
+router.get('/maturity-assessments', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIMaturityAssessment.find({ organization }).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
 // ── PREDICTIVE INTELLIGENCE ───────────────────────────────────────────────────
 router.post('/predict', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generatePredictions({ ...req.body, organization: req.auth!.organization });
+    const organization = req.auth!.organization;
+    const result = await generatePredictions({ ...req.body, organization });
+    await AIPrediction.create({
+      organization, entityType: req.body.entityType, entityId: req.body.entityId,
+      entityName: req.body.entityName, result, generatedBy: req.auth!.userId,
+    });
     await logAI('prediction', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -275,12 +335,28 @@ router.post('/predict', rateLimit(10), async (req: AuthedRequest, res: Response)
   }
 });
 
+router.get('/predictions', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const filter: Record<string, any> = { organization };
+    if (req.query.entityType) filter.entityType = String(req.query.entityType);
+    if (req.query.entityId) filter.entityId = String(req.query.entityId);
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIPrediction.find(filter).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
 // ── BENCHMARKING ──────────────────────────────────────────────────────────────
 router.post('/benchmark', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
+    const organization = req.auth!.organization;
     const { entities, entityType } = req.body;
-    const result = await generateBenchmarkSummary(entities, entityType, req.auth!.organization);
+    const result = await generateBenchmarkSummary(entities, entityType, organization);
+    await AIBenchmark.create({ organization, entityType, result, generatedBy: req.auth!.userId });
     await logAI('benchmarking', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -289,11 +365,26 @@ router.post('/benchmark', rateLimit(10), async (req: AuthedRequest, res: Respons
   }
 });
 
+router.get('/benchmarks', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const filter: Record<string, any> = { organization };
+    if (req.query.entityType) filter.entityType = String(req.query.entityType);
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIBenchmark.find(filter).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
 // ── EXECUTIVE DASHBOARD ───────────────────────────────────────────────────────
 router.post('/executive-summary', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
-    const result = await generateExecutiveSummary({ ...req.body, organizationId: req.auth!.organization });
+    const organization = req.auth!.organization;
+    const result = await generateExecutiveSummary({ ...req.body, organizationId: organization });
+    await AIExecutiveSummary.create({ organization, period: req.body.period, result, generatedBy: req.auth!.userId });
     await logAI('executive-summary', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
@@ -302,16 +393,42 @@ router.post('/executive-summary', rateLimit(10), async (req: AuthedRequest, res:
   }
 });
 
+router.get('/executive-summaries', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIExecutiveSummary.find({ organization }).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
 // ── ASSESSMENT ASSISTANT ──────────────────────────────────────────────────────
 router.post('/checklist', rateLimit(10), async (req: AuthedRequest, res: Response) => {
   const start = Date.now();
   try {
+    const organization = req.auth!.organization;
     const { standard, productType, processType } = req.body;
-    const result = await generateAssessmentChecklist(standard, req.auth!.organization, productType, processType);
+    const result = await generateAssessmentChecklist(standard, organization, productType, processType);
+    await AIChecklist.create({ organization, standard, productType, processType, result, generatedBy: req.auth!.userId });
     await logAI('assessment-assist', 'gemini', true, Date.now() - start);
     res.json({ success: true, data: result });
   } catch (error) {
     await logAI('assessment-assist', 'gemini', false, Date.now() - start, String(error));
+    res.status(500).json({ success: false, error: String(error) });
+  }
+});
+
+router.get('/checklists', async (req: AuthedRequest, res: Response) => {
+  try {
+    const organization = req.auth!.organization;
+    const filter: Record<string, any> = { organization };
+    if (req.query.standard) filter.standard = String(req.query.standard);
+    const limit = Math.min(parseInt(String(req.query.limit || '20')), 50);
+    const records = await AIChecklist.find(filter).sort({ generatedAt: -1 }).limit(limit).lean();
+    res.json({ success: true, data: records });
+  } catch (error) {
     res.status(500).json({ success: false, error: String(error) });
   }
 });
