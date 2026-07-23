@@ -12,8 +12,11 @@ import { AuthedRequest, requireRole } from '../middleware/auth';
 
 // Resolved against the backend package root (npm runs scripts with cwd = this folder), so
 // certificates land in backend/uploads/calibration-certificates.
-const CERT_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'calibration-certificates');
+const CERT_UPLOAD_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads', 'calibration-certificates')
+  : path.join(process.cwd(), 'uploads', 'calibration-certificates');
 if (!fs.existsSync(CERT_UPLOAD_DIR)) fs.mkdirSync(CERT_UPLOAD_DIR, { recursive: true });
+
 const certStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, CERT_UPLOAD_DIR),
   filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),

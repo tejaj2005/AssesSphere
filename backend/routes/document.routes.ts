@@ -9,8 +9,11 @@ const router = Router();
 
 // Resolved against the backend package root (npm runs scripts with cwd = this folder), so
 // uploads land in backend/uploads/documents.
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'documents');
+const UPLOAD_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads', 'documents')
+  : path.join(process.cwd(), 'uploads', 'documents');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOAD_DIR),
