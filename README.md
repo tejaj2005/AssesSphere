@@ -8,136 +8,185 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://asses-sphere.vercel.app/)
 
-A comprehensive role-based quality management platform for manufacturing enterprise environments. AssessSphere powers manufacturing quality assurance, inspection plans, supplier evaluations, equipment calibration tracking, and document governance—backed by a 15-agent AI layer (compliance copilot, automated findings/CAPA recommendations, ISO gap analysis, predictive risk scoring, and generative reports).
+A role-based quality management platform for manufacturing: inspection plans and reports, supplier evaluation, calibration tracking, document management, and an AI layer (compliance copilot, auto-generated findings/CAPA, gap analysis, risk scoring, predictive compliance, and more) laid on top of the core workflow.
+
+Full breakdown of every technology choice and why — see **[TECH_STACK.md](./TECH_STACK.md)**.
+Production Vercel deployment guide — see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
 
 ---
 
-## 🚀 Live Demo
+## 🚀 Live Deployed App
 
-AssessSphere is deployed and live on **Vercel**:
+AssessSphere is deployed and live on Vercel:
 
 👉 **[https://asses-sphere.vercel.app/](https://asses-sphere.vercel.app/)**
 
-### Demo Credentials
-
-Test the platform instantly with seeded role accounts:
-
-| Role | Email | Password | Primary Access |
-|---|---|---|---|
-| **Admin** | `admin@qmics.com` | `Admin@2025` | Master Data, User Governance & AI Config |
-| **Quality Manager** | `quality@qmics.com` | `Qual@2025` | AI Gap Analysis, Approvals & Quality Plans |
-| **Production Manager** | `production@qmics.com` | `Prod@2025` | Production Plans & Inspection Approvals |
-| **Stores Manager** | `stores@qmics.com` | `Store@2025` | Material Receiving & Supplier Evaluations |
-| **Inspector** | `inspector@qmics.com` | `Insp@2025` | Inspection Reports & Calibration Submissions |
-| **Management** | `management@qmics.com` | `Mgmt@2025` | Executive Quality & Performance Analytics |
-
 ---
 
-## 🏗️ System Architecture
+## Architecture
 
 ```
-                                  ┌───────────────────────────────┐
-                                  │   Vercel Edge & Cloud Hosting │
-                                  └───────────────┬───────────────┘
+React SPA (Vite, :5173)  ──HTTP──▶  Express API (:3001 / Vercel Serverless)  ──▶  MongoDB (Atlas)
                                                   │
- ┌──────────────────────────┐          ┌──────────┴──────────┐
- │  React SPA Frontend      │ ──HTTP──▶│ Express API Backend │
- │  (Vite + Tailwind CSS)   │          │ (Vercel Serverless) │
- └──────────────────────────┘          └──────────┬──────────┘
-                                                  │
-                     ┌────────────────────────────┼────────────────────────────┐
-                     ▼                            ▼                            ▼
-         ┌───────────────────────┐    ┌───────────────────────┐    ┌───────────────────────┐
-         │ MongoDB Atlas         │    │ Google Gemini API     │    │ Groq API              │
-         │ Database Storage      │    │ (Structured AI)       │    │ (Streaming Copilot)   │
-         └───────────────────────┘    └───────────────────────┘    └───────────────────────┘
+                                                  ├──▶ Google Gemini  (structured AI features)
+                                                  └──▶ Groq           (streaming copilot chat)
 ```
 
-- **Frontend**: React 18 + TypeScript + Vite, Tailwind CSS, Framer Motion, React Router v6, Sonner, Recharts.
-- **Backend**: Express 5 + Mongoose 9 (MongoDB), JWT authentication, Serverless adapter layer.
-- **AI Layer**: Dual-model architecture—**Google Gemini** (`gemini-flash-latest`) for structured data generation and **Groq** (`llama-3.3-70b-versatile`) for streaming compliance copilot chat.
-- **Deployment**: Single monorepo deployment on **Vercel** with serverless functions routing `/api/*` requests.
-
-Full breakdown of technology decisions and architectural rationale — see **[TECH_STACK.md](./TECH_STACK.md)**.
+- **Frontend** — React 18 + TypeScript + Vite, Tailwind CSS, Framer Motion, React Router v6.
+- **Backend** — Express 5 + Mongoose 9 (MongoDB), JWT auth, tsx runtime / Vercel Serverless.
+- **AI layer** — Gemini (`gemini-flash-latest`) for structured/JSON generation, Groq (`llama-3.3-70b-versatile`) for the low-latency streaming copilot chat.
 
 ---
 
-## 🔑 Role-Based Modules
+## Quick start
 
-AssessSphere implements strict multi-tenant role-based access control (RBAC):
+The repo is two independent apps in their own folders. Start the **backend** first (the frontend just talks to it over HTTP), each in its own terminal.
 
-| Role | Route Namespace | Core Capabilities |
-|---|---|---|
-| **Admin** | `/admin` | Master Data (Products, Components, Stages, Suppliers, Equipment, Documents), User & Role Governance, System Settings, AI Feature Controls. |
-| **Quality Manager** | `/qm` | AI-Powered ISO Gap Analysis, Quality Plan Management, Inspector Assignments, Calibration Approvals, Inspection Report Review. |
-| **Production Manager** | `/pm` | Production Planning, Inspection Plan Reviews, Manufacturing Stage Quality Tracking. |
-| **Stores Manager** | `/sm` | Material Received Inspection Plans, Supplier Evaluations, Approved Vendor Lists, Stock & Receiving Dashboards. |
-| **Inspector** | `/inspector` | Material, Component, Assembly, and Final Product Inspection Submissions, Calibration Log Submissions. |
-| **Management** | `/management` | Executive Dashboards, Supplier Performance Metrics, Plant-wide Quality Analytics. |
-
----
-
-## 🧠 15 AI-Powered Engines
-
-AssessSphere features 15 specialized AI agents accessible under `/api/ai/*`:
-
-1. **Streaming Compliance Copilot**: Low-latency interactive chat assistant for QA standards.
-2. **Auto Findings Generator**: Analyzes raw inspection metrics to detect non-conformances.
-3. **CAPA Recommender**: Recommends Root Cause & Corrective/Preventive Action plans.
-4. **ISO/QA Gap Analysis Engine**: Assesses process documentation against standard checklists.
-5. **Risk Scoring Engine**: Evaluates component & supplier risk indexes.
-6. **Quality Scoring Engine**: Computes composite quality scores across stages.
-7. **Assessment Assist**: Provides real-time guidance during inspection data entry.
-8. **Document Intelligence Agent**: Extracts structured attributes from attached manuals and certificates.
-9. **Evidence Validator**: Cross-checks submitted inspection photos/documents with standards.
-10. **Predictive Compliance**: Predicts defect likelihood using historical trend analysis.
-11. **Smart Scheduler**: Optimizes equipment calibration schedules based on usage patterns.
-12. **Benchmarking Engine**: Compares plant metrics against target performance metrics.
-13. **Quality Maturity Assessor**: Evaluates organizational quality process maturity levels.
-14. **Executive Summary Agent**: Generates condensed briefings for leadership.
-15. **Report Generator**: Automatically drafts formal quality compliance reports.
-
----
-
-## 💻 Local Development Setup
-
-### 1. Backend Setup
+**1. Backend** — Express API on :3001
 
 ```bash
 cd backend
 npm install
-cp .env.example .env       # Configure MONGODB_URI, JWT_SECRET, GEMINI_API_KEY, GROQ_API_KEY
-npm run seed               # Seed MongoDB with demo organization, users & catalog data
-npm run dev                # Start Express API server on http://localhost:3001
+cp .env.example .env       # then fill in GEMINI_API_KEY, GROQ_API_KEY, MONGODB_URI, JWT_SECRET
+npm run seed               # populates MongoDB with the demo organization, users & catalog data
+npm run dev                # API on http://localhost:3001 (auto-restart on change)
 ```
 
-### 2. Frontend Setup (in a separate terminal)
+**2. Frontend** — React SPA on :5173, in a second terminal
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env       # Points VITE_API_URL to http://localhost:3001/api
-npm run dev                # Start Vite React SPA on http://localhost:5173
+cp .env.example .env       # VITE_API_URL / VITE_AI_API_URL already point at localhost:3001
+npm run dev                # SPA on http://localhost:5173
+```
+
+Frontend: `http://localhost:5173` · API: `http://localhost:3001/api`
+
+Run `npm run verify:ai` from `backend/` any time the API is up to smoke-test all 15 AI features end to end (mind the free-tier Gemini quota — see [TECH_STACK.md §4](./TECH_STACK.md#4-ai-integration)).
+
+---
+
+## Demo credentials
+
+Seeded by `npm run seed`, one account per role:
+
+| Email | Password | Role |
+|---|---|---|
+| admin@qmics.com | Admin@2025 | Admin |
+| management@qmics.com | Mgmt@2025 | Management |
+| production@qmics.com | Prod@2025 | Production Manager |
+| stores@qmics.com | Store@2025 | Stores Manager |
+| quality@qmics.com | Qual@2025 | Quality Manager |
+| inspector@qmics.com | Insp@2025 | Inspector |
+
+---
+
+## Project structure
+
+Two self-contained apps, each with its own `package.json`, `.env`, and `node_modules`:
+
+```
+backend/                      Express + MongoDB API — install & run this first
+  package.json                Backend deps + scripts (dev, start, seed, verify:ai, typecheck)
+  .env(.example)              DB URI, JWT secret, AI keys, cache TTLs, quotas, allowed origins
+  tsconfig.json
+  app.ts                      Express app instance (CORS, JSON body limit, mounts /api, DB middleware)
+  index.ts                    Standalone Express server listener
+  api/index.ts                Vercel Serverless Function entrypoint
+  db.ts                       MongoDB connection & connection pooling
+  seed.ts                     Demo data seeder
+  verify-ai.ts                End-to-end smoke test for all 15 AI features
+  models/                     Mongoose models (core domain + AI-specific)
+  routes/                     Core CRUD routes: admin, inspection-plan, inspection-report,
+                               product-quality-plan, supplier-evaluation, dashboard, role,
+                               document, production-plan, audit-log, auth
+  middleware/                 auth.ts (JWT guard + requireRole), auditLogger.ts (audit trail)
+  ai/
+    adapters/                 gemini.ts, groq.ts — thin wrappers over each provider's SDK
+    features/                 One file per AI feature (findings, capa, gap-analysis, ...)
+    routes/ai.routes.ts       All /api/ai/* endpoints
+    quotaGuard.ts             Fails fast once the Gemini free-tier daily cap is close
+    cache.ts                  Mongo-backed response cache for Gemini-backed features
+    system-prompts.ts         Shared system prompts per feature domain
+  uploads/                    Uploaded documents & calibration certs (gitignored, runtime)
+
+frontend/                     React + Vite SPA — install & run second
+  package.json                Frontend deps + scripts (dev, build, preview, typecheck)
+  .env(.example)              VITE_API_URL / VITE_AI_API_URL — where to reach the backend
+  index.html, vite.config.ts, tailwind.config.ts, postcss.config.js, tsconfig*.json
+  src/
+    pages/                    Admin module pages (flat, role-gated by ProtectedRoute)
+    pages/admin/              AI Settings page
+    pages/management/         Management role dashboards
+    pages/production-manager/ Production Manager pages
+    pages/stores-manager/     Stores Manager pages
+    pages/quality-manager/    Quality Manager pages
+    pages/inspector/          Inspector pages
+    components/ai/            AI Copilot panel, findings panel, gap analysis page, badges
+    components/shared/        Cross-role widgets (DataTable, PageWrapper, StageTimeline, ...)
+    components/layout/        Sidebar, Topbar, ModuleLayout chrome, nav configs
+    layouts/                  AdminLayout, ModuleLayout
+    context/                  AuthContext (JWT), ThemeContext
+    hooks/                    useApi.ts (REST client hooks), useAI.ts (AI feature hooks)
+    lib/                      api.ts (REST client), utils, exporters, chart colors
 ```
 
 ---
 
-## 🛠️ Verification & Scripts
+## Role-based modules
 
-### Backend (`/backend`)
-- `npm run dev` — Start API server with file watch mode.
-- `npm run seed` — Populates database with initial demo data.
-- `npm run verify:ai` — Smoke test all 15 AI feature endpoints end-to-end.
-- `npm run typecheck` — Run TypeScript type checking.
+Each role logs into its own route namespace, guarded by `<ProtectedRoute allowedRoles={[...]} />`:
 
-### Frontend (`/frontend`)
-- `npm run dev` — Run Vite local dev server.
-- `npm run build` — Typecheck and build production SPA assets.
-- `npm run preview` — Preview production build output locally.
-- `npm run typecheck` — Run TypeScript type checking.
+| Role | Base path | Pages |
+|---|---|---|
+| Admin | `/admin` | Dashboard, Organization, Departments, Users, Roles, Products (+detail), Components, Mfg/Asm Stages, Inspection Types, Equipment, Inspection Methods, Documents, Materials, Material Types, Suppliers, Settings, AI Settings |
+| Management | `/management` | Product / Manufacturing / Assembling / Material quality dashboards, Supplier evaluation dashboard |
+| Production Manager | `/pm` | Dashboard, Mfg/Asm/Material/Component inspection plans, Production Plans, Review Reports, Quality Plan Review |
+| Stores Manager | `/sm` | Dashboard, Material Received Plans, Review Material Reports, Supplier Evaluations, Approved Vendors, Stock Statement, Material Quality & Supplier Performance dashboards |
+| Quality Manager | `/qm` | Dashboard, Quality Plans, Assign Inspectors, Checklists, Calibration Approvals, Review Reports, **AI Gap Analysis**, 6 quality dashboards |
+| Inspector | `/inspector` | Dashboard, Material/Component/Assembly/Final Product Reports, Calibration Report |
+
+`/admin/profile` is reachable by any authenticated role (shared profile page). `/app` redirects each logged-in user to their own module's dashboard.
 
 ---
 
-## 🌐 Production Deployment
+## AI features
 
-For complete instructions on deploying to **Vercel** (both single monorepo and dual-project setups), see the **[DEPLOYMENT.md](./DEPLOYMENT.md)** guide.
+15 AI-backed capabilities live behind `/api/ai/*` — findings generation, CAPA recommendations, a streaming compliance copilot, gap analysis, evidence validation, document intelligence, risk & quality scoring, smart scheduling, generative reports, predictive maturity/compliance, benchmarking, and an executive dashboard summary. Full endpoint list, provider split, and the cost/quota engineering behind them: **[TECH_STACK.md §4](./TECH_STACK.md#4-ai-integration)**.
+
+The **AI Settings** page (`/admin/ai-settings`) shows live provider health, per-feature usage stats, and lets you toggle features off client-side.
+
+---
+
+## Scripts
+
+Run each inside the folder that owns it.
+
+**backend/**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Start the API with auto-restart on change |
+| `npm run start` | Start the API once (no watch) |
+| `npm run seed` | Seed MongoDB with demo data |
+| `npm run verify:ai` | Smoke-test every AI feature end to end |
+| `npm run typecheck` | Type-check the backend |
+
+**frontend/**
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server on :5173 |
+| `npm run build` | Type-check + production build |
+| `npm run preview` | Serve the production build locally |
+| `npm run typecheck` | Type-check the frontend |
+
+---
+
+## Environment variables
+
+Each app has its own `.env`, copied from the adjacent `.env.example`:
+
+- **backend/.env** — required: `GEMINI_API_KEY`, `GROQ_API_KEY`, `MONGODB_URI`, `JWT_SECRET`. Everything else (`PORT`, cache TTLs, model names, upload size limit, quota buffer, `ALLOWED_ORIGINS`) has a sensible default.
+- **frontend/.env** — `VITE_API_URL` and `VITE_AI_API_URL` tell the SPA where the backend is (default `http://localhost:3001`).
