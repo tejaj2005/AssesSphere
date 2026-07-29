@@ -15,17 +15,17 @@ Node.js `v22.14.0` is the runtime this was built and run against. There's no `en
 | Package | Version | Role |
 |---|---|---|
 | React | 18.3.1 | UI library |
-| TypeScript | 5.9.3 | Type safety |
-| Vite | 5.4.21 | Dev server + bundler |
-| React Router DOM | 6.30.3 | Client-side routing |
-| Tailwind CSS | 3.4.19 | Styling |
-| Framer Motion | 11.18.2 | Animation |
-| Recharts | 2.15.4 | Charts on dashboards |
-| @dnd-kit/core, /sortable, /utilities | 6.3.1 / 8.x / 3.x | Drag-to-reorder (stages, checklists) |
-| Sonner | 1.7.4 | Toast notifications |
+| TypeScript | 5.5.3 | Type safety |
+| Vite | 5.3.4 | Dev server + bundler |
+| React Router DOM | 6.26.0 | Client-side routing |
+| Tailwind CSS | 3.4.7 | Styling |
+| Framer Motion | 11.3.19 | Animation |
+| Recharts | 2.12.7 | Charts on dashboards |
+| @dnd-kit/core, /sortable, /utilities | 6.1.0 / 8.0.0 / 3.2.2 | Drag-to-reorder (stages, checklists) |
+| Sonner | 1.5.0 | Toast notifications |
 | date-fns | 3.6.0 | Date formatting |
 | lucide-react | 0.408.0 | Icon set |
-| class-variance-authority + tailwind-merge | 0.7.1 / 2.6.1 | Variant-driven component styling (shadcn-style `cn()`) |
+| class-variance-authority + tailwind-merge | 0.7.0 / 2.4.0 | Variant-driven component styling (shadcn-style `cn()`) |
 | xlsx | 0.18.5 | Client-side Excel export |
 
 **Why React 18 + Vite over Next.js or CRA:** this is a pure SPA behind a role-based login wall —
